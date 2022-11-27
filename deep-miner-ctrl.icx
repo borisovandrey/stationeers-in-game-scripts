@@ -1,0 +1,123 @@
+alias cfg1 d1
+alias cfg2 d2
+alias cfg3 d3
+alias dm d0
+alias store d4
+alias sorter d5
+
+const LogicMode = 2
+const StopSorter = -1
+const LeftOutput = 1
+const RightOutput = 0
+const ImportSlot = 0
+const CentrifugeHash = 578182956
+const CfgReagentsLimit = 200
+const CfgEmptyLimit = 5
+const StoreFirstSlot = 2
+const StoreLastSlot = 101
+const StoreSlotLmt = 50
+const LastSlotQtty = 0
+const SleepTime = 30
+
+var return = 0
+var StoreInputCnt = 0
+var idx = 0
+var qtty = 0 
+var RequestedOre = 0
+#sorter.Mode = LogicMode
+#sorter.Output = StopSorter
+
+UnloadStore()
+main:
+    #CheckCfgOverflow()
+    #CheckCfgReady()
+    #sleep SleepTime
+    #if return != 0
+        UnloadStore()
+    #end
+    yield
+j main
+
+function UnloadStore
+    push ra
+    ExtractFullStackFromStore()
+    while RequestedOre != 0 
+        #RouteSorter()
+        ExtractFullStackFromStore()
+        yield
+    end
+    pop ra
+end
+
+function RouteSorter
+    qtty = sorter.slot(ImportSlot).Quantity
+    idx = 100
+    while (qtty == 0) && (idx > 0)
+        yield
+        qtty = sorter.slot(ImportSlot).Quantity
+        idx--
+    end
+    if qtty > 0
+        if qtty >= StoreSlotLmt
+            sorter.Output = LeftOutput
+        else
+            sorter.Output = RightOutput
+        end
+        yield
+    end
+end
+
+function ExtractFullStackFromStore
+    return = 0
+
+    var StoreInputCntNew = store.ImportCount
+    #if (StoreInputCntNew > StoreInputCnt) || (RequestedOre != 0)
+        RequestedOre = 0
+        idx = StoreFirstSlot
+        while idx <= StoreLastSlot
+             qtty = store.slot(idx).Quantity
+             if qtty >= StoreSlotLmt
+                RequestedOre =  store.slot(idx).OccupantHash
+                store.RequestHash = RequestedOre
+                yield
+                store.RequestHash = 0
+                yield
+                #sleep 1
+                break
+             end
+             if qtty == LastSlotQtty
+                #break 
+             end
+            idx++
+        end
+    #end
+    StoreInputCnt = StoreInputCntNew
+end
+
+function CheckCfgOverflow
+    var CfgBusy = d(CentrifugeHash).Occupied(Minimum)
+    if CfgBusy != 0
+        dm.On = 0
+    else
+        dm.On = 1
+    end
+end
+
+function CheckCfgReady
+    return = 0
+    idx = 1 
+    while idx <= 3
+        var rgnts = d[idx].Reagents
+        if rgnts >= CfgReagentsLimit
+            d[idx].Open = 1
+            while rgnts >= CfgEmptyLimit
+                yield
+                rgnts = d[idx].Reagents
+            end
+            d[idx].Open = 0
+            return = 1
+            break 
+        end
+        idx++
+    end
+end

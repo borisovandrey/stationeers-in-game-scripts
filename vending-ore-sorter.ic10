@@ -1,0 +1,125 @@
+alias keepstack r0
+alias idx r1
+alias qtty r2
+alias hash r3
+alias ddx r4
+alias cntr r5
+alias occupaied r6
+alias falseitems r7
+alias store d0
+alias sorter d1
+alias valve d2
+alias led d3
+s led On 1
+s sorter Mode 2
+main:
+move keepstack sp
+move idx 2
+move qtty 0
+move hash 0
+move ddx 0
+move cntr 0
+s valve Open 0
+l occupaied store Quantity
+seq r15 occupaied 99
+beqz r15 if0else
+s db Setting -101
+s led Color 3
+j if0exit
+if0else:
+s db Setting 0
+s led Color 2
+if0exit:
+yield
+while0:
+sle r15 idx 101
+sgtz r14 occupaied
+and r13 r15 r14
+beqz r13 while0exit
+ls qtty store idx Quantity
+snez r12 qtty
+beqz r12 if1exit
+sub occupaied occupaied 1
+if1exit:
+sge r12 qtty 50
+beqz r12 if2exit
+ls hash store idx OccupantHash
+push hash
+if2exit:
+add idx idx 1
+j while0
+while0exit:
+move falseitems 0
+while1:
+sne r15 sp keepstack
+sle r14 falseitems 14
+and r12 r15 r14
+beqz r12 while1exit
+s led Color 5
+ls qtty sorter 1 Quantity
+snez r11 qtty
+beqz r11 if3exit
+j while1exit
+if3exit:
+ls qtty sorter 2 Quantity
+snez r11 qtty
+beqz r11 if4exit
+j while1exit
+if4exit:
+peek hash
+s store RequestHash hash
+move ddx 0
+move idx 1
+jal wait_qtty_on_slot
+sge r11 qtty 50
+beqz r11 if5else
+pop hash
+j if5exit
+if5else:
+add falseitems falseitems 1
+if5exit:
+move ddx 1
+move idx 0
+jal wait_qtty_on_slot
+jal route_sorter
+j while1
+while1exit:
+move sp keepstack
+s valve Open 1
+s led Color 1
+sleep 30
+j main
+exception:
+s led Color 4
+yield
+jr 36
+route_sorter:
+sge r15 qtty 50
+beqz r15 if6else
+s sorter Output 1
+j if6exit
+if6else:
+s sorter Output 0
+if6exit:
+yield
+sleep 2
+j ra
+wait_qtty_on_slot:
+move cntr 30
+ls qtty dr4 idx Quantity
+while2:
+seqz r15 qtty
+sgtz r14 cntr
+and r11 r15 r14
+beqz r11 while2exit
+yield
+ls qtty dr4 idx Quantity
+sub cntr cntr 1
+j while2
+while2exit:
+seqz r15 qtty
+beqz r15 if7exit
+s db Error 1
+j exception
+if7exit:
+j ra

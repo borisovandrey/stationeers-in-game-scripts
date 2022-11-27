@@ -1,0 +1,128 @@
+s d2 Setting 0
+s d2 SettingOutput 0
+s d2 Mode 0
+move r0 0
+move r1 0
+move r2 0
+move r3 0
+main:
+s d1 Activate 0
+s d3 Color 5
+s d3 On 1
+yield
+jal findhash
+snez r15 r0
+beqz r15 if0else
+s d3 Color 3
+jal extracthash
+s d3 Color 5
+sleep 5
+j if0exit
+if0else:
+s d3 Color 1
+sleep 20
+if0exit:
+j main
+jr 130
+waitstackerimport:
+move r2 0
+while0:
+sle r15 r2 4
+beqz r15 while0exit
+ls r1 d1 2 Quantity
+sgt r14 r1 r3
+beqz r14 if1exit
+j while0exit
+if1exit:
+add r2 r2 1
+sleep 1
+j while0
+while0exit:
+sub r1 r1 r3
+j ra
+waitstackerexport:
+ls r1 d1 2 Quantity
+while1:
+sgt r15 r1 r3
+beqz r15 while1exit
+yield
+ls r1 d1 2 Quantity
+j while1
+while1exit:
+j ra
+extracthash:
+push r17
+s d1 Mode 1
+s d1 Setting 500
+while2:
+snez r15 r0
+beqz r15 while2exit
+ls r3 d1 2 Quantity
+s d0 RequestHash r0
+jal waitstackerimport
+seqz r14 r1
+beqz r14 if2exit
+move r0 0
+if2exit:
+s d1 Output 1
+move r3 500
+jal waitstackerexport
+j while2
+while2exit:
+s d1 Activate 1
+move r3 0
+jal waitstackerexport
+s d1 Activate 0
+s d1 Mode 0
+s d3 Color 2
+pop r17
+j ra
+findhash:
+move r0 0
+move r2 2
+l r3 d0 Quantity
+while3:
+sne r15 r2 500
+snez r14 r3
+seqz r13 r0
+and r12 r15 r14
+and r12 r12 r13
+beqz r12 while3exit
+ls r1 d0 r2 Quantity
+ls r4 d0 r2 OccupantHash
+add r2 r2 1
+snez r11 r1
+beqz r11 if3exit
+sub r3 r3 1
+sne r10 r1 500
+beqz r10 if4exit
+push r2
+push r3
+while4:
+sne r9 r2 101
+snez r8 r3
+and r7 r9 r8
+beqz r7 while4exit
+ls r1 d0 r2 Quantity
+snez r6 r1
+beqz r6 if5exit
+ls r0 d0 r2 OccupantHash
+sub r3 r3 1
+seq r5 r0 r4
+beqz r5 if6else
+j while4exit
+j if6exit
+if6else:
+move r0 0
+if6exit:
+if5exit:
+add r2 r2 1
+j while4
+while4exit:
+pop r3
+pop r2
+if4exit:
+if3exit:
+j while3
+while3exit:
+j ra

@@ -1,0 +1,17 @@
+s d0 Mode 2
+s d0 Output -1
+main:
+ls r0 d0 0 Quantity
+snez r15 r0
+beqz r15 if0exit
+ls r1 d0 0 Class
+seq r14 r1 10
+beqz r14 if1else
+s d0 Output 0
+j if1exit
+if1else:
+s d0 Output 1
+if1exit:
+if0exit:
+yield
+j main

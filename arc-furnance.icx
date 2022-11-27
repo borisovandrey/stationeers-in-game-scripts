@@ -1,0 +1,66 @@
+use aliases
+alias furn d0
+alias hashdsp d1
+alias importdsp d2
+alias exportdsp d3
+alias ffswtch d4
+alias led d5
+
+const Blue = -1
+const Gray = 1
+const Green = 2
+const Orange = 3
+const Red = 4
+const Yellow = 5
+const Purple = 11
+
+const InputSlot = 0
+const EmptyWaitLmt = 10
+const IdleSleepTime = 10
+
+led.On = 1
+led.Color = Yellow
+ffswtch.Setting = 0
+ffswtch.SettingOutput = 0
+ffswtch.Mode = 1
+furn.ClearMemory = 1
+furn.Activate = 0
+var active = 0
+var emptycount = 0
+var qtty = 0
+yield
+
+main:
+    qtty = furn.slot(InputSlot).Quantity
+    importdsp.Setting = qtty
+    var activecur = furn.Activate
+    if qtty != 0 
+        emptycount = 0
+        active = 1
+        led.Color = Orange
+        var hash = furn.Slot(InputSlot).OccupantHash
+        hashdsp.Setting = hash
+        if active != activecur
+            led.Color = Orange
+            furn.Activate = 1
+        end 
+        yield 
+    else
+        hashdsp.Setting = 0
+        emptycount++
+        if active == 1
+            furn.Activate = 0
+            active = 0
+            var exported = furn.ExportCount
+            exportdsp.Setting = exported
+        end 
+
+        if emptycount >= EmptyWaitLmt
+            led.Color = Gray
+            sleep IdleSleepTime
+        else
+            led.Color = Yellow
+            yield
+        end
+    end
+j main

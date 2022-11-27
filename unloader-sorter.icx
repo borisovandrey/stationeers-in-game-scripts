@@ -1,0 +1,24 @@
+alias sorter d0
+alias extruder d1
+const LogicMode = 2
+const StopSorter = -1
+const LeftOutput = 1
+const RightOutput = 0
+const ImportSlot = 0
+const OreClass = 10
+sorter.Mode = LogicMode
+sorter.Output = StopSorter
+main:
+    var qtty = sorter.slot(ImportSlot).Quantity
+    if qtty != 0
+        var cls = sorter.slot(ImportSlot).Class  
+        if cls == OreClass
+            sorter.Output = RightOutput
+        else
+            sorter.Output = LeftOutput
+        end
+    end 
+    yield
+j main
+
+

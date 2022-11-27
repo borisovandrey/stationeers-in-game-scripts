@@ -1,0 +1,132 @@
+alias store d0
+alias stacker d1
+alias flipflop d2
+alias led d3
+
+const Direct = 0
+const Side = 1
+const StoreFirstSlot = 2
+const StoreLastSlot = 101
+const ItemStackSize = 500
+const IdleTime = 20
+const WaitLmt = 4
+const StackerDefaultMode = 0
+const StackerLogicMode = 1
+const StackerInternalStore = 2
+const TransitionTime = 5
+
+const Blue = -1
+const Gray = 1
+const Green = 2
+const Orange = 3
+const Red = 4
+const Yellow = 5
+const Purple = 11
+
+flipflop.Setting = 0
+flipflop.SettingOutput = 0
+flipflop.Mode = Direct
+
+var hash = 0
+var qtty = 0
+var idx = 0
+var expectedqtty = 0
+#store.Lock = 0
+
+main:
+    stacker.Activate = 0
+    led.Color = Yellow
+    led.On = 1
+    yield
+    findhash()
+    if hash != 0
+        led.Color = Orange
+        extracthash()
+        led.Color = Yellow
+        sleep TransitionTime
+    else
+       led.Color = Gray
+       sleep IdleTime
+    end
+j main
+
+function waitstackerimport
+    idx = 0
+    while idx <= WaitLmt
+        qtty = stacker.slot(StackerInternalStore).Quantity
+        if qtty > expectedqtty
+            break
+        end
+        idx++
+        sleep 1
+    end
+    qtty = qtty - expectedqtty
+end
+
+function waitstackerexport
+    qtty = stacker.slot(StackerInternalStore).Quantity
+    while qtty > expectedqtty
+        yield
+        qtty = stacker.slot(StackerInternalStore).Quantity
+    end
+end
+
+function extracthash
+    push ra
+    stacker.Mode = StackerLogicMode
+    stacker.Setting = ItemStackSize
+    while hash != 0
+        expectedqtty = stacker.slot(StackerInternalStore).Quantity
+        store.RequestHash = hash
+        waitstackerimport()
+        if qtty == 0
+            hash = 0
+        end
+        stacker.Output = 1
+        expectedqtty = ItemStackSize
+        waitstackerexport()
+    end
+    
+    stacker.Activate = 1
+    expectedqtty = 0
+    waitstackerexport()
+    stacker.Activate = 0
+    stacker.Mode = StackerDefaultMode
+    led.Color = Green
+    pop ra
+end
+
+function findhash
+    #store.Lock = 1
+    hash = 0
+    idx = StoreFirstSlot
+    expectedqtty = store.Quantity
+    while (idx != ItemStackSize) && (expectedqtty != 0) && (hash == 0)
+        qtty = store.slot(idx).Quantity 
+        var firsthash = store.slot(idx).OccupantHash
+        idx++
+        if qtty != 0
+            expectedqtty--
+            if qtty != ItemStackSize
+                push idx
+                push expectedqtty
+                while (idx != StoreLastSlot) && (expectedqtty != 0)
+                    qtty = store.slot(idx).Quantity
+                    if qtty != 0
+                        hash = store.slot(idx).OccupantHash 
+                        expectedqtty--
+                        if hash == firsthash
+                            break
+                        else
+                            hash = 0
+                        end
+                    end
+                    idx++
+                end 
+                pop expectedqtty
+                pop idx
+            end
+        end
+    end
+    #store.Lock = 0
+end 

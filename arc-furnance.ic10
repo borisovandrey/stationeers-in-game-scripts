@@ -1,0 +1,62 @@
+alias active r0
+alias emptycount r1
+alias qtty r2
+alias activecur r3
+alias hash r4
+alias exported r5
+alias furn d0
+alias hashdsp d1
+alias importdsp d2
+alias exportdsp d3
+alias ffswtch d4
+alias led d5
+s led On 1
+s led Color 5
+s ffswtch Setting 0
+s ffswtch SettingOutput 0
+s ffswtch Mode 1
+s furn ClearMemory 1
+s furn Activate 0
+move active 0
+move emptycount 0
+move qtty 0
+yield
+main:
+ls qtty furn 0 Quantity
+s importdsp Setting qtty
+l activecur furn Activate
+snez r15 qtty
+beqz r15 if0else
+move emptycount 0
+move active 1
+s led Color 3
+ls hash furn 0 OccupantHash
+s hashdsp Setting hash
+sne r14 active activecur
+beqz r14 if1exit
+s led Color 3
+s furn Activate 1
+if1exit:
+yield
+j if0exit
+if0else:
+s hashdsp Setting 0
+add emptycount emptycount 1
+seq r14 active 1
+beqz r14 if2exit
+s furn Activate 0
+move active 0
+l exported furn ExportCount
+s exportdsp Setting exported
+if2exit:
+sge r14 emptycount 10
+beqz r14 if3else
+s led Color 1
+sleep 10
+j if3exit
+if3else:
+s led Color 5
+yield
+if3exit:
+if0exit:
+j main

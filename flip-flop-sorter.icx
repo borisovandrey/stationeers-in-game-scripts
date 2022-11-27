@@ -1,0 +1,23 @@
+alias flipflop d0
+alias valve d1
+alias dsp1 d2
+alias dsp2 d3
+alias dsp3 d4
+alias mem1 d5
+
+s valve Open 0
+s flipflop Setting 0
+s flipflop SettingOutput 0
+main:
+yield
+ls r0 valve 0 Quantity
+beqz r0 main
+ls r0 valve 0 Class
+beq r0 10 direct
+s flipflop Mode 1
+jr 3
+direct:
+s flipflop Mode 0
+s valve Open 1
+yield
+j main

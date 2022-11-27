@@ -1,0 +1,133 @@
+use aliases
+alias store d0
+alias sorter d1
+alias valve d2
+alias led d3
+
+const StoreDDX = 0
+const SorterDDX = 1
+const FirstStoreSlot = 2
+const AmountOfSlots = 101
+const StackLmt = 50
+const ExportSlot = 1
+const FalseAmountLmt = 14
+const LogicMode = 2
+const StopSorter = -1
+const LeftOutput = 1
+const RightOutput = 0
+const ImportSlot = 0
+const ExportSlot1 = 1
+const ExportSlot2 = 2
+const WaitSlotQttTimeLmt = 30
+const NoError = 0
+const StoreIsFull = -101
+const StoreQttyLmt = AmountOfSlots - 2
+const SleepTime = 30
+const TransitionTime = 2
+
+const Blue = 0
+const Gray = 1
+const Green = 2
+const Orange = 3
+const Red = 4
+const Yellow = 5
+const Purple = 11
+
+led.On = 1
+sorter.Mode = LogicMode
+
+main:
+var keepstack = sp
+var idx = FirstStoreSlot
+var qtty = 0
+var hash = 0
+var ddx = 0
+var cntr = 0
+
+valve.Open = 0
+var occupaied = store.Quantity
+if occupaied == StoreQttyLmt
+    db.Setting = StoreIsFull
+    led.Color = Orange
+else
+    db.Setting = NoError
+    led.Color = Green
+end
+yield
+
+while (idx <= AmountOfSlots) && (occupaied > 0)
+    qtty = store.slot(idx).Quantity
+    if qtty != 0
+        occupaied-- 
+    end         
+    if qtty >= StackLmt
+        hash = store.slot(idx).OccupantHash
+        stack hash
+    end
+    idx++
+end
+
+var falseitems = 0
+while (sp != keepstack) && (falseitems <= FalseAmountLmt)
+    led.Color = Yellow
+    qtty = sorter.slot(ExportSlot1).Quantity
+    if qtty != 0
+        break
+    end
+    qtty = sorter.slot(ExportSlot2).Quantity
+    if qtty != 0
+        break
+    end
+    
+    peek hash
+    store.RequestHash = hash    
+
+    ddx = StoreDDX
+    idx = ExportSlot
+    wait_qtty_on_slot()
+
+    if qtty >= StackLmt
+        pop hash
+    else
+        falseitems++
+    end
+
+    ddx = SorterDDX
+    idx = ImportSlot
+    wait_qtty_on_slot()
+    route_sorter()
+end
+
+sp = keepstack
+valve.Open = 1 
+led.Color = Gray
+sleep SleepTime
+j main
+
+exception:
+led.Color = Red
+yield
+
+function route_sorter
+    if qtty >= StackLmt
+        sorter.Output = LeftOutput
+    else
+        sorter.Output = RightOutput
+    end
+    yield
+    sleep TransitionTime 
+end
+
+function wait_qtty_on_slot
+    cntr = WaitSlotQttTimeLmt
+    qtty = d[ddx].slot(idx).Quantity
+    while (qtty == 0) && (cntr > 0)
+        yield                                       
+        qtty = d[ddx].slot(idx).Quantity
+        cntr--           
+    end
+    if qtty == 0
+        db.Error = 1
+        j exception
+    end
+end

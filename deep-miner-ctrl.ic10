@@ -1,0 +1,109 @@
+move r0 0
+move r1 0
+move r2 0
+move r3 0
+move r4 0
+jal UnloadStore
+main:
+jal UnloadStore
+yield
+j main
+jr 126
+UnloadStore:
+push r17
+jal ExtractFullStackFromStore
+while0:
+snez r15 r4
+beqz r15 while0exit
+jal ExtractFullStackFromStore
+yield
+j while0
+while0exit:
+pop r17
+j ra
+RouteSorter:
+ls r3 d5 0 Quantity
+move r2 100
+while1:
+seqz r15 r3
+sgtz r14 r2
+and r13 r15 r14
+beqz r13 while1exit
+yield
+ls r3 d5 0 Quantity
+sub r2 r2 1
+j while1
+while1exit:
+sgtz r15 r3
+beqz r15 if0exit
+sge r14 r3 50
+beqz r14 if1else
+s d5 Output 1
+j if1exit
+if1else:
+s d5 Output 0
+if1exit:
+yield
+if0exit:
+j ra
+ExtractFullStackFromStore:
+move r0 0
+l r5 d4 ImportCount
+move r4 0
+move r2 2
+while2:
+sle r15 r2 101
+beqz r15 while2exit
+ls r3 d4 r2 Quantity
+sge r14 r3 50
+beqz r14 if2exit
+ls r4 d4 r2 OccupantHash
+s d4 RequestHash r4
+yield
+s d4 RequestHash 0
+yield
+j while2exit
+if2exit:
+seq r14 r3 0
+beqz r14 if3exit
+if3exit:
+add r2 r2 1
+j while2
+while2exit:
+move r1 r5
+j ra
+CheckCfgOverflow:
+lb r6 578182956 Occupied Minimum
+snez r15 r6
+beqz r15 if4else
+s d0 On 0
+j if4exit
+if4else:
+s d0 On 1
+if4exit:
+j ra
+CheckCfgReady:
+move r0 0
+move r2 1
+while3:
+sle r15 r2 3
+beqz r15 while3exit
+l r7 dr2 Reagents
+sge r14 r7 200
+beqz r14 if5exit
+s dr2 Open 1
+while4:
+sge r12 r7 5
+beqz r12 while4exit
+yield
+l r7 dr2 Reagents
+j while4
+while4exit:
+s dr2 Open 0
+move r0 1
+j while3exit
+if5exit:
+add r2 r2 1
+j while3
+while3exit:
+j ra
