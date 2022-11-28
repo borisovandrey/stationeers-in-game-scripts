@@ -1,3 +1,9 @@
+use aliases
+use comments 
+
+#Importanat!!! The algorithm contains an error that leads to endless cycle in a case when store contains some full stack packets.
+#I'm going to fix it soon
+
 alias store d0
 alias stacker d1
 alias flipflop d2
