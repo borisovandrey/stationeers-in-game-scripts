@@ -1,0 +1,61 @@
+#68 lines
+#alias hash r0
+#alias qtty r1
+#alias idx r2
+#alias expectedqtty r3
+#alias firsthash r4
+alias store d0
+alias stacker d1
+alias flipflop d2
+alias led d3
+findhash:
+s store Lock 1
+move hash 0
+move idx 2
+l expectedqtty store Quantity
+while3:
+sne r15 idx 101
+snez r14 expectedqtty
+seqz r13 hash
+and r12 r15 r14
+and r12 r12 r13
+beqz r12 while3exit
+ls qtty store idx Quantity
+ls firsthash store idx OccupantHash
+add idx idx 1
+snez r11 qtty
+beqz r11 if3exit
+sub expectedqtty expectedqtty 1
+sne r10 qtty 500
+beqz r10 if4exit
+push idx
+push expectedqtty
+while4:
+sne r9 idx 101
+snez r8 expectedqtty
+and r7 r9 r8
+beqz r7 while4exit
+ls qtty store idx Quantity
+snez r6 qtty
+beqz r6 if5exit
+ls hash store idx OccupantHash
+sub expectedqtty expectedqtty 1
+seq r5 hash firsthash
+beqz r5 if6else
+j while4exit
+j if6exit
+if6else:
+move hash 0
+if6exit:
+if5exit:
+add idx idx 1
+j while4
+while4exit:
+pop expectedqtty
+pop idx
+if4exit:
+if3exit:
+j while3
+while3exit:
+s store Lock 0
+j ra

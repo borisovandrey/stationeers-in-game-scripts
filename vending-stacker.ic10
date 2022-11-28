@@ -1,128 +1,141 @@
-s d2 Setting 0
-s d2 SettingOutput 0
-s d2 Mode 0
-move r0 0
-move r1 0
-move r2 0
-move r3 0
+alias hash r0
+alias qtty r1
+alias idx r2
+alias expectedqtty r3
+alias firsthash r4
+s led Color 4
+j 0
+alias store d0
+alias stacker d1
+alias flipflop d2
+alias led d3
+s flipflop Setting 0
+s flipflop SettingOutput 0
+s flipflop Mode 0
+move hash 0
+move qtty 0
+move idx 0
+move expectedqtty 0
 main:
-s d1 Activate 0
-s d3 Color 5
-s d3 On 1
+s stacker Activate 0
+s led Color 5
+s led On 1
 yield
 jal findhash
-snez r15 r0
+snez r15 hash
 beqz r15 if0else
-s d3 Color 3
+s led Color 3
 jal extracthash
-s d3 Color 5
+s led Color 5
 sleep 5
 j if0exit
 if0else:
-s d3 Color 1
+s led Color 1
 sleep 20
 if0exit:
 j main
-jr 130
+jr 132
 waitstackerimport:
-move r2 0
+move idx 0
 while0:
-sle r15 r2 4
+sle r15 idx 4
 beqz r15 while0exit
-ls r1 d1 2 Quantity
-sgt r14 r1 r3
+ls qtty stacker 2 Quantity
+sgt r14 qtty expectedqtty
 beqz r14 if1exit
 j while0exit
 if1exit:
-add r2 r2 1
+add idx idx 1
 sleep 1
 j while0
 while0exit:
-sub r1 r1 r3
+sub qtty qtty expectedqtty
 j ra
 waitstackerexport:
-ls r1 d1 2 Quantity
+ls qtty stacker 2 Quantity
 while1:
-sgt r15 r1 r3
+sgt r15 qtty expectedqtty
 beqz r15 while1exit
 yield
-ls r1 d1 2 Quantity
+ls qtty stacker 2 Quantity
 j while1
 while1exit:
 j ra
 extracthash:
-push r17
-s d1 Mode 1
-s d1 Setting 500
+push ra
+s stacker Mode 1
+s stacker Setting 500
 while2:
-snez r15 r0
+snez r15 hash
 beqz r15 while2exit
-ls r3 d1 2 Quantity
-s d0 RequestHash r0
+ls expectedqtty stacker 2 Quantity
+s store RequestHash hash
 jal waitstackerimport
-seqz r14 r1
+seqz r14 qtty
 beqz r14 if2exit
-move r0 0
+move hash 0
 if2exit:
-s d1 Output 1
-move r3 500
+s stacker Output 1
+move expectedqtty 500
 jal waitstackerexport
 j while2
 while2exit:
-s d1 Activate 1
-move r3 0
+s stacker Activate 1
+move expectedqtty 0
 jal waitstackerexport
-s d1 Activate 0
-s d1 Mode 0
-s d3 Color 2
-pop r17
+s stacker Activate 0
+s stacker Mode 0
+s led Color 2
+pop ra
 j ra
 findhash:
-move r0 0
-move r2 2
-l r3 d0 Quantity
+s store Lock 1
+move hash 0
+move idx 2
+l expectedqtty store Quantity
 while3:
-sne r15 r2 101
-snez r14 r3
-seqz r13 r0
+sne r15 idx 101
+snez r14 expectedqtty
+seqz r13 hash
 and r12 r15 r14
 and r12 r12 r13
 beqz r12 while3exit
-ls r1 d0 r2 Quantity
-ls r4 d0 r2 OccupantHash
-add r2 r2 1
-snez r11 r1
+ls qtty store idx Quantity
+ls firsthash store idx OccupantHash
+add idx idx 1
+snez r11 qtty
 beqz r11 if3exit
-sub r3 r3 1
-sne r10 r1 500
+sub expectedqtty expectedqtty 1
+sne r10 qtty 500
 beqz r10 if4exit
-push r2
-push r3
+push idx
+push expectedqtty
 while4:
-sne r9 r2 101
-snez r8 r3
+sne r9 idx 101
+snez r8 expectedqtty
 and r7 r9 r8
 beqz r7 while4exit
-ls r1 d0 r2 Quantity
-snez r6 r1
+ls qtty store idx Quantity
+snez r6 qtty
 beqz r6 if5exit
-ls r0 d0 r2 OccupantHash
-sub r3 r3 1
-seq r5 r0 r4
+ls hash store idx OccupantHash
+sub expectedqtty expectedqtty 1
+seq r5 hash firsthash
 beqz r5 if6else
 j while4exit
 j if6exit
 if6else:
-move r0 0
+move hash 0
 if6exit:
 if5exit:
-add r2 r2 1
+add idx idx 1
 j while4
 while4exit:
-pop r3
-pop r2
+pop expectedqtty
+pop idx
 if4exit:
 if3exit:
 j while3
 while3exit:
+s store Lock 0
 j ra

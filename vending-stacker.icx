@@ -1,6 +1,10 @@
 #Importanat!!! The algorithm contains an error that leads to endless cycle in a case when store contains some full stack packets.
 #I'm going to fix it soon
 
+use aliases 
+led.Color = 4
+j 0
+
 alias store d0
 alias stacker d1
 alias flipflop d2
@@ -100,7 +104,7 @@ function extracthash
 end
 
 function findhash
-    #store.Lock = 1
+    store.Lock = 1
     hash = 0
     idx = StoreFirstSlot
     expectedqtty = store.Quantity
@@ -131,5 +135,5 @@ function findhash
             end
         end
     end
-    #store.Lock = 0
+    store.Lock = 0
 end 
