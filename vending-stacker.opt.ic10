@@ -1,61 +1,45 @@
-#68 lines
-#alias hash r0
-#alias qtty r1
-#alias idx r2
-#alias expectedqtty r3
-#alias firsthash r4
+#54->31 lines
+alias hash r0
+alias qtty r1
+alias idx r2
+alias expectedqtty r3
+alias firsthash r4
+alias currhash r5
 alias store d0
 alias stacker d1
 alias flipflop d2
 alias led d3
-findhash:
-s store Lock 1
+define StoreLastSlot 101
+define ItemStackSize 500
+findhash: #Find first not full slot, then find his pair in the rest
+s store Lock 1 #Lock the storage
 move hash 0
-move idx 2
-l expectedqtty store Quantity
-while3:
-sne r15 idx 101
-snez r14 expectedqtty
-seqz r13 hash
-and r12 r15 r14
-and r12 r12 r13
-beqz r12 while3exit
+l expectedqtty store Quantity #The amount of occupated slots
+move idx 2 #Start first item slot 
+foreachslotouterloop:
+brap idx StoreLastSlot 0.001 24 #End loop: the last item' slot
+breqz expectedqtty 23 #End loop: no more occupated slots
 ls qtty store idx Quantity
 ls firsthash store idx OccupantHash
-add idx idx 1
-snez r11 qtty
-beqz r11 if3exit
-sub expectedqtty expectedqtty 1
-sne r10 qtty 500
-beqz r10 if4exit
-push idx
+add idx idx 1 
+beqz qtty foreachslotouterloop #Ignore empty slot 
+sub expectedqtty expectedqtty 1 #Decreese the amount of occupated slots
+bap qtty ItemStackSize 0.001 foreachslotouterloop #Ignore full stacked items
+push idx #Prepare for inner loop by the rest of storage to find not full stacked pair
 push expectedqtty
-while4:
-sne r9 idx 101
-snez r8 expectedqtty
-and r7 r9 r8
-beqz r7 while4exit
+foreachslotinnerloop:
+brap idx StoreLastSlot 0.001 10 #End loop: the last item' slot
+breqz expectedqtty 9 #End loop: no more occupated slots
 ls qtty store idx Quantity
-snez r6 qtty
-beqz r6 if5exit
-ls hash store idx OccupantHash
-sub expectedqtty expectedqtty 1
-seq r5 hash firsthash
-beqz r5 if6else
-j while4exit
-j if6exit
-if6else:
-move hash 0
-if6exit:
-if5exit:
+ls currhash store idx OccupantHash
 add idx idx 1
-j while4
-while4exit:
-pop expectedqtty
+beqz qtty foreachslotinnerloop #Ignore empty slot 
+sub expectedqtty expectedqtty 1
+bap qtty ItemStackSize 0.001 foreachslotinnerloop #Ignore full slot
+brna currhash firsthash 0.000000001 foreachslotinnerloop #Ignore wrong hash
+move hash currhash #Hash found the exit will occurs 
+pop expectedqtty #Inner loop exit: restore after inner cycle
 pop idx
-if4exit:
-if3exit:
-j while3
-while3exit:
-s store Lock 0
+beqz hash foreachslotouterloop #Keep search until hash is null 
+s store Lock 0 #Loop exit: unlock the store
 j ra
