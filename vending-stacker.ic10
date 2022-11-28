@@ -34,7 +34,7 @@ s led Color 1
 sleep 20
 if0exit:
 j main
-jr 132
+jr 136
 waitstackerimport:
 move idx 0
 while0:
@@ -118,14 +118,17 @@ beqz r7 while4exit
 ls qtty store idx Quantity
 snez r6 qtty
 beqz r6 if5exit
-ls hash store idx OccupantHash
 sub expectedqtty expectedqtty 1
-seq r5 hash firsthash
-beqz r5 if6else
+sne r5 qtty 500
+beqz r5 if6exit
+ls hash store idx OccupantHash
+seq null hash firsthash
+beqz null if7else
 j while4exit
-j if6exit
-if6else:
+j if7exit
+if7else:
 move hash 0
+if7exit:
 if6exit:
 if5exit:
 add idx idx 1

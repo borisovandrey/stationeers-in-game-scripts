@@ -119,14 +119,16 @@ function findhash
                 push expectedqtty
                 while (idx != StoreLastSlot) && (expectedqtty != 0)
                     qtty = store.slot(idx).Quantity
-                    if qtty != 0
-                        hash = store.slot(idx).OccupantHash 
+                    if qtty != 0 
                         expectedqtty--
-                        if hash == firsthash
-                            break
-                        else
-                            hash = 0
-                        end
+                        if qtty != ItemStackSize
+                            hash = store.slot(idx).OccupantHash 
+                            if hash == firsthash
+                                break
+                            else
+                                hash = 0
+                            end
+                        end 
                     end
                     idx++
                 end 
