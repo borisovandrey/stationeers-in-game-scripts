@@ -1,45 +1,98 @@
-#54->31 lines
 alias hash r0
 alias qtty r1
 alias idx r2
-alias expectedqtty r3
-alias firsthash r4
-alias currhash r5
 alias store d0
 alias stacker d1
 alias flipflop d2
 alias led d3
-define StoreLastSlot 101
 define ItemStackSize 500
+s flipflop Setting 0 #Fix flip flop in full controll state
+s flipflop SettingOutput 0
+s flipflop Mode 0
+
+main:
+s led Color 5 #Yellow
+s led On 1 #Lamp is always On
+yield
+jal findhash #Find item that can be stacked
+breqz hash 6 #If not found go to sleep 20 sec
+s led Color 3 #Ornage
+jal extracthash
+s led Color 5 #Yellow
+sleep 2 #Sleep for transition time
+j main
+s led Color 1 #Gray
+sleep 20 #Wait if something will change
+j main
+
+extracthash:
+alias initalquantity r10
+brnez hash 2
+j ra #In case of empty hash just exit
+s stacker Mode 1
+s stacker Setting ItemStackSize
+move idx 8 #Prepare to wait store export for ~4 sec
+ls initalquantity stacker 2 Quantity #Pin old quantity
+s store RequestHash hash #Request hash
+ls qtty stacker 2 Quantity #Get new quantity
+brgt qtty initalquantity 4 #Import occured, repeat until last item
+sub idx idx 1
+yield
+brnez idx -4 #Wait until export or time limit
+s stacker Output 1 #Open stacker to slice-group items
+ls qtty stacker 2 Quantity #Get stacker internal slot quantity
+brlt qtty ItemStackSize 3 #Wait until stacker finish its job
+yield
+jr -3
+s stacker Activate = 1 #Purge the rest from stacker
+ls qtty stacker 2 Quantity #Get stacker internal slot quantity
+breqz qtty 3
+yield 
+j -3
+s stacker Activate = 0
+s stacker Mode 0
+exit:
+j ra
+
 findhash: #Find first not full slot, then find his pair in the rest
+alias occupatedslots r10
+alias firsthash r11
+alias currhash r12
 s store Lock 1 #Lock the storage
 move hash 0
-l expectedqtty store Quantity #The amount of occupated slots
+l occupatedslots store Quantity #The amount of occupated slots
 move idx 2 #Start first item slot 
 foreachslotouterloop:
-brap idx StoreLastSlot 0.001 24 #End loop: the last item' slot
-breqz expectedqtty 23 #End loop: no more occupated slots
+brap idx 101 0.001 24 #End loop: the last item' slot
+breqz occupatedslots 23 #End loop: no more occupated slots
 ls qtty store idx Quantity
 ls firsthash store idx OccupantHash
 add idx idx 1 
 beqz qtty foreachslotouterloop #Ignore empty slot 
-sub expectedqtty expectedqtty 1 #Decreese the amount of occupated slots
+sub occupatedslots occupatedslots 1 #Decreese the amount of occupated slots
 bap qtty ItemStackSize 0.001 foreachslotouterloop #Ignore full stacked items
 push idx #Prepare for inner loop by the rest of storage to find not full stacked pair
-push expectedqtty
+push occupatedslots
 foreachslotinnerloop:
-brap idx StoreLastSlot 0.001 10 #End loop: the last item' slot
-breqz expectedqtty 9 #End loop: no more occupated slots
+brap idx 101 0.001 10 #End loop: the last item' slot
+breqz occupatedslots 9 #End loop: no more occupated slots
 ls qtty store idx Quantity
 ls currhash store idx OccupantHash
 add idx idx 1
 beqz qtty foreachslotinnerloop #Ignore empty slot 
-sub expectedqtty expectedqtty 1
+sub occupatedslots occupatedslots 1
 bap qtty ItemStackSize 0.001 foreachslotinnerloop #Ignore full slot
 brna currhash firsthash 0.000000001 foreachslotinnerloop #Ignore wrong hash
 move hash currhash #Hash found the exit will occurs 
-pop expectedqtty #Inner loop exit: restore after inner cycle
+pop occupatedslots #Inner loop exit: restore after inner cycle
 pop idx
 beqz hash foreachslotouterloop #Keep search until hash is null 
 s store Lock 0 #Loop exit: unlock the store
 j ra
+
+exception:
+s led Color 4 #Red
+s led On idx
+yield 
+nor idx idx 0 #blink
+j exception
