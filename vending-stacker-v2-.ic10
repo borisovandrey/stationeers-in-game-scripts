@@ -3,7 +3,7 @@ alias stacker d1
 alias flipflop d2
 alias led d3
 alias valve d4
-alias dsp d5
+alias switch d5
 define FullStackSize 500
 alias hash r0
 alias qtty r1
@@ -18,6 +18,8 @@ main:
 s led Color 5
 s led On 1
 yield
+l idx switch Open
+breqz idx 9
 jal collecthashes
 jal executehashes
 breqz return 4
@@ -25,9 +27,10 @@ s led Color 5
 sleep 5 
 j main
 s led Color 1
+jr 2
+s led Color -1
 sleep 30
 j main
-
 extracthash:
 alias tmpqtty1 r13
 alias tmpqtty2 r12
@@ -44,20 +47,24 @@ sleep 1
 ls tmpqtty2 stacker 2 Quantity
 breq tmpqtty2 tmpqtty1 -2
 blt tmpqtty2 FullStackSize foreachqtty
+move idx 30
 s stacker Output 1
 sleep 1
+sub idx idx 1
+beqz idx foreachqttyend
+ls tmpqtty2 stacker 0 Quantity
+bnez tmpqtty2 -5
 ls tmpqtty2 stacker 2 Quantity
-brge tmpqtty2 FullStackSize -2
+brge tmpqtty2 FullStackSize -7
 j foreachqtty
 foreachqttyend:
 s valve Open 1
 s stacker Activate 1
 yield
-ls tmpqtty1 stacker 2 Quantity #Internal stacker slot
+ls tmpqtty1 stacker 2 Quantity
 brnez tmpqtty1 -2
 sleep 3
 j ra
-
 executehashes:
 alias keepra r15
 alias ithash r11
@@ -72,7 +79,7 @@ pop qtty
 pop hash
 blt itincomplete 2 foreachslotexecute
 move return 1
-s led Color 3 #Ornage
+s led Color 3
 jal extracthash
 j foreachslotexecute
 foreachslotexecend:
