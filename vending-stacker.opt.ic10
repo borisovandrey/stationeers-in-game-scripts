@@ -58,7 +58,6 @@ findhash: #Find first not full slot, then find his pair in the rest
 alias occupatedslots r10
 alias firsthash r11
 alias currhash r12
-#s store Lock 1 #Lock the storage
 move hash 0
 l occupatedslots store Quantity #The amount of occupated slots
 move idx 2 #Start first item slot 
@@ -87,7 +86,6 @@ move hash currhash #Hash found the exit will occurs
 pop occupatedslots #Inner loop exit: restore after inner cycle
 pop idx
 beqz hash foreachslot #Keep search until hash is null 
-#s store Lock 0 #Loop exit: unlock the store
 j ra
 
 exception:
