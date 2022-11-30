@@ -1,0 +1,118 @@
+alias store d0
+alias stacker d1
+alias flipflop d2
+alias led d3
+alias valve d4
+alias dsp d5
+define FullStackSize 500
+alias hash r0
+alias qtty r1
+alias idx r2
+alias hasharraysize r3
+alias return r4
+s flipflop Setting 0 #Fix flip flop in full controll state
+s flipflop SettingOutput 0
+s flipflop Mode 0
+s stacker Mode 1
+main:
+s led Color 5
+s led On 1
+yield
+jal collecthashes
+jal executehashes
+breqz return 4
+s led Color 5 
+sleep 5 
+j main
+s led Color 1
+sleep 30
+j main
+
+extracthash:
+alias tmpqtty1 r13
+alias tmpqtty2 r12
+s valve Open 0
+s stacker Activate 0
+s stacker Setting FullStackSize
+s store ClearMemory 1
+foreachqtty:
+l tmpqtty1 store ExportCount
+beq qtty tmpqtty1 foreachqttyend
+ls tmpqtty1 stacker 2 Quantity
+s store RequestHash hash
+sleep 1
+ls tmpqtty2 stacker 2 Quantity
+breq tmpqtty2 tmpqtty1 -2
+blt tmpqtty2 FullStackSize foreachqtty
+s stacker Output 1
+sleep 1
+ls tmpqtty2 stacker 2 Quantity
+brge tmpqtty2 FullStackSize -2
+j foreachqtty
+foreachqttyend:
+s valve Open 1
+s stacker Activate 1
+yield
+ls tmpqtty1 stacker 2 Quantity #Internal stacker slot
+brnez tmpqtty1 -2
+sleep 3
+j ra
+
+executehashes:
+alias keepra r15
+alias ithash r11
+alias itincomplete r12
+move keepra ra
+move sp hasharraysize
+move return 0
+foreachslotexecute:
+beqz sp foreachslotexecend
+pop itincomplete
+pop qtty
+pop hash
+blt itincomplete 2 foreachslotexecute
+move return 1
+s led Color 3 #Ornage
+jal extracthash
+j foreachslotexecute
+foreachslotexecend:
+move ra keepra
+j ra
+collecthashes:
+alias occupatedslots r10
+alias ithash r11
+alias itfull r12
+alias itincomplete r13
+move hasharraysize 0
+move idx 2
+l occupatedslots store Quantity
+foreachslotsearch:
+brnez occupatedslots 2
+j ra 
+ls qtty store idx Quantity
+ls hash store idx OccupantHash
+add idx idx 1
+beqz qtty foreachslotsearch
+sub occupatedslots occupatedslots 1
+move sp hasharraysize 
+findhash: 
+beqz sp addtoend
+pop itincomplete
+pop itfull
+pop ithash
+beq ithash hash found
+j findhash
+addtoend:
+move itfull 0
+move itincomplete 0
+move sp hasharraysize
+add hasharraysize hasharraysize 3
+found:
+push hash
+add itfull itfull 1
+push itfull
+breq qtty FullStackSize 2
+add itincomplete itincomplete 1
+push itincomplete
+j foreachslotsearch
+j ra
