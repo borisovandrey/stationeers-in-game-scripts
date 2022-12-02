@@ -1,0 +1,148 @@
+alias o2filter d0
+alias n2filter d1
+alias sns d2
+alias outputvent d3
+alias inputvent d4
+alias led d5
+const SleepTime = 60
+const Blue = -1
+const Gray = 1
+const Green = 2
+const Orange = 3
+const Red = 4
+const Yellow = 5
+const Purple = 11
+const LowPresasureLmt = 95
+const NormalPressure = 101
+const HighPressureLmt  = 105
+const LowIntesitiyVentilation = 98
+const HighIntensitiyVentilation = 95
+const OxigenLowLmt = 0.26
+const OxigenNorm = 0.30
+const RatioPolutantLmt = 0.01
+const RatioPolutantNorm = 0.001
+const Idle = 1
+const NormalOperating = 2
+const IntensivCleaning = 3
+const OperationRequired = 5
+const Error = 4
+
+var a = 0 #Tmporary varibles jsut to avoid recreation it each time on use
+var b = 0
+var state = 0
+var idx = 0
+var inputventstate = 0
+var outputventstate = 0
+
+led.On = 1;
+led.Color = Green
+inputvent.On = 0
+outputvent.On = 0
+inputvent.Setting = NormalPressure
+outputvent.Setting = LowIntesitiyVentilation
+
+main:
+    state = Idle
+    checkerror()
+    checkatmoshpere()
+    led.Color = state
+    if state != Idle        
+        blink()
+    else
+        sleep SleepTime
+    end        
+j main
+
+function checkatmoshpere
+    var reqinputventstate = inputvent.On
+    var reqoutputventstate = outputvent.On    
+    var newoutputsetting = LowIntesitiyVentilation
+
+    a = sns.RatioOxygen 
+    b = sns.RatioPollutant
+    if a >= OxigenNorm
+        reqoutputventstate = 0
+    end
+    if b <= RatioPolutantNorm
+        reqoutputventstate = 0
+    end
+
+    if a < OxigenLowLmt
+        state = NormalOperating
+        reqoutputventstate = 1
+    end
+    
+    if a >= RatioPolutantLmt
+        newoutputsetting = HighIntensitiyVentilation
+        reqoutputventstate = 1
+        state = IntensivCleaning
+    end
+
+    a = sns.Pressure
+    if a < NormalPressure
+        state = NormalOperating
+        reqinputventstate = 1
+    else
+        reqinputventstate = 0
+    end
+    if a >= HighPressureLmt
+        state = NormalOperating
+        reqoutputventstate = 1
+    end
+
+    a = inputvent.On
+    if a != reqinputventstate
+        inputvent.On = reqinputventstate
+    end
+
+    a = outputvent.On
+    outputvent.Setting = newoutputsetting
+    if a == 0 && reqoutputventstate == 1
+        n2filter.On = 1
+        o2filter.On = 1
+        outputvent.On = 1
+    end
+    if a == 1 && reqoutputventstate == 0
+        outputvent.On = 0
+        sleep 5
+        o2filter.On = 0
+        sleep 5 
+        o2filter.On = 0
+    end
+    if reqoutputventstate == 0 && reqinputventstate == 0
+        state = Idle
+    end
+end
+
+function checkfilters
+    a = d[idx].slot(0).Quantity
+    b = d[idx].slot(1).Quantity
+    if a == 0 && b == 0
+        j exception
+    end
+    if a == 0 || b == 0
+        state = OperationRequired
+    end    
+end
+
+function checkerror
+    push ra
+    idx = 0
+    checkfilters()
+    idx = 1
+    checkfilters()
+    pop ra
+end
+
+function blink
+    led.On = 0
+    yield
+    led.On = 1
+    yield
+end
+
+exception:
+    state = Error
+    led.Color = state
+    blink()
+j exception

@@ -1,0 +1,132 @@
+move r0 0
+move r1 0
+move r2 0
+move r3 0
+move r4 0
+move r5 0
+s d5 On 1
+s d5 Color 2
+s d4 On 0
+s d3 On 0
+s d4 Setting 101
+s d3 Setting 98
+main:
+move r2 1
+jal checkerror
+jal checkatmoshpere
+s d5 Color r2
+sne r15 r2 1
+beqz r15 if0else
+jal blink
+j if0exit
+if0else:
+sleep 60
+if0exit:
+j main
+exception:
+move r2 4
+s d5 Color r2
+jal blink
+j exception
+jr 118
+checkatmoshpere:
+l r6 d4 On
+l r7 d3 On
+move r8 98
+l r0 d2 RatioOxygen
+l r1 d2 RatioPollutant
+sge r15 r0 0.30
+beqz r15 if1exit
+move r7 0
+if1exit:
+sle r15 r1 0.001
+beqz r15 if2exit
+move r7 0
+if2exit:
+slt r15 r0 0.26
+beqz r15 if3exit
+move r2 2
+move r7 1
+if3exit:
+sge r15 r0 0.01
+beqz r15 if4exit
+move r8 95
+move r7 1
+move r2 3
+if4exit:
+l r0 d2 Pressure
+slt r15 r0 101
+beqz r15 if5else
+move r2 2
+move r6 1
+j if5exit
+if5else:
+move r6 0
+if5exit:
+sge r15 r0 105
+beqz r15 if6exit
+move r2 2
+move r7 1
+if6exit:
+l r0 d4 On
+sne r15 r0 r6
+beqz r15 if7exit
+s d4 On r6
+if7exit:
+l r0 d3 On
+s d3 Setting r8
+seqz r15 r0
+seq r14 r7 1
+and r13 r15 r14
+beqz r13 if8exit
+s d1 On 1
+s d0 On 1
+s d3 On 1
+if8exit:
+seq r15 r0 1
+seqz r14 r7
+and r13 r15 r14
+beqz r13 if9exit
+s d3 On 0
+sleep 5
+s d0 On 0
+sleep 5
+s d0 On 0
+if9exit:
+seqz r15 r7
+seqz r14 r6
+and r13 r15 r14
+beqz r13 if10exit
+move r2 1
+if10exit:
+j ra
+checkfilters:
+ls r0 dr3 0 Quantity
+ls r1 dr3 1 Quantity
+seqz r15 r0
+seqz r14 r1
+and r13 r15 r14
+beqz r13 if11exit
+j exception
+if11exit:
+seqz r15 r0
+seqz r14 r1
+or r13 r15 r14
+beqz r13 if12exit
+move r2 5
+if12exit:
+j ra
+checkerror:
+push r17
+move r3 0
+jal checkfilters
+move r3 1
+jal checkfilters
+pop r17
+j ra
+blink:
+s d5 On 0
+yield
+s d5 On 1
+yield
+j ra
