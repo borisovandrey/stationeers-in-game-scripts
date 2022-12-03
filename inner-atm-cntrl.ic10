@@ -1,9 +1,13 @@
 move r0 1
 s d5 On 1
+s d4 On 0
+s d3 On 0
+s d0 On 0
+s d1 On 0
 s d5 Color 1
 s d4 On 0
 s d3 On 0
-s d4 Setting 101
+s d4 Setting 100
 s d3 Setting 98
 main:
 move r10 1
@@ -56,7 +60,7 @@ move r3 95
 move r2 1
 move r10 3
 jal setstate
-brlt r7 101 3
+brlt r7 100 3
 move r1 0
 jr 4
 move r10 2

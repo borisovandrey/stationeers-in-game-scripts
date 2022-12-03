@@ -1,0 +1,22 @@
+use aliases
+alias tank d0
+alias mixer d1
+
+main:
+var prss = tank.Pressure
+var on = 0
+if prss > 2000
+    on = 0
+end
+if prss < 1500
+    on = 1
+end
+
+var mixeron = mixer.On
+
+if mixeron != on
+    mixer.On = on
+end
+
+sleep 10
+j main

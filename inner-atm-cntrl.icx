@@ -13,7 +13,7 @@ const Red = 4
 const Yellow = 5
 const Purple = 11
 const LowPresasureLmt = 95
-const NormalPressure = 101
+const NormalPressure = 100
 const HighPressureLmt  = 105
 const LowIntesitiyVentilation = 98
 const HighIntensitiyVentilation = 95
@@ -29,7 +29,11 @@ const Error = 4
 
 var state = Idle
 
-led.On = 1;
+led.On = 1
+inputvent.On = 0
+outputvent.On = 0
+o2filter.On = 0
+n2filter.On = 0
 led.Color = Gray
 inputvent.On = 0
 outputvent.On = 0

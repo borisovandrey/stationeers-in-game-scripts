@@ -1,0 +1,23 @@
+alias prss r0
+alias on r1
+alias mixeron r2
+alias tank d0
+alias mixer d1
+main:
+l prss tank Pressure
+move on 0
+sgt r15 prss 2000
+beqz r15 if0exit
+move on 0
+if0exit:
+slt r15 prss 1500
+beqz r15 if1exit
+move on 1
+if1exit:
+l mixeron mixer On
+sne r15 mixeron on
+beqz r15 if2exit
+s mixer On on
+if2exit:
+sleep 10
+j main
