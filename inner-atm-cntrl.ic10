@@ -1,126 +1,109 @@
-move r0 0
-move r1 0
-move r2 0
-move r3 0
-move r4 0
-move r5 0
+move r0 1
 s d5 On 1
-s d5 Color 2
+s d5 Color 1
 s d4 On 0
 s d3 On 0
 s d4 Setting 101
 s d3 Setting 98
 main:
-move r2 1
+move r10 1
+jal setstate
 jal checkerror
 jal checkatmoshpere
-s d5 Color r2
-sne r15 r2 1
-beqz r15 if0else
+s d5 Color r0
+breq r0 1 3
 jal blink
-j if0exit
-if0else:
-sleep 60
-if0exit:
 j main
-exception:
-move r2 4
-s d5 Color r2
-jal blink
-j exception
-jr 118
-checkatmoshpere:
-l r6 d4 On
-l r7 d3 On
-move r8 98
-l r0 d2 RatioOxygen
-l r1 d2 RatioPollutant
-sge r15 r0 0.30
-beqz r15 if1exit
-move r7 0
-if1exit:
-sle r15 r1 0.001
-beqz r15 if2exit
-move r7 0
-if2exit:
-slt r15 r0 0.26
-beqz r15 if3exit
-move r2 2
-move r7 1
-if3exit:
-sge r15 r0 0.01
-beqz r15 if4exit
-move r8 95
-move r7 1
-move r2 3
-if4exit:
-l r0 d2 Pressure
-slt r15 r0 101
-beqz r15 if5else
-move r2 2
-move r6 1
-j if5exit
-if5else:
-move r6 0
-if5exit:
-sge r15 r0 105
-beqz r15 if6exit
-move r2 2
-move r7 1
-if6exit:
-l r0 d4 On
-sne r15 r0 r6
-beqz r15 if7exit
-s d4 On r6
-if7exit:
-l r0 d3 On
-s d3 Setting r8
-seqz r15 r0
-seq r14 r7 1
-and r13 r15 r14
-beqz r13 if8exit
-s d1 On 1
-s d0 On 1
-s d3 On 1
-if8exit:
-seq r15 r0 1
-seqz r14 r7
-and r13 r15 r14
-beqz r13 if9exit
+sleep 60
+j main
+jr 119
+clearwarning:
+brne r0 5 2
+move r0 1
+j ra
+setstate:
+brne r10 3 3
+move r0 3
+j r17
+breq r0 5 2
+move r0 r10
+j ra
+switchfiltersoff:
 s d3 On 0
 sleep 5
 s d0 On 0
 sleep 5
-s d0 On 0
-if9exit:
-seqz r15 r7
-seqz r14 r6
-and r13 r15 r14
-beqz r13 if10exit
+s d1 On 0
+j ra
+checkatmoshpere:
+push r17
+l r1 d4 On
+l r2 d3 On
+move r3 98
+l r7 d2 Pressure
+l r8 d2 RatioOxygen
+l r9 d2 RatioPollutant
+brlt r8 0.30 4
+brgt r9 0.001 3
+brge r7 105 2
+move r2 0
+brge r8 0.26 4
 move r2 1
-if10exit:
+move r10 2
+jal setstate
+brlt r9 0.01 5
+move r3 95
+move r2 1
+move r10 3
+jal setstate
+brlt r7 101 3
+move r1 0
+jr 4
+move r10 2
+move r1 1
+jal setstate
+l r6 d4 On
+breq r6 r1 2
+s d4 On r1
+s d3 Setting r3
+l r6 d3 On
+beqz r6 deviceisoff
+beqz r2 reuiredoff
+j enddevicerun
+reuiredoff:
+jal switchfiltersoff
+j enddevicerun
+deviceisoff:
+beqz r2 enddevicerun
+s d1 On 1
+s d0 On 1
+s d3 On 1
+j enddevicerun
+enddevicerun:
+brnez r2 4
+brnez r1 3
+move r10 1
+jal setstate
+pop r17
 j ra
 checkfilters:
-ls r0 dr3 0 Quantity
-ls r1 dr3 1 Quantity
-seqz r15 r0
-seqz r14 r1
-and r13 r15 r14
-beqz r13 if11exit
+push r17
+ls r8 dr10 0 Quantity
+ls r9 dr10 1 Quantity
+brnez r8 3
+brnez r9 3
 j exception
-if11exit:
-seqz r15 r0
-seqz r14 r1
-or r13 r15 r14
-beqz r13 if12exit
-move r2 5
-if12exit:
+brnez r9 3
+move r0 5
+jr 2
+jal clearwarning
+pop r17
 j ra
 checkerror:
 push r17
-move r3 0
+move r10 0
 jal checkfilters
-move r3 1
+move r10 1
 jal checkfilters
 pop r17
 j ra
@@ -129,4 +112,13 @@ s d5 On 0
 yield
 s d5 On 1
 yield
+j ra
+exception:
+move r0 4
+s d5 Color r0
+s d4 On 0
+jal blink
+jal switchfiltersoff
+jal blink
+jr -1
 j ra
