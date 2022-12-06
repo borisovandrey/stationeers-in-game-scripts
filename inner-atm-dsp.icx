@@ -1,0 +1,54 @@
+use aliases 
+alias sns d0
+alias dsp d1
+
+const Blue = -1
+const Gray = 1
+const Green = 2
+const Orange = 3
+const Red = 4
+const Yellow = 5
+const White = 6
+const Purple = 11
+
+main:
+    var a  = 0
+    a = sns.Pressure
+    dsp.Color = Green
+    dsp.Mode = 0
+    dsp.Setting = a
+    sleep 3
+
+    var b = 1
+    a = sns.RatioOxygen
+    dsp.Color = White
+    dsp.Mode = 1
+    dsp.Setting = a
+    sleep 3
+    b = b - a
+
+    a = sns.RatioCarbonDioxide
+    dsp.Color = Yellow
+    dsp.Mode = 1
+    dsp.Setting = a
+    sleep 3
+    b = b - a
+
+    a = sns.RatioPollutant
+    dsp.Color = Red
+    dsp.Mode = 1
+    dsp.Setting = a
+    sleep 3
+    b = b - a
+
+    a = sns.RatioNitrogen
+    b = b - a
+
+    brapz b 1 5
+    dsp.Color = Purple
+    dsp.Mode = 1
+    dsp.Setting = b
+    sleep 6
+
+j main
+
