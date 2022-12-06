@@ -1,109 +1,59 @@
-move r0 0
-move r1 0
-move r2 0
-move r3 0
-move r4 0
-jal UnloadStore
+alias a r0
+alias b r1
+alias c r2
+alias idx r3
+alias rgnts r4
+alias cntr r5
+alias cfg1 d1
+alias cfg2 d2
+alias cfg3 d3
+alias dm d0
 main:
-jal UnloadStore
-yield
+jal CheckCfgOverflow
+jal CheckCfgReady
+sleep 30
 j main
-jr 126
-UnloadStore:
-push r17
-jal ExtractFullStackFromStore
-while0:
-snez r15 r4
-beqz r15 while0exit
-jal ExtractFullStackFromStore
-yield
-j while0
-while0exit:
-pop r17
-j ra
-RouteSorter:
-ls r3 d5 0 Quantity
-move r2 100
-while1:
-seqz r15 r3
-sgtz r14 r2
-and r13 r15 r14
-beqz r13 while1exit
-yield
-ls r3 d5 0 Quantity
-sub r2 r2 1
-j while1
-while1exit:
-sgtz r15 r3
-beqz r15 if0exit
-sge r14 r3 50
-beqz r14 if1else
-s d5 Output 1
-j if1exit
-if1else:
-s d5 Output 0
-if1exit:
-yield
+jr 57
+CheckCfgOverflow:
+ls a cfg1 1 Occupied
+ls b cfg2 1 Occupied
+ls c cfg3 1 Occupied
+snez r15 a
+snez r14 b
+snez r13 c
+and r12 r15 r14
+and r12 r12 r13
+beqz r12 if0else
+s dm On 0
+j if0exit
+if0else:
+s dm On 1
 if0exit:
 j ra
-ExtractFullStackFromStore:
-move r0 0
-l r5 d4 ImportCount
-move r4 0
-move r2 2
-while2:
-sle r15 r2 101
-beqz r15 while2exit
-ls r3 d4 r2 Quantity
-sge r14 r3 50
-beqz r14 if2exit
-ls r4 d4 r2 OccupantHash
-s d4 RequestHash r4
-yield
-s d4 RequestHash 0
-yield
-j while2exit
-if2exit:
-seq r14 r3 0
-beqz r14 if3exit
-if3exit:
-add r2 r2 1
-j while2
-while2exit:
-move r1 r5
-j ra
-CheckCfgOverflow:
-lb r6 578182956 Occupied Minimum
-snez r15 r6
-beqz r15 if4else
-s d0 On 0
-j if4exit
-if4else:
-s d0 On 1
-if4exit:
-j ra
 CheckCfgReady:
-move r0 0
-move r2 1
-while3:
-sle r15 r2 3
-beqz r15 while3exit
-l r7 dr2 Reagents
-sge r14 r7 200
-beqz r14 if5exit
-s dr2 Open 1
-while4:
-sge r12 r7 5
-beqz r12 while4exit
+move idx 1
+while0:
+sle r15 idx 3
+beqz r15 while0exit
+l rgnts dr3 Reagents
+sge r14 rgnts 200
+beqz r14 if1exit
+s dr3 Open 1
+move cntr 60
+while1:
+sge r13 rgnts 5
+sgtz r12 cntr
+and r11 r13 r12
+beqz r11 while1exit
 yield
-l r7 dr2 Reagents
-j while4
-while4exit:
-s dr2 Open 0
-move r0 1
-j while3exit
-if5exit:
-add r2 r2 1
-j while3
-while3exit:
+sub cntr cntr 1
+l rgnts dr3 Reagents
+j while1
+while1exit:
+s dr3 Open 0
+j while0exit
+if1exit:
+add idx idx 1
+j while0
+while0exit:
 j ra
