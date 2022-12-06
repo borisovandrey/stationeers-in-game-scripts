@@ -1,0 +1,38 @@
+alias a r0
+alias b r1
+alias c r2
+alias ca1 d0
+alias ca2 d1
+alias ca3 d2
+alias dsp1 d3
+alias dsp2 d4
+alias dsp3 d5
+define Blue -1
+define Gray 1
+define Green 2
+define Orange 3
+define Red 4
+define Yellow 5
+define White 6
+define Brown 8
+define Khaki 9
+define Pink 10
+define Purple 11
+s dsp1 Mode 3
+s dsp2 Mode 3
+s dsp3 Mode 3
+s dsp1 Color Blue
+s dsp2 Color Green
+s dsp3 Color White
+main:
+l a ca1 PowerActual
+l b ca2 PowerActual
+l c ca3 PowerActual
+round a a
+round b b 
+round c c
+s dsp1 Setting a
+s dsp2 Setting b
+s dsp3 Setting c
+yield
+j main

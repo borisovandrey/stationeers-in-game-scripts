@@ -1,0 +1,37 @@
+use aliases 
+use constants
+
+alias ca1 d0
+alias ca2 d1
+alias ca3 d2
+alias dsp1 d3
+alias dsp2 d4
+alias dsp3 d5
+
+const Blue = -1
+const Gray = 1
+const Green = 2
+const Orange = 3
+const Red = 4
+const Yellow = 5
+const White = 6
+const Brown = 8
+const Khaki = 9
+const Pink = 10
+const Purple = 11
+
+
+dsp1.Color = Blue
+dsp2.Color = Green
+dsp3.Color = White 
+
+main:
+var a = ca1.PowerActual
+var b = ca2.PowerActual
+var c = ca3.PowerActual
+dsp1.Setting = a
+dsp2.Setting = b
+dsp3.Setting = c
+yield
+j main
+
