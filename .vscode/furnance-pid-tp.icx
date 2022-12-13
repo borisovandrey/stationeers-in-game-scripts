@@ -1,0 +1,155 @@
+#Inspired by #From https://www.reddit.com/r/Stationeers/comments/yz28ce/furnace_thermal_mechanics_help/
+#Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller and changed to work with normalized error
+#Target point is set as pair (T,P) T in celsius
+#Algorithm works with preapred working body (CO2 cobusted in saved in insulated tank).
+#Is not suit to ignition furnance usage.
+#For fast reach of the SP preapre a big supply of hot gas.
+#600 steel (450 iron and 150 coal) with pressure 2000 and temp 1200 consumes about 9Mpa of 2052 grad in 1000L  
+alias furnace d0
+alias coolerin d1
+alias coolerout d2
+alias dsp1 d3
+alias dsp2 d4
+alias dsp3 d5
+
+#TODO: remove debug displays
+#TODO: add dead zone for volume pump regulators in 0.2-0.1
+#TODO: add big pressure check (over 50 Mpa)
+#TODO: add communication for setting target poit (SP) remotely
+#TODO: implement algorithm with input filter for derivative from https://en.wikipedia.org/wiki/PID_controller
+#TODO: think about small resource consumptiom methodics
+
+#Temeperature is set in C
+const temperature_sp_lw  = 1000 # Not used in currrent version may be deleted later
+const temperature_sp_tgt = 1200
+const temperature_sp_hgh = 2000 # Not used in currrent version may be deleted later
+
+#Ressure is set in KP
+const pressure_sp_lw  = 1500 # Not used in currrent version may be deleted later
+const pressure_sp_tgt = 2000
+const pressure_sp_hgh = 50000 # Not used in currrent version may be deleted later
+
+const temperature_offset = 10
+const pressure_offset = 30
+
+const actuator_dead_area = 0.01
+
+const Kp = 2
+const Ki = 0.6
+const Kd = 0.16
+const dt = 0.5
+const Klvn = 273.15
+
+function init
+   dsp1.Color = 4
+   dsp2.Color = 3
+   dsp3.Color = 2
+
+   push ra
+   coolerin.On = 1
+   coolerout.On = 1
+   furnace.On = 1
+   coolerin.Setting = 0
+   coolerout.Setting = 0
+
+   var previous_error = 0
+   var integral = 0
+
+   var sp_offset = temperature_offset
+   var sp_low = temperature_sp_lw
+   var sp_tgt = temperature_sp_tgt
+   var sp_high = temperature_sp_hgh
+   storelocal()
+
+   sp_offset = pressure_offset
+   sp_low = pressure_sp_lw
+   sp_tgt = pressure_sp_tgt
+   sp_high = pressure_sp_hgh
+   storelocal()
+   pop ra
+end
+
+init()
+
+main:
+   #Calculate Temperature
+   var output = 0
+   sp_offset = temperature_offset
+   loadlocal()
+   var mv = furnace.Temperature
+   mv = mv - Klvn
+   var error = (sp_tgt - mv) / sp_tgt
+   dsp1.Setting = error
+   pidcontroller()
+   var output_t = output
+
+   #Calculate pressure
+   sp_offset = pressure_offset
+   loadlocal()
+   mv = furnace.Pressure
+   error = (sp_tgt - mv) / sp_tgt
+   dsp2.Setting = error
+   pidcontroller()
+   var output_p = output
+
+   max output output_t output_p
+   dsp3.Setting = output
+
+   applyactuators()
+
+   sleep dt
+j main
+
+function storelocal
+   var pin_sp = sp
+   sp = sp_offset
+   push sp_low
+   push sp_tgt
+   push sp_high
+   push previous_error
+   push integral
+   sp = pin_sp
+end
+
+function loadlocal
+   pin_sp = sp
+   sp = sp_offset + 5
+   pop integral
+   pop previous_error
+   pop sp_high
+   pop sp_tgt
+   pop sp_low
+   sp = pin_sp
+end
+
+function pidcontroller
+   integral = integral + error * dt
+   output = Kp * error + Ki * integral  + Kd * ((error - previous_error) / dt)
+   previous_error = error
+   min output output 1
+   max output output -1
+   output = output * 100 
+ end
+
+function applyactuators 
+   abs output output_t
+   brgez output_t 4
+      coolerin.Setting = output
+      coolerout.Setting = output
+      jr 3
+      coolerin.Setting = 0
+      coolerout.Setting = 0
+
+   abs output output_p
+   brgez output_p 3
+      furnace.SettingOutput = output
+      jr 2
+      furnace.SettingOutput = 0
+
+   brgez output_t 4
+   brgez output_p 3
+      furnace.SettingInput = 0
+      jr 3
+      max output output_t output_p
+      furnace.SettingInput = output
+end
