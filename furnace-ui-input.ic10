@@ -1,0 +1,117 @@
+move r0 0
+s d0 Mode 10
+s d3 Color 4
+s d4 Color 3
+move r1 0
+jal init
+main:
+l r2 d0 Settings
+mul r15 r2 6
+add r16 r15 6
+pop r2
+move r3 r16
+s d1 Setting r2
+pop r2
+s d4 Setting r2
+pop r2
+s d3 Setting r2
+move r16 r3
+l r2 d2 On
+breq r1 r2 6
+move r1 r2
+breqz r2 3
+jal send_message
+jr 2
+jal send_stop
+yield
+j main
+jr 101
+send_stop:
+move r16 66
+push r17
+push -10002
+push -10303
+push -10301
+jal send_message
+pop r17
+j ra
+init:
+push -10002
+push -10302
+push 1773.15
+push 21000
+push -10301
+push 1058547521
+push -10002
+push -10302
+push 1773.15
+push 900
+push -10301
+push 502280180
+push -10002
+push -10302
+push 1273.15
+push 19000
+push -10301
+push -297990285
+push -10002
+push -10302
+push 500
+push 1200
+push -10301
+push -82508479
+push -10002
+push -10302
+push 1773.15
+push 1200
+push -10301
+push -654790771
+push -10002
+push -10302
+push 1773.15
+push 31000
+push -10301
+push 412924554
+push -10002
+push -10302
+push 970
+push 27000
+push -10301
+push 1579842814
+push -10002
+push -10302
+push 2273.15
+push 23700
+push -10301
+push -787796599
+push -10002
+push -10302
+push 2273.15
+push 11000
+push -10301
+push -1897868623
+push -10002
+push -10302
+push 750
+push 50500
+push -10301
+push 156348098
+j ra
+send_message:
+l r0 d5 Setting
+breq r0 -10000 3
+yield
+jr -3
+s d5 Setting -10200
+yield
+l r0 d5 Setting
+brne r0 -10200 -7
+pop r0
+s d5 Setting r0
+breq r0 -10002 6
+yield
+l r0 d5 Setting
+brne r0 -10001 -2
+jr -6
+s d5 Setting -10000
+j ra

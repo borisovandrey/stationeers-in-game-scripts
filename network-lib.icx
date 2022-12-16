@@ -1,0 +1,60 @@
+alias network d0
+
+#Newtwork constants
+const NetworkFree   = -10000
+const NetworkACK    = -10001
+const NetworkEND    = -10002
+const NetworkBA     = -10003 #Currently read procedure doesn't check the broadcast message
+const NetworkLA     = -10100 #Lock key for this device
+const NetworkRA     = -10101 #Read address for this device
+
+
+#Message format: Remote Address
+
+var nw_local = 0
+
+function send_message    
+    nw_local = network.Setting #Read current network status
+    breq nw_local NetworkFree 3 #Wait until it is free
+    yield
+    jr -3
+    network.Setting = NetworkLA #Try to lock network
+    yield #Can be a sleep 1 for sure
+    nw_local = network.Setting #Check we have taken the lock
+    brne nw_local NetworkLA -7 #Repeat procedure if someone has overtaken the locking
+    pop nw_local #Get the next data from stack
+    network.Setting = nw_local #Write data portion
+    breq nw_local NetworkEND 6 #Finish transmitting
+    yield
+    nw_local = network.Setting #Check acknoledge
+    brne nw_local NetworkACK -2 #Wait acknoledge 
+    jr -6 #Repeat reading stack and sending it out
+    network.Setting = NetworkFree #Unlock network
+end
+
+function read_msg_short
+    nw_local = network.Setting #Read current network status
+    breq nw_local NetworkRA 3 #If thtere si sour addrress
+    yield
+    jr -3
+    network.Setting = NetworkACK
+    yield
+    nw_local = network.Setting
+    breq nw_local NetworkACK -2 #Wait next portion 
+    breq nw_local NetworkEND 3
+    push nw_local
+    jr -6
+end
+
+function try_read_msg
+    nw_local = network.Setting #Read current network status
+    breq nw_local NetworkRA 3 #If thtere si sour addrress
+    jr 8
+    network.Setting = NetworkACK
+    yield
+    nw_local = network.Setting
+    breq nw_local NetworkACK -2 #Wait next portion 
+    breq nw_local NetworkEND 3
+    push nw_local
+    jr -6
+end

@@ -1,0 +1,45 @@
+move r0 0
+jr 44
+send_message:
+l r0 d0 Setting
+breq r0 -10000 3
+yield
+jr -3
+s d0 Setting -10100
+yield
+l r0 d0 Setting
+brne r0 -10100 -7
+pop r0
+s d0 Setting r0
+breq r0 -10002 6
+yield
+l r0 d0 Setting
+brne r0 -10001 -2
+jr -6
+s d0 Setting -10000
+j ra
+read_msg_short:
+l r0 d0 Setting
+breq r0 -10101 3
+yield
+jr -3
+s d0 Setting -10001
+yield
+l r0 d0 Setting
+breq r0 -10001 -2
+breq r0 -10002 3
+push r0
+jr -6
+j ra
+try_read_msg:
+l r0 d0 Setting
+breq r0 -10101 3
+jr 8
+s d0 Setting -10001
+yield
+l r0 d0 Setting
+breq r0 -10001 -2
+breq r0 -10002 3
+push r0
+jr -6
+j ra

@@ -1,0 +1,217 @@
+alias selector d0
+alias hashstorage d1
+alias startbutton d2
+alias temp_dsp d3
+alias prss_dsp d4
+alias network d5
+
+#Newtwork constants
+const NetworkFree          = -10000
+const NetworkACK           = -10001
+const NetworkEND           = -10002
+const NetworkBA            = -10003 #Currently read procedure doesn't check the broadcast message
+const NetworkLA            = -10200 #Lock key for this device
+const NetworkRA            = -10201 #Read address for this device
+const NetworkFurnaceLA     = -10300 #Lock key for furnace
+const NetworkFurnaceRA     = -10301 #Read address for furnace
+const FurnaceStartCmd      = -10302 #Start furnace with certain pressure and temperature
+const FurnaceStopCmd       = -10303 #Start furnace with certain pressure and temperature
+var nw_local = 0
+
+#Settings
+const Kelvin = 273.15
+const AmountOfIngots = 10
+const StructureSize = 6
+const HashPosition = 6
+const FreeStack = ( AmountOfIngots + 1) * StructureSize
+const Idle = 0
+const Active = 1
+
+selector.Mode = AmountOfIngots
+temp_dsp.Color = 4 #Red
+prss_dsp.Color = 3 #Orange
+var state = Idle
+init()
+
+main:
+    var setting = selector.Settings    
+    sp = setting * StructureSize + HashPosition
+    pop setting 
+    var sppin = sp
+    hashstorage.Setting = setting
+    pop setting 
+    prss_dsp.Setting = setting
+    pop setting
+    temp_dsp.Setting = setting
+    sp = sppin
+    setting = startbutton.On
+    breq state setting 6
+    state = setting
+    breqz setting 3    
+    send_message()
+    jr 2
+    send_stop()
+    yield
+j main
+
+function send_stop
+    sp = FreeStack
+    push ra
+    push NetworkEND
+    push FurnaceStopCmd
+    push NetworkFurnaceRA
+    send_message()
+    pop ra
+end
+
+function init
+
+    #1
+    #Constantan
+    #20 MPa to 100 MPa
+    #1 kK to 10 kK
+    #1058547521
+    push NetworkEND
+    push FurnaceStartCmd
+    const ConstantanT1 = 1500 + Kelvin
+    push ConstantanT1
+    push 21000
+    push NetworkFurnaceRA
+    push 1058547521
+
+    #2
+    #Electrum
+    #800 kPa to 2400 kPa
+    #600 K to 10 kK
+    #502280180
+    push NetworkEND
+    push FurnaceStartCmd
+    const ElectrumT1 = 1500 + Kelvin
+    push ElectrumT1
+    push 900
+    push NetworkFurnaceRA
+    push 502280180
+
+    #3
+    #Invar
+    #18MPa to 20MPa
+    #1.2kK to 1.5kK
+    #-297990285
+    push NetworkEND
+    push FurnaceStartCmd
+    const InvarT1 = 1000 + Kelvin
+    push InvarT1
+    push 19000
+    push NetworkFurnaceRA
+    push -297990285
+
+    #4
+    #Solder
+    #1 MPa to 100 MPa
+    #350K to 550K
+    #-82508479
+    push NetworkEND
+    push FurnaceStartCmd
+    const SolderT1 = 500 #In Kelvin
+    push SolderT1
+    push 1200
+    push NetworkFurnaceRA
+    push -82508479
+
+    #5
+    #Steel
+    #1 MPa to 100 MPa
+    #900 K to 100k K
+    #-654790771
+    push NetworkEND
+    push FurnaceStartCmd
+    const SteelT1 = 1500 + Kelvin
+    push SteelT1
+    push 1200
+    push NetworkFurnaceRA
+    push -654790771
+
+    #6
+    #Astroloy
+    #30 MPa to 40 MPa
+    #1000 K to 100000 K
+    #412924554
+    push NetworkEND
+    push FurnaceStartCmd
+    const AstroloyT1 = 1500 + Kelvin
+    push AstroloyT1
+    push 31000
+    push NetworkFurnaceRA
+    push 412924554
+
+    #7
+    #Hastelloy
+    #25 MPa to 30 MPa
+    #950 K to 1000 K
+    #1579842814
+    push NetworkEND
+    push FurnaceStartCmd
+    const HastelloyT1 = 970
+    push HastelloyT1
+    push 27000
+    push NetworkFurnaceRA
+    push 1579842814
+
+    #8
+    #Inconel
+    #23.5 MPa to 24 MPa
+    #600 K to 100000 K
+    #-787796599
+    push NetworkEND
+    push FurnaceStartCmd
+    const InconelT1 = 2000 + Kelvin
+    push InconelT1
+    push 23700
+    push NetworkFurnaceRA
+    push -787796599
+
+    #9
+    #Stellite
+    #10 MPa to 20 MPa
+    #1800 K to 100000 K
+    #-1897868623
+    push NetworkEND
+    push FurnaceStartCmd
+    const StelliteT1 = 2000 + Kelvin
+    push StelliteT1
+    push 11000
+    push NetworkFurnaceRA
+    push -1897868623
+
+    #10
+    #Waspaloy
+    #50 MPa to 100 MPa
+    #400 K to 800 K
+    #156348098
+    push NetworkEND
+    push FurnaceStartCmd
+    const WaspaloyT1 = 750
+    push WaspaloyT1
+    push 50500
+    push NetworkFurnaceRA
+    push 156348098
+end
+
+function send_message    
+    nw_local = network.Setting #Read current network status
+    breq nw_local NetworkFree 3 #Wait until it is free
+    yield
+    jr -3
+    network.Setting = NetworkLA #Try to lock network
+    yield #Can be a sleep 1 for sure
+    nw_local = network.Setting #Check we have taken the lock
+    brne nw_local NetworkLA -7 #Repeat procedure if someone has overtaken the locking
+    pop nw_local #Get the next data from stack
+    network.Setting = nw_local #Write data portion
+    breq nw_local NetworkEND 6 #Finish transmitting
+    yield
+    nw_local = network.Setting #Check acknoledge
+    brne nw_local NetworkACK -2 #Wait acknoledge 
+    jr -6 #Repeat reading stack and sending it out
+    network.Setting = NetworkFree #Unlock network
+end
