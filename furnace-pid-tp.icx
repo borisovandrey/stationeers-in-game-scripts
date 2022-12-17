@@ -8,26 +8,20 @@
 alias furnace d0
 alias coolerin d1
 alias coolerout d2
-alias dsp1 d3
-alias dsp2 d4
-alias dsp3 d5
+alias switch d3
+alias temp_sp d4
+alias prss_sp d5
 
-#TODO: remove debug displays
 #TODO: add dead zone for volume pump regulators in 0.2-0.1
 #TODO: add big pressure check (over 50 Mpa)
-#TODO: add communication for setting target poit (SP) remotely
 #TODO: implement algorithm with input filter for derivative from https://en.wikipedia.org/wiki/PID_controller
 #TODO: think about small resource consumptiom methodics
 
 #Temeperature is set in C
-const temperature_sp_lw  = 1000 # Not used in currrent version may be deleted later
-const temperature_sp_tgt = 1200
-const temperature_sp_hgh = 2000 # Not used in currrent version may be deleted later
+const temperature_sp_tgt = 0
 
 #Ressure is set in KP
-const pressure_sp_lw  = 1500 # Not used in currrent version may be deleted later
-const pressure_sp_tgt = 2000
-const pressure_sp_hgh = 50000 # Not used in currrent version may be deleted later
+const pressure_sp_tgt = 0
 
 const temperature_offset = 10
 const pressure_offset = 30
@@ -41,10 +35,6 @@ const dt = 0.5
 const Klvn = 273.15
 
 function init
-   dsp1.Color = 4
-   dsp2.Color = 3
-   dsp3.Color = 2
-
    push ra
    coolerin.On = 1
    coolerout.On = 1
@@ -52,19 +42,16 @@ function init
    coolerin.Setting = 0
    coolerout.Setting = 0
 
+   var state = 0
    var previous_error = 0
    var integral = 0
 
    var sp_offset = temperature_offset
-   var sp_low = temperature_sp_lw
    var sp_tgt = temperature_sp_tgt
-   var sp_high = temperature_sp_hgh
    storelocal()
 
    sp_offset = pressure_offset
-   sp_low = pressure_sp_lw
    sp_tgt = pressure_sp_tgt
-   sp_high = pressure_sp_hgh
    storelocal()
    pop ra
 end
@@ -72,14 +59,16 @@ end
 init()
 
 main:
+   sleep dt
+   var mv = switch.Setting
+   bneal mv state changestate
+   beqz state main
    #Calculate Temperature
    var output = 0
    sp_offset = temperature_offset
    loadlocal()
-   var mv = furnace.Temperature
-   mv = mv - Klvn
+   mv = furnace.Temperature
    var error = (sp_tgt - mv) / sp_tgt
-   dsp1.Setting = error
    pidcontroller()
    var output_t = output
 
@@ -88,24 +77,34 @@ main:
    loadlocal()
    mv = furnace.Pressure
    error = (sp_tgt - mv) / sp_tgt
-   dsp2.Setting = error
    pidcontroller()
    var output_p = output
 
    max output output_t output_p
-   dsp3.Setting = output
 
    applyactuators()
-
-   sleep dt
 j main
+
+function changestate
+   state = mv
+   breqz state 8
+   mv = temp_sp.Setting
+   sp = temperature_offset
+   push mv
+   mv = prss_sp.Setting
+   sp = pressure_offset
+   push mv
+   j ra
+   furnace.SettingInput = 0
+   furnace.SettingOutput = 0
+   coolerin.Setting = 0
+   coolerout.Setting = 0
+end
 
 function storelocal
    var pin_sp = sp
    sp = sp_offset
-   push sp_low
    push sp_tgt
-   push sp_high
    push previous_error
    push integral
    sp = pin_sp
@@ -113,12 +112,10 @@ end
 
 function loadlocal
    pin_sp = sp
-   sp = sp_offset + 5
+   sp = sp_offset + 3
    pop integral
    pop previous_error
-   pop sp_high
    pop sp_tgt
-   pop sp_low
    sp = pin_sp
 end
 
