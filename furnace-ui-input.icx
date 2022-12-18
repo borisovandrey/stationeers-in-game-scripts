@@ -84,7 +84,7 @@ function init
     #-654790771
     const SteelT1 = 1500 + Kelvin
     push SteelT1
-    push 2000
+    push 1200
     push -654790771
 
     #5

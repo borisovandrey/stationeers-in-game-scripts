@@ -1,5 +1,5 @@
 #use aliases
-alias preparestorage d0
+alias inputstorage d0
 alias furnace d1
 alias dspconsumption d2
 alias dsperror d3
@@ -24,9 +24,10 @@ const Brown = 8
 const Khaki = 9
 const Pink = 10
 const Purple = 11
-const Kelvin = 273.15
 
-const preparevolume = 1000
+const Kelvin = 273.15
+const R = 8.31446261815324
+
 const furnancevolume = 1000
 
 const resetvalue = -1
@@ -41,6 +42,7 @@ var cycle = 3
 var mode = 0
 var energy = 0
 var tmp = 0
+var inputvolume = 0
 
 dspconsumption.Mode = 2
 
@@ -53,6 +55,7 @@ main:
     init()
     yield
     j main
+    defineinputvolume()
     tmp = furnace.Temperature
     tmperror = (val - tmp) / val
     tmp = furnace.Pressure
@@ -61,7 +64,7 @@ main:
     idx = 0
     calculateenergy()
     val = furnace.SettingInput
-    furnaceinput = furnaceinput + energy * (  val / preparevolume )
+    furnaceinput = furnaceinput + energy * (  val / inputvolume )
     idx = 1
     calculateenergy()
     furnaceenergy = energy
@@ -85,6 +88,15 @@ main:
 
     yield
 j main
+
+function defineinputvolume
+    val = inputstorage.TotalMoles
+    inputvolume = val * R
+    val = inputstorage.Temperature
+    inputvolume = inputvolume * val
+    val = inputstorage.Pressure
+    inputvolume = inputvolume / val
+end
 
 function calculateenergy
     energy = 0
