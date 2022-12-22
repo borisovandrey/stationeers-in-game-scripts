@@ -1,0 +1,148 @@
+#Inspired by #From https://www.reddit.com/r/Stationeers/comments/yz28ce/furnace_thermal_mechanics_help/
+#Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller and changed to work with normalized error
+#Target point is set as pair (T,P) T in celsius
+#Algorithm works with preapred working body (CO2 cobusted in saved in insulated tank).
+#Is not suit to ignition furnance usage.
+#For fast reach of the SP preapre a big supply of hot gas.
+#600 steel (450 iron and 150 coal) with pressure 2000 and temp 1200 consumes about 9Mpa of 2052 grad in 1000L  
+alias furnace d0
+alias hotinput d1
+alias coolinput d2
+alias switch d3
+alias temp_sp d4
+alias prss_sp d5
+
+#TODO: add dead zone for volume pump regulators in 0.2-0.1
+#TODO: add big pressure check (over 50 Mpa)
+#TODO: implement algorithm with input filter for derivative from https://en.wikipedia.org/wiki/PID_controller
+#TODO: think about small resource consumptiom methodics
+
+#Temeperature is set in C
+const temperature_sp_tgt = 0
+
+#Ressure is set in KP
+const pressure_sp_tgt = 0
+
+const temperature_offset = 10
+const pressure_offset = 30
+
+const actuator_dead_area = 0.01
+
+const Kp = 2
+const Ki = 0.6
+const Kd = 0.16
+const dt = 0.5
+const Klvn = 273.15
+
+function init
+   push ra
+   hotinput.On = 1
+   coolinput.On = 1
+   furnace.On = 1
+   hotinput.Setting = 0
+   coolinput.Setting = 0
+
+   var state = 0
+   var previous_error = 0
+   var integral = 0
+
+   var sp_offset = temperature_offset
+   var sp_tgt = temperature_sp_tgt
+   storelocal()
+
+   sp_offset = pressure_offset
+   sp_tgt = pressure_sp_tgt
+   storelocal()
+   pop ra
+end
+
+init()
+
+main:
+   sleep dt
+   var mv = switch.Setting
+   bneal mv state changestate
+   beqz state main
+   #Calculate Temperature
+   var output = 0
+   sp_offset = temperature_offset
+   loadlocal()
+   mv = furnace.Temperature
+   var error = (sp_tgt - mv) / sp_tgt
+   pidcontroller()
+   var output_t = output
+
+   #Calculate pressure
+   sp_offset = pressure_offset
+   loadlocal()
+   mv = furnace.Pressure
+   error = (sp_tgt - mv) / sp_tgt
+   pidcontroller()
+   var output_p = output
+
+   max output output_t output_p
+
+   applyactuators()
+j main
+
+function changestate
+   state = mv
+   breqz state 8
+   mv = temp_sp.Setting
+   sp = temperature_offset
+   push mv
+   mv = prss_sp.Setting
+   sp = pressure_offset
+   push mv
+   j ra
+   furnace.SettingInput = 0
+   furnace.SettingOutput = 0
+   hotinput.Setting = 0
+   coolinput.Setting = 0
+end
+
+function storelocal
+   var pin_sp = sp
+   sp = sp_offset
+   push sp_tgt
+   push previous_error
+   push integral
+   sp = pin_sp
+end
+
+function loadlocal
+   pin_sp = sp
+   sp = sp_offset + 3
+   pop integral
+   pop previous_error
+   pop sp_tgt
+   sp = pin_sp
+end
+
+function pidcontroller
+   integral = integral + error * dt
+   output = Kp * error + Ki * integral  + Kd * ((error - previous_error) / dt)
+   previous_error = error
+   min output output 1
+   max output output -1
+   output = output * 100 
+ end
+
+function applyactuators 
+   furnace.SettingInput = 100
+   abs output output_p
+   brgez output_p 4
+      furnace.SettingOutput = output
+      output_p = 0
+      jr 2
+      furnace.SettingOutput = 0
+
+   abs output output_t
+   max output output output_p
+   brltz output_t 4
+   hotinput.Setting = output
+   coolinput.Setting = 0
+   jr 3
+   hotinput.Setting = 0
+   coolinput.Setting = output
+end

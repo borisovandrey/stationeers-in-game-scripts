@@ -47,6 +47,7 @@ var inputvolume = 0
 dspconsumption.Mode = 2
 
 main:
+    defineinputvolume()
     val = memtempsp.Setting
     idx = memprsssp.Setting
     brltz val 3
@@ -55,7 +56,6 @@ main:
     init()
     yield
     j main
-    defineinputvolume()
     tmp = furnace.Temperature
     tmperror = (val - tmp) / val
     tmp = furnace.Pressure

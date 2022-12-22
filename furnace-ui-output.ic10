@@ -11,6 +11,7 @@ move r9 0
 move r10 0
 s d2 Mode 2
 main:
+jal defineinputvolume
 l r5 d4 Setting
 l r0 d5 Setting
 brltz r5 3
@@ -19,7 +20,6 @@ jr 4
 jal init
 yield
 j main
-jal defineinputvolume
 l r9 d1 Temperature
 sub r15 r5 r9
 div r3 r15 r5
