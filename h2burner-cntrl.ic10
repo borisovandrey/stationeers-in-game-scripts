@@ -1,0 +1,22 @@
+alias p0 r0
+alias p1 r1
+alias burner d0
+alias pomp d1
+alias filter db
+main:
+l p0 filter PressureInput
+l p1 burner PressureOutput
+sle r15 p0 10000
+sle r14 p1 10000
+and r13 r15 r14
+beqz r13 if0exit
+s pomp On 1
+if0exit:
+sge r15 p0 45000
+sge r14 p1 45000
+or r13 r15 r14
+beqz r13 if1exit
+s pomp On 0
+if1exit:
+sleep 1
+j main

@@ -1,0 +1,18 @@
+use aliases
+const LowLmt = 10000
+const HighLmt = 45000
+alias burner d0
+alias pomp d1
+alias filter db
+main:
+var p0 = filter.PressureInput
+var p1 = burner.PressureOutput
+if p0 <= LowLmt  && p1 <= LowLmt
+    pomp.On = 1
+end
+if p0 >= HighLmt || p1 >= HighLmt 
+    pomp.On = 0
+end
+
+sleep 1
+j main
