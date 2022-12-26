@@ -1,10 +1,11 @@
-#use aliases
 alias inputstorage d0
-alias furnace d1
+alias inputhotpomp d1
 alias dspconsumption d2
 alias dsperror d3
 alias memtempsp d4
 alias memprsssp d5
+
+const furnace = -616758353
 
 const HC_CO2 = 28.3
 const HC_X = 24.8
@@ -56,14 +57,14 @@ main:
     init()
     yield
     j main
-    tmp = furnace.Temperature
+    tmp = d(furnace).Temperature(Minimum)
     tmperror = (val - tmp) / val
-    tmp = furnace.Pressure
+    tmp = d(furnace).Pressure(Minimum)
     pressureerror = (idx - tmp) / idx
 
     idx = 0
     calculateenergy()
-    val = furnace.SettingInput
+    val = inputhotpomp.Setting
     furnaceinput = furnaceinput + energy * (  val / inputvolume )
     idx = 1
     calculateenergy()
@@ -89,15 +90,6 @@ main:
     yield
 j main
 
-function defineinputvolume
-    val = inputstorage.TotalMoles
-    inputvolume = val * R
-    val = inputstorage.Temperature
-    inputvolume = inputvolume * val
-    val = inputstorage.Pressure
-    inputvolume = inputvolume / val
-end
-
 function calculateenergy
     energy = 0
     var moles = d[idx].TotalMoles
@@ -118,6 +110,15 @@ function calculateenergy
     energy = energy + (val * moles * HC_NOS)
     val = d[idx].RatioVolatiles
     energy = energy + (val * moles * HC_H2)
+end
+
+function defineinputvolume
+    val = inputstorage.TotalMoles
+    inputvolume = val * R
+    val = inputstorage.Temperature
+    inputvolume = inputvolume * val
+    val = inputstorage.Pressure
+    inputvolume = inputvolume / val
 end
 
 function init
