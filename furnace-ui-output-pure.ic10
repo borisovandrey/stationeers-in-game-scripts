@@ -1,0 +1,125 @@
+alias inpstorage d0
+alias hotpomp d1
+alias dspconsm d2
+alias dsperror d3
+alias memtempsp d4
+alias memprsssp d5
+define furnace 545937711
+define modes 111222
+alias outputmode r1
+alias storevolume r2
+alias tmperror r3
+alias pressureerror r4
+alias furnaceenergy r5
+alias furnaceinput r6
+
+move outputmode modes
+s dspconsm Mode 2 #Wats
+push 28.3 #CO2
+push 24.8 #X
+push 20.6 #N2
+push 21.1 #02
+push 23   #NOS
+push 20.4 #H2
+jal init
+jal defineinputvolume
+
+main:
+    #idle mode
+    l r15 memtempsp Setting
+    l r14 memprsssp Setting
+    brltz r15 3
+    brltz r14 2
+    jr 4
+    jal init
+    yield
+    j main
+    #Calcualte errors
+    lb r13 furnace Temperature Minimum
+    sub r13 r15 r13
+    div tmperror r13 r15
+    lb r13 furnace Pressure Minimum
+    sub r13 r14 r13
+    div pressureerror r13 r14
+    #Calculate energy
+    jal readfurnace
+    jal calculateenergy
+    move furnaceenergy r0
+    jal readfstore
+    jal calculateenergy
+    l r15 hotpomp Setting
+    div r15 r15 storevolume #Define incoming hot portion
+    mul r15 r0 r15 #Calculate the part of the store energy we recieved
+    add furnaceinput furnaceinput r15 #Accamulate input energy
+    #Write to display
+    brnez outputmode 2
+    move outputmode modes
+    mod r15 outputmode 10
+    brne r15 1 6
+    s dsperror Color 4 #Red
+    s dsperror Setting tmperror
+    s dspconsm Color 2 #Green
+    s dspconsm Setting furnaceenergy
+    jr 5
+    s dsperror Color 5 #Yellow
+    s dsperror Setting pressureerror
+    s dspconsm Color 4 #Red
+    s dspconsm Setting furnaceinput
+    div outputmode outputmode 10
+    trunc outputmode outputmode
+    yield
+j main
+
+readfurnace:
+    lb r15 furnace TotalMoles Minimum
+    lb r14 furnace Temperature Minimum
+    lb r13 furnace RatioVolatiles Minimum
+    lb r12 furnace RatioNitrousOxide Minimum
+    lb r11 furnace RatioOxygen Minimum
+    lb r10 furnace RatioNitrogen Minimum
+    lb r9 furnace RatioPollutant Minimum
+    lb r8 furnace RatioCarbonDioxide Minimum
+j ra
+
+readfstore:
+    l r15 inpstorage TotalMoles
+    l r14 inpstorage Temperature
+    l r13 inpstorage RatioVolatiles
+    l r12 inpstorage RatioNitrousOxide
+    l r11 inpstorage RatioOxygen
+    l r10 inpstorage RatioNitrogen
+    l r9 inpstorage RatioPollutant
+    l r8 inpstorage RatioCarbonDioxide
+j ra
+
+calculateenergy:
+    move r0 0 #Set energy to 0
+    brnez r15 2 #Check moles
+    j ra
+    sub r14 r14 273.15 #Temeprature - use energy from 0 celcius 
+    mul r14 r14 r15 # Moles * Temperature
+    move r15 13 #Set the H2 as start
+    move sp 6 #Set H2 const in stack
+    pop r7
+    mul r7 r7 r14 #Moels * Temperature * Heat Capacitiy
+    mul r7 r7 rr15 #Moels * Temperature * Heat Capacitiy * Ratio
+    add r0 r0 r7 #Sum the enire energy 
+    sub r15 r15 1
+    brne r15 7 -5
+ j ra
+
+defineinputvolume: #using P * V = n * R * T to calculate V
+    l r15 inpstorage TotalMoles
+    mul storevolume r15 8.31446261815324 #R
+    l r15 inpstorage Temperature
+    mul storevolume storevolume r15
+    l r15 inpstorage Pressure
+    div storevolume storevolume r15
+j ra
+
+init:
+    move furnaceenergy 0
+    move furnaceinput 0
+    move tmperror 0
+    move pressureerror 0
+j ra
