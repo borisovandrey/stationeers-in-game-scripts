@@ -6,41 +6,59 @@ alias btn500 d4
 alias dsp d5
 var required = 0
 var state = 0
+var rest = 0
 main:
-    var active = btn1.Setting
-    if active == 1
-        stacker.Setting = 1
-    end 
-    active = btn50.Setting
-    if active == 1
-        stacker.Setting = 50
-    end 
-    active = btn500.Setting
-    if active == 1
+    var open = autolat.Open
+    if open == 1
+        autolat.Activate = 0
         stacker.Setting = 500
-    end 
-    required = stacker.Setting
-    dsp.Setting = required
-    active = autolat.Activate
-    if active == 1
-        if state == 0
-            required = stacker.Setting
-            state = 1
-            autolat.ClearMemory = 1
-        end
+        stacker.Activate = 1
+        rest = stacker.Setting
     else
+        var active = btn1.Setting
+        if active == 1
+            stacker.Setting = 1
+        end 
+        active = btn50.Setting
+        if active == 1
+            stacker.Setting = 50
+        end 
+        active = btn500.Setting
+        if active == 1
+            stacker.Setting = 500
+        end 
+
+        required = stacker.Setting
+        active = autolat.Activate
+        if active == 1
+            if state == 0        
+                state = 1
+                autolat.ClearMemory = 1
+                rest = required
+            end
+        else
+            if state == 1
+                autolat.Activate = 1
+            else
+                required = stacker.Setting
+                rest = required
+            end
+        end
+
         if state == 1
-            autolat.Activate = 1
+            var manufactured = autolat.ExportCount
+            rest = required - manufactured
+            if manufactured >= required
+                state = 0
+                autolat.Activate = 0
+                dsp.Setting = rest
+                sleep 1
+                stacker.Activate = 1
+            end
         end
     end
 
-    if state == 1
-        var manufactured = autolat.ExportCount
-        if manufactured >= required
-            state = 0
-            autolat.Activate = 0
-        end
-    end
+    dsp.Setting = rest
 
     yield
 j main

@@ -1,47 +1,66 @@
 move r0 0
 move r1 0
+move r2 0
 main:
-l r2 d2 Setting
-seq r15 r2 1
-beqz r15 if0exit
-s d1 Setting 1
-if0exit:
-l r2 d3 Setting
-seq r15 r2 1
-beqz r15 if1exit
-s d1 Setting 50
-if1exit:
-l r2 d4 Setting
-seq r15 r2 1
-beqz r15 if2exit
+l r3 d0 Open
+seq r15 r3 1
+beqz r15 if0else
+s d0 Activate 0
 s d1 Setting 500
+s d1 Activate 1
+l r2 d1 Setting
+j if0exit
+if0else:
+l r4 d2 Setting
+seq r14 r4 1
+beqz r14 if1exit
+s d1 Setting 1
+if1exit:
+l r4 d3 Setting
+seq r14 r4 1
+beqz r14 if2exit
+s d1 Setting 50
 if2exit:
+l r4 d4 Setting
+seq r14 r4 1
+beqz r14 if3exit
+s d1 Setting 500
+if3exit:
 l r0 d1 Setting
-s d5 Setting r0
-l r2 d0 Activate
-seq r15 r2 1
-beqz r15 if3else
-seqz r14 r1
-beqz r14 if4exit
-l r0 d1 Setting
+l r4 d0 Activate
+seq r14 r4 1
+beqz r14 if4else
+seqz r13 r1
+beqz r13 if5exit
 move r1 1
 s d0 ClearMemory 1
-if4exit:
-j if3exit
-if3else:
-seq r14 r1 1
-beqz r14 if5exit
-s d0 Activate 1
+move r2 r0
 if5exit:
-if3exit:
-seq r15 r1 1
-beqz r15 if6exit
-l r3 d0 ExportCount
-sge r14 r3 r0
+j if4exit
+if4else:
+seq r13 r1 1
+beqz r13 if6else
+s d0 Activate 1
+j if6exit
+if6else:
+l r0 d1 Setting
+move r2 r0
+if6exit:
+if4exit:
+seq r14 r1 1
 beqz r14 if7exit
+l r5 d0 ExportCount
+sub r2 r0 r5
+sge r13 r5 r0
+beqz r13 if8exit
 move r1 0
 s d0 Activate 0
+s d5 Setting r2
+sleep 1
+s d1 Activate 1
+if8exit:
 if7exit:
-if6exit:
+if0exit:
+s d5 Setting r2
 yield
 j main
