@@ -1,0 +1,122 @@
+define LED 1944485013
+define Long 797794350
+define Angle 1847265835
+define Round 1436121888
+define Backen 249073136
+define Idle 0
+define Prestorm 1 
+define Storm 2
+define MyIdle 0
+define MyPrestormYellow 1
+define MyPrestormRed 2
+define MyStorm 3
+define PrestormRedWarning 60
+alias sns d0
+alias weather d1
+alias alarmdsp d2
+alias dlswitch d3
+alias backenswitch d4
+alias period r0
+alias lightstatenow r1
+alias lightstateprev r2
+alias lightperiodic r3
+alias alarmstate r4
+alias timetostorm r5
+alias alarmperiodic r6
+alias alarmcolor r7
+alias alarmon r8
+alias backenonnow r9
+alias backenonnprev r10
+alias backenperiodic r11
+
+move period 30
+s db Setting -1
+move lightstatenow -1
+move lightperiodic 0
+move lightstateprev -1
+move alarmstate MyIdle
+move timetostorm 0
+move alarmperiodic 0
+move alarmcolor 0
+move alarmon 0
+move backenonnow -1
+move backenonnprev -1
+move backenperiodic 0
+
+main:
+l r15 sns Activate 
+breqz r15 4 #Check daylight
+move lightstatenow 0 #Day
+move period 30
+jr 6
+move lightstatenow 1 #Night
+move period 1
+l r15 dlswitch Setting
+brnez r15 2
+move lightstatenow 0
+l backenonnow backenswitch Setting #Check backen switch
+breqz backenonnow 2
+move period 1
+l r14 weather Mode #Check weather
+beq r14 Idle SwitchIdle
+beq r14 Prestorm SwitchPrestorm
+beq r14 Storm SwitchStorm
+SwitchIdle:
+move alarmcolor 1 #Gray
+move alarmstate MyIdle
+move timetostorm 0
+move alarmon 0
+j Actuate
+SwitchPrestorm:
+move period 0.5
+move alarmon 1
+l timetostorm weather NextWeatherEventTime
+brle timetostorm PrestormRedWarning 4
+move alarmcolor 5 #Yellow
+move alarmstate MyPrestormYellow
+jr 3
+move alarmcolor 4 #Red
+move alarmstate MyPrestormRed
+j Actuate
+SwitchStorm:
+move alarmcolor 1 #Gray
+move alarmstate MyStorm
+move timetostorm 0
+move alarmon 0
+j Actuate
+Actuate:
+jal dolight
+sleep period
+j main
+
+dolight:
+breq lightstatenow lightstateprev 6 #Set lightstate
+move lightstateprev lightstatenow
+sb Angle On lightstatenow
+sb Round On lightstatenow
+sb Long On lightstatenow
+move lightperiodic lightstatenow
+breqz lightstatenow 3
+sb Long On lightperiodic
+nor lightperiodic lightperiodic 1
+l r15 db Setting  #Alarm
+breq r15 alarmstate 8
+s db Setting alarmstate
+sb LED Color alarmcolor
+sb LED On alarmon
+s alarmdsp On alarmon
+s alarmdsp Color alarmcolor
+s alarmdsp Setting timetostorm
+move alarmperiodic alarmon
+breqz alarmon 4
+s alarmdsp Setting timetostorm
+sb LED On alarmperiodic
+nor alarmperiodic alarmperiodic 1
+breq backenonnow backenonnprev 4 #backen
+move backenonnprev backenonnow
+move backenperiodic backenonnow
+sb Backen On backenonnow
+breqz backenonnow 3
+sb Backen On backenperiodic
+nor backenperiodic backenperiodic 1
+j ra
