@@ -4,7 +4,8 @@ define LowTmpLvl 294.15 #21
 define HighTmpLvl 301.15 #28
 define CriticalTempLimit 312.15
 define LowPressureLmt 60 #Kpa
-define LowPartialDXLmt 0.95 #Kpa
+define LowPartialDXLmt 0.90 #Ratio
+define HighPartialDXLmt 0.985 #Ratio
 define SignalLampHash -1535893860
 define ErrorColor 4
 define NormalColor 2
@@ -109,7 +110,7 @@ jr 2
 s co2fltin On 1
 l r0 sns RatioCarbonDioxide
 s dsp Setting r0
-brap r0 1 0.01 3
+brge r0 HighPartialDXLmt 3
 brle r0 LowPartialDXLmt 4
 jr 5
 move input 0
