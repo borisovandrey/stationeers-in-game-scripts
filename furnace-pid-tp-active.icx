@@ -5,7 +5,7 @@
 #Is not suit to ignition furnance usage.
 #For fast reach of the SP preapre a big supply of hot gas.
 #600 steel (450 iron and 150 coal) with pressure 2000 and temp 1200 consumes about 9Mpa of 2052 grad in 1000L  
-alias LED d0
+alias frn d0
 alias hotinput d1
 alias coolinput d2
 alias switch d3
@@ -22,7 +22,6 @@ const temperature_sp_tgt = 0
 #Ressure is set in KP
 const pressure_sp_tgt = 0
 
-const furnace = 545937711
 const PresssureMax = 58000
 
 const temperature_offset = 10
@@ -30,9 +29,9 @@ const pressure_offset = 30
 
 const actuator_dead_area = 0.01
 
-const Kp = 2
-const Ki = 0.6
-const Kd = 0.16
+const Kp = 1.5
+const Ki = 0.5
+const Kd = 0.2
 const dt = 0.5
 const Klvn = 273.15
 
@@ -48,14 +47,10 @@ init()
 
 main:
    sleep dt
-   var r15 = switch.Setting
-   brnez r15 2
-   LED.Color = 1 #Gray
-   lb r14 furnace RecipeHash Minimum
-   breqz r14 2
-   LED.Color = 2 #Green
-   nor r14 r14 0
-   and val r15 r14
+   var sw = switch.Setting
+   var rh = frn.RecipeHash
+   nor rh rh 0
+   and val sw rh
    bneal val state changestate
    beqz state main
 
@@ -63,7 +58,7 @@ main:
    var output = 0
    sp_offset = temperature_offset
    loadlocal()
-   lb val furnace Temperature Minimum
+   val = frn.Temperature
    var error = (sp_tgt - val) / sp_tgt
    pidcontroller()
    var output_t = output
@@ -71,7 +66,7 @@ main:
    #Calculate pressure
    sp_offset = pressure_offset
    loadlocal()
-   lb val furnace Pressure Minimum
+   val = frn.Pressure
    brle val PresssureMax 4
    val = 0
    jal changestate
@@ -86,7 +81,7 @@ function init
    push ra
    hotinput.On = 1
    coolinput.On = 1
-   d(furnace).On = 1
+   frn.On = 1
    hotinput.Setting = 0
    coolinput.Setting = 0
 
@@ -114,8 +109,8 @@ function changestate
    sp = pressure_offset
    push val
    j ra
-   d(furnace).SettingInput = 0
-   d(furnace).SettingOutput = 0
+   frn.SettingInput = 0
+   frn.SettingOutput = 0
    hotinput.Setting = 0
    coolinput.Setting = 0
 end
@@ -148,24 +143,20 @@ function pidcontroller
  end
 
 function applyactuators 
-   d(furnace).SettingInput = 100
+   frn.SettingInput = 100
    abs output output_p
    brgez output_p 4
-      d(furnace).SettingOutput = output
+      frn.SettingOutput = output
       output_p = 0
       jr 2
-      d(furnace).SettingOutput = 0
+      frn.SettingOutput = 0
 
    abs output output_t
    max output output output_p
-   brltz output_t 5
-   LED.Color = 4 #Red
+   brltz output_t 4
    hotinput.Setting = output
    coolinput.Setting = 0
-   jr 4
-   LED.Color = -1 #Blue
+   jr 3
    hotinput.Setting = 0
    coolinput.Setting = output
-   brnaz output 0.01 2
-   LED.Color = 3 #Yellow  
 end

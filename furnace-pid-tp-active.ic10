@@ -1,25 +1,31 @@
 jal init
 main:
 sleep 0.5
-l r5 d3 Setting
-bneal r5 r0 changestate
+l r7 d3 Setting
+l r8 d0 RecipeHash
+nor r8 r8 0
+and r6 r7 r8
+bneal r6 r0 changestate
 beqz r0 main
+move r9 0
+move r1 10
+jal loadlocal
+l r6 d0 Temperature
+sub r15 r2 r6
+div r10 r15 r2
+jal pidcontroller
+move r11 r9
+move r1 30
+jal loadlocal
+l r6 d0 Pressure
+brle r6 58000 4
 move r6 0
-move r3 10
-jal loadlocal
-l r5 d0 Temperature
-sub r15 r4 r5
-div r7 r15 r4
+jal changestate
+j main
+sub r15 r2 r6
+div r10 r15 r2
 jal pidcontroller
-move r8 r6
-move r3 30
-jal loadlocal
-l r5 d0 Pressure
-sub r15 r4 r5
-div r7 r15 r4
-jal pidcontroller
-move r9 r6
-max r6 r8 r9
+move r12 r9
 jal applyactuators
 j main
 jr 84
@@ -31,25 +37,25 @@ s d0 On 1
 s d1 Setting 0
 s d2 Setting 0
 move r0 0
-move r1 0
+move r3 0
+move r4 0
+move r1 10
 move r2 0
-move r3 10
-move r4 0
 jal storelocal
-move r3 30
-move r4 0
+move r1 30
+move r2 0
 jal storelocal
 pop r17
 j ra
 changestate:
-move r0 r5
+move r0 r6
 breqz r0 8
-l r5 d4 Setting
+l r6 d4 Setting
 move r16 10
-push r5
-l r5 d5 Setting
+push r6
+l r6 d5 Setting
 move r16 30
-push r5
+push r6
 j r17
 s d0 SettingInput 0
 s d0 SettingOutput 0
@@ -57,50 +63,50 @@ s d1 Setting 0
 s d2 Setting 0
 j ra
 storelocal:
-move r10 r16
-move r16 r3
-push r4
-push r1
+move r5 r16
+move r16 r1
 push r2
-move r16 r10
+push r3
+push r4
+move r16 r5
 j ra
 loadlocal:
-move r10 r16
-add r16 r3 3
-pop r2
-pop r1
+move r5 r16
+add r16 r1 3
 pop r4
-move r16 r10
+pop r3
+pop r2
+move r16 r5
 j ra
 pidcontroller:
-mul r15 r7 0.5
-add r2 r2 r15
-mul r15 2 r7
-mul r14 0.6 r2
+mul r15 r10 0.5
+add r4 r4 r15
+mul r15 1.5 r10
+mul r14 0.5 r4
 add r15 r15 r14
-sub r14 r7 r1
+sub r14 r10 r3
 div r14 r14 0.5
-mul r14 0.16 r14
-add r6 r15 r14
-move r1 r7
-min r6 r6 1
-max r6 r6 -1
-mul r6 r6 100
+mul r14 0.2 r14
+add r9 r15 r14
+move r3 r10
+min r9 r9 1
+max r9 r9 -1
+mul r9 r9 100
 j ra
 applyactuators:
 s d0 SettingInput 100
-abs r6 r9
-brgez r9 4
-s d0 SettingOutput r6
-move r9 0
+abs r9 r12
+brgez r12 4
+s d0 SettingOutput r9
+move r12 0
 jr 2
 s d0 SettingOutput 0
-abs r6 r8
-max r6 r6 r9
-brltz r8 4
-s d1 Setting r6
+abs r9 r11
+max r9 r9 r12
+brltz r11 4
+s d1 Setting r9
 s d2 Setting 0
 jr 3
 s d1 Setting 0
-s d2 Setting r6
+s d2 Setting r9
 j ra
