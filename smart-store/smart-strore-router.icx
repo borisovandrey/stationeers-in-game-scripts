@@ -1,0 +1,40 @@
+alias ff1 d0
+alias ff2 d1
+alias ff3 d2
+alias router db
+
+const Attached = 3
+const SleepTime = 1
+const Ready = -1
+const Extract = 0
+const Pass = 1
+
+#Setup all flipflops
+move r0 0
+while r0 < Attached
+    d[r0].On = 1
+    d[r0].Setting = 0
+    d[r0].SettingOutput = 0
+    d[r0].Mode = Pass #All flip-flops are orieneted up, so to pass we need to set Mode to side
+    r0++
+end
+db.Setting = Ready
+
+main:
+    sleep SleepTime
+    var request = router.Setting #Read requested route
+    bgez request main #If no route is selected sleep and check again
+    request-- #We interpret the request id as the number of flip-flop we need to open, but they started from 0
+    move r0 0
+    #Setup all flip-flops to sideexcept the selected whcih is set to direct
+    while r0 < Attached
+        if r0 == request
+            d[r0].Mode = Extract
+        else
+            d[r0].Mode = Pass
+        end
+        r0++
+    end
+    yield
+    db.Setting = Ready #Notify requester that we have 
+j main

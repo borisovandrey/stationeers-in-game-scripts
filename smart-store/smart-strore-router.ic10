@@ -1,0 +1,34 @@
+move r0 0
+while0:
+slt r15 r0 3
+beqz r15 while0exit
+s dr0 On 1
+s dr0 Setting 0
+s dr0 SettingOutput 0
+s dr0 Mode 1
+add r0 r0 1
+j while0
+while0exit:
+s db Setting -1
+main:
+sleep 1
+l r0 db Setting
+bgez r0 main
+sub r0 r0 1
+move r0 0
+while1:
+slt r15 r0 3
+beqz r15 while1exit
+seq r14 r0 r0
+beqz r14 if0else
+s dr0 Mode 0
+j if0exit
+if0else:
+s dr0 Mode 1
+if0exit:
+add r0 r0 1
+j while1
+while1exit:
+yield
+s db Setting -1
+j main

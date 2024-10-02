@@ -1,0 +1,47 @@
+alias furnace d0
+alias coolerin d1
+alias coolerout d2
+
+#Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller with Infinite impulse response filter for Devariative
+const Kp = 0.4
+const Ki = 0.6
+const Kd = 0.16
+const dt = 0.5
+const A0 = Kp + Ki * dt
+const A1 = 0 - Kp
+const A0d = Kd / dt
+const A1d = - 2.0 * Kd/dt
+const A2d = Kd / dt
+const N = 5
+const tau = Kd / ( Kp * N ) # IIR filter time constant
+const alpha = dt / ( 2 * tau )
+
+
+
+#error[2] := 0 // e(t-2)
+#error[1] := 0 // e(t-1)
+#error[0] := 0 // e(t)
+#output := u0  // Usually the current value of the actuator
+#d0 := 0
+#d1 := 0
+#fd0 := 0
+#fd1 := 0
+#loop:
+#    error[2] := error[1]
+#    error[1] := error[0]
+#    error[0] := setpoint − measured_value
+#    // PI
+#    output := output + A0 * error[0] + A1 * error[1]
+#    // Filtered D
+#    d1 = d0
+#    d0 = A0d * error[0] + A1d * error[1] + A2d * error[2]
+#    fd1 = fd0
+#    fd0 = ((alpha) / (alpha + 1)) * (d0 + d1) - ((alpha - 1) / (alpha + 1)) * fd1
+#    output := output + fd0      
+#    wait(dt)
+#    goto loop
+
+
+main:
+
+j main

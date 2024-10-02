@@ -2,38 +2,44 @@ jal init
 main:
 sleep 0.5
 l r7 d3 Setting
-l r8 d0 RecipeHash
+brnez r7 2
+s d0 Color 1
+lb r8 545937711 RecipeHash Minimum
+l r9 db Setting
+seq r8 r9 r8
+breqz r8 2
+s d0 Color 2
 nor r8 r8 0
 and r6 r7 r8
 bneal r6 r0 changestate
 beqz r0 main
-move r9 0
+move r10 0
 move r1 10
 jal loadlocal
-l r6 d0 Temperature
+lb r6 545937711 Temperature Minimum
 sub r15 r2 r6
-div r10 r15 r2
+div r11 r15 r2
 jal pidcontroller
-move r11 r9
+move r12 r10
 move r1 30
 jal loadlocal
-l r6 d0 Pressure
+lb r6 545937711 Pressure Minimum
 brle r6 58000 4
 move r6 0
 jal changestate
 j main
 sub r15 r2 r6
-div r10 r15 r2
+div r11 r15 r2
 jal pidcontroller
-move r12 r9
+move r13 r10
 jal applyactuators
 j main
-jr 84
+jr 88
 init:
 push r17
 s d1 On 1
 s d2 On 1
-s d0 On 1
+sb 545937711 On 1
 s d1 Setting 0
 s d2 Setting 0
 move r0 0
@@ -57,8 +63,8 @@ l r6 d5 Setting
 move r16 30
 push r6
 j r17
-s d0 SettingInput 0
-s d0 SettingOutput 0
+sb 545937711 SettingInput 0
+sb 545937711 SettingOutput 0
 s d1 Setting 0
 s d2 Setting 0
 j ra
@@ -79,34 +85,38 @@ pop r2
 move r16 r5
 j ra
 pidcontroller:
-mul r15 r10 0.5
+mul r15 r11 0.5
 add r4 r4 r15
-mul r15 1.5 r10
+mul r15 1.5 r11
 mul r14 0.5 r4
 add r15 r15 r14
-sub r14 r10 r3
+sub r14 r11 r3
 div r14 r14 0.5
 mul r14 0.2 r14
-add r9 r15 r14
-move r3 r10
-min r9 r9 1
-max r9 r9 -1
-mul r9 r9 100
+add r10 r15 r14
+move r3 r11
+min r10 r10 1
+max r10 r10 -1
+mul r10 r10 100
 j ra
 applyactuators:
-s d0 SettingInput 100
-abs r9 r12
-brgez r12 4
-s d0 SettingOutput r9
-move r12 0
+sb 545937711 SettingInput 100
+abs r10 r13
+brgez r13 4
+sb 545937711 SettingOutput r10
+move r13 0
 jr 2
-s d0 SettingOutput 0
-abs r9 r11
-max r9 r9 r12
-brltz r11 4
-s d1 Setting r9
+sb 545937711 SettingOutput 0
+abs r10 r12
+max r10 r10 r13
+brltz r12 5
+s d0 Color 4
+s d1 Setting r10
 s d2 Setting 0
-jr 3
+jr 4
+s d0 Color -1
 s d1 Setting 0
-s d2 Setting r9
+s d2 Setting r10
+brgt r10 3.5 2
+s d0 Color 5
 j ra
