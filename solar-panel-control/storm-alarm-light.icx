@@ -1,0 +1,74 @@
+#andrey.borisov@gmx.de 03.10.2024
+#This script conrols LED ligts with name led-storm-alarm setiing alarm color and blonk depending of the state
+#reading by WIFI or directly from alarm IC controller
+#use https://ic10.dev/ for debug
+use aliases
+use definitions
+
+const LEDxALARMxHASH = 1944485013
+const LEDxALARMxNAME = -2037307393
+
+const STATExIDLE        = 0   # Still
+const STATExWARNING     = 1   # Storm is comming
+const STATExALARM       = 2   # Storm begins after ALARM_TIME_SEC sec
+const STATExSTORM       = 3   # Storm runs
+
+const INITxVALUE        = -1
+const LIGHTxOFF         = 0
+const LIGHTxON          = 1
+const LIGHTxBLINK       = 2
+
+const IDLExTIME = 5     #5 secund sleep time in idle
+const ALARMxTIME = 1    #1 second when light is on
+const BLINKxTIME = 0    #0.5 sec when light is blinking       
+
+alias Alarm d0
+
+var color
+var lightState
+var sleepTime = IDLExTIME
+var lightOn
+var alarmSettingOld = INITxVALUE
+
+main:
+    var alarmSetting = Alarm.Setting
+    if alarmSetting != alarmSettingOld
+       alarmSettingOld = alarmSetting
+       defineState()
+       sbn LEDxALARMxHASH LEDxALARMxNAME Color color
+       snez lightOn lightState
+       sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn 
+    end
+
+    if lightState == LIGHTxBLINK
+       sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn
+       xor lightOn lightOn 1 
+    end
+
+    sleep sleepTime
+j main
+
+function defineState
+    switch alarmSetting
+        case STATExIDLE
+            move color Color.White
+            lightState = LIGHTxOFF
+            sleepTime = IDLExTIME
+        end
+        case STATExWARNING
+            move color Color.Yellow
+            lightState = LIGHTxON
+            sleepTime = ALARMxTIME
+        end
+        case STATExALARM
+            move color Color.Red
+            lightState = LIGHTxBLINK
+            sleepTime = BLINKxTIME
+        end
+        case STATExSTORM
+            move color Color.Red
+            lightState = LIGHTxON
+            sleepTime = ALARMxTIME
+        end
+    end
+end

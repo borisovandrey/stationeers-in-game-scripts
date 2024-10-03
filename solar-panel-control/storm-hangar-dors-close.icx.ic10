@@ -1,0 +1,65 @@
+alias state r0
+alias dorsOpened r1
+alias dorsOpenedOld r2
+alias weatherState r3
+alias switchState r4
+define STATExIDLE 0
+define STATExWARNING 1
+define STATExALARM 2
+define STATExSTORM 3
+define ALARMxTIMExSEC 30
+define HANGARxPREFABxHASH 1736080881
+define SLEEPxTIME 5
+alias selfHost       db
+alias WeatherStation d0
+alias handSwitch     d1
+alias WIFI           d2
+move state STATExIDLE
+move dorsOpened 1
+move dorsOpenedOld -1
+main:
+l weatherState WeatherStation Mode
+l switchState handSwitch Open
+brne weatherState 0 2
+jal OnIdle
+brne weatherState 1 2
+jal OnAlarm
+brne weatherState 2 2
+jal OnStorm
+seq r15 dorsOpened 1
+seq r14 switchState 1
+and r13 r15 r14
+beqz r13 if0exit
+move dorsOpened 0
+if0exit:
+s selfHost Setting state
+s WIFI Setting state
+sne r15 dorsOpened dorsOpenedOld
+beqz r15 if1exit
+move dorsOpenedOld dorsOpened
+sb HANGARxPREFABxHASH Open dorsOpened
+if1exit:
+sleep SLEEPxTIME
+j main
+jr 24
+OnIdle:
+move state STATExIDLE
+move dorsOpened 1
+j ra
+OnAlarm:
+alias timeToStorm r5
+l timeToStorm WeatherStation NextWeatherEventTime
+sgt r15 timeToStorm ALARMxTIMExSEC
+beqz r15 if2else
+move state STATExWARNING
+move dorsOpened 1
+j if2exit
+if2else:
+move state STATExALARM
+move dorsOpened 0
+if2exit:
+j ra
+OnStorm:
+move state STATExSTORM
+move dorsOpened 0
+j ra

@@ -1,0 +1,77 @@
+#andrey.borisov@gmx.de 02.10.2024
+#This script is intended to protect solar pannels during storm using hangar dors
+#Script read data from weather station and if it is lees than 30 sec for storm 
+#it closes hangar dors using batch command.
+#Also it sets current state to the chip setting.
+#The chip setting can be red by wireless module to implement alarm ligting.
+
+use definitions
+use aliases
+use constants
+
+const STATExIDLE        = 0   # Still
+const STATExWARNING     = 1   # Storm is comming
+const STATExALARM       = 2   # Storm begins after ALARM_TIME_SEC sec
+const STATExSTORM       = 3   # Storm runs
+const ALARMxTIMExSEC    = 30  # Time for storm starts 
+const HANGARxPREFABxHASH = 1736080881 #HASH("StructureAirlockgate")
+const SLEEPxTIME        = 5  # Process idle time
+
+alias selfHost       db   # Processor's socket itself
+alias WeatherStation d0   # Weather station
+alias handSwitch     d1   # Switch, if on, allows to close doors if there is no storm 
+alias WIFI           d2   # Wifi transmitter broadcasts alarm state over subscribers
+
+# Initialization
+var state = STATExIDLE 
+var dorsOpened = 1
+var dorsOpenedOld = -1
+
+main:
+var weatherState = WeatherStation.Mode
+var switchState = handSwitch.Open
+switch weatherState
+    case 0 #Idle
+        OnIdle()
+    end
+    case 1 #Warning
+        OnAlarm()
+    end
+    case 2 #Storm
+        OnStorm()
+    end
+end
+
+if dorsOpened == 1 && switchState == 1 # apply hand switch to alow close the dors
+    dorsOpened = 0
+end
+
+selfHost.Setting = state
+WIFI.Setting = state
+if dorsOpened != dorsOpenedOld
+    dorsOpenedOld = dorsOpened
+    d(HANGARxPREFABxHASH).Open = dorsOpened
+end
+sleep SLEEPxTIME
+j main
+
+function OnIdle
+    state = STATExIDLE
+    dorsOpened = 1
+end
+
+function OnAlarm
+    var timeToStorm = WeatherStation.NextWeatherEventTime
+    if timeToStorm > ALARMxTIMExSEC
+        state = STATExWARNING
+        dorsOpened = 1
+    else
+        state = STATExALARM
+        dorsOpened = 0
+    end
+end
+
+function OnStorm
+    state = STATExSTORM
+    dorsOpened = 0
+end

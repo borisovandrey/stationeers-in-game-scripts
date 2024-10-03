@@ -1,0 +1,45 @@
+alias color r0
+alias lightState r1
+alias sleepTime r2
+alias lightOn r3
+alias alarmSettingOld r4
+alias alarmSetting r5
+alias Alarm d0
+move sleepTime 5
+move alarmSettingOld -1
+main:
+l alarmSetting Alarm Setting
+sne r15 alarmSetting alarmSettingOld
+beqz r15 if0exit
+move alarmSettingOld alarmSetting
+jal defineState
+sbn 1944485013 -2037307393 Color color
+snez lightOn lightState
+sbn 1944485013 -2037307393 On lightOn
+if0exit:
+seq r15 lightState 2
+beqz r15 if1exit
+sbn 1944485013 -2037307393 On lightOn
+xor lightOn lightOn 1
+if1exit:
+sleep sleepTime
+j main
+jr 30
+defineState:
+brne alarmSetting 0 4
+move color Color.White
+move lightState 0
+move sleepTime 5
+brne alarmSetting 1 4
+move color Color.Yellow
+move lightState 1
+move sleepTime 1
+brne alarmSetting 2 4
+move color Color.Red
+move lightState 2
+move sleepTime 0
+brne alarmSetting 3 4
+move color Color.Red
+move lightState 1
+move sleepTime 1
+j ra
