@@ -1,0 +1,124 @@
+jal init
+main:
+sleep 0.5
+lb r6 545937711 RecipeHash Minimum
+l r7 db Setting
+seq r6 r7 r6
+l r8 d3 Setting
+brnez r8 2
+s d0 Color 1
+jr 2
+breqz r6 2
+s d0 Color 2
+xor r6 r6 1
+and r5 r8 r6
+bneal r5 r0 onchangestate
+beqz r0 main
+move r9 0
+move r1 10
+jal loadlocal
+lb r5 545937711 Temperature Minimum
+sub r15 r2 r5
+div r10 r15 r2
+jal pidcontroller
+move r11 r9
+jal storelocal
+move r1 30
+jal loadlocal
+lb r5 545937711 Pressure Minimum
+brle r5 50000 4
+move r5 0
+jal onchangestate
+j main
+sub r15 r2 r5
+div r10 r15 r2
+jal pidcontroller
+move r12 r9
+jal storelocal
+jal applyactuators
+j main
+jr 87
+init:
+push r17
+s d1 Setting 0
+s d2 Setting 0
+s d1 On 1
+s d2 On 1
+sb 545937711 On 1
+move r0 0
+move r3 0
+move r4 0
+move r2 0
+move r1 10
+jal storelocal
+move r1 30
+jal storelocal
+pop r17
+j ra
+onchangestate:
+move r0 r5
+breqz r0 8
+l r5 d4 Setting
+move r16 10
+push r5
+l r5 d5 Setting
+move r16 30
+push r5
+j r17
+sb 545937711 SettingInput 0
+sb 545937711 SettingOutput 0
+s d1 Setting 0
+s d2 Setting 0
+j ra
+storelocal:
+move r13 r16
+move r16 r1
+push r2
+push r3
+push r4
+move r16 r13
+j ra
+loadlocal:
+move r14 r16
+add r16 r1 3
+pop r4
+pop r3
+pop r2
+move r16 r14
+j ra
+pidcontroller:
+mul r15 r10 0.5
+add r4 r4 r15
+mul r15 1.5 r10
+mul null 0.5 r4
+add r15 r15 null
+sub null r10 r3
+div null null 0.5
+mul null 0.2 null
+add r9 r15 null
+move r3 r10
+min r9 r9 1
+max r9 r9 -1
+mul r9 r9 100
+j ra
+applyactuators:
+sb 545937711 SettingInput 100
+abs r9 r12
+brgez r12 4
+sb 545937711 SettingOutput r9
+move r12 0
+jr 2
+sb 545937711 SettingOutput 0
+abs r9 r11
+max r9 r9 r12
+brltz r11 5
+s d0 Color 4
+s d1 Setting r9
+s d2 Setting 0
+jr 4
+s d0 Color -1
+s d1 Setting 0
+s d2 Setting r9
+brgt r9 3.5 2
+s d0 Color 5
+j ra

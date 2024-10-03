@@ -5,171 +5,183 @@
 #Is not suit to ignition furnance usage.
 #For fast reach of the SP preapre a big supply of hot gas.
 #600 steel (450 iron and 150 coal) with pressure 2000 and temp 1200 consumes about 9Mpa of 2052 grad in 1000L  
-alias LED d0
-alias hotinput d1
-alias coolinput d2
-alias switch d3
-alias temp_sp d4
-alias prss_sp d5
+alias LED d0         #Led indicator for current furnance activity Red for hot gas, Blue for cool gas
+alias hotinput d1    #The pump for hot (2500C) CO2 gas
+alias coolinput d2   #The pump for cool (less 0C) CO2 gas
+alias switch d3      #Start switch
+alias temp_tgt d4    #Memory device with set of the temeprature target    
+alias prss_tgt d5    #Memory device with set of the the pressure target
 
-#TODO: add big pressure check (over 50 Mpa)
 #TODO: implement algorithm with input filter for derivative from https://en.wikipedia.org/wiki/PID_controller
 #TODO: think about small resource consumptiom methodics
 
-#Temeperature is set in C
-const temperature_sp_tgt = 0
+const FURNANCE = 545937711
+const PRESSURE_MAX = 50000
 
-#Ressure is set in KP
-const pressure_sp_tgt = 0
+#Stack offset for calculated temperature values
+const TEMPERATURE_ADDR = 10 
+#Stack offset for calculated pressure values
+const PRESSURE_ADDR = 30
 
-const furnace = 545937711
+const Kp = 1.5       #Error coeffecient
+const Ki = 0.5       #Integral error coeffecient
+const Kd = 0.2       #Differencial error coeffecient
+const dt = 0.5       #Delta time
+const Klvn = 273.15  #Kelvin value for 0C
 
-const PresssureMax = 58000
+var state            #State of furnance
+var sp_addr          #Stack address used in acces to calculated parameters
+var tgt_val          #Active target value for pressure or temperature
+var previous_error   #The value of the normalized previous error in %
+var integral         #Integral value of error in %
+var current_val      #Actual value of temperture or pressure
 
-const temperature_offset = 10
-const pressure_offset = 30
+const STATE_IDLE = 0 #Furnance is inactive
+const STATE_ACTIVE = 1 #Furnance is active
 
-const actuator_dead_area = 0.01
-
-const Kp = 1.5
-const Ki = 0.5
-const Kd = 0.2
-const dt = 0.5
-const Klvn = 273.15
-
-var state
-var sp_offset
-var sp_tgt
-var previous_error
-var integral
-var pin_sp
-var val
+const CONTROLLER_TOLLERANCE = 3.5 #If error is less then 0.035 we consider the furnance is on target
 
 init()
 
 main:
    sleep dt
-   var sw = switch.Setting
-   brnez sw 2
-   LED.Color = 1 #Gray - inactive
-   var rh = d(furnace).RecipeHash(Minimum)
-   var ch = db.Setting
-   seq rh ch rh
-   breqz rh 2
-   LED.Color = 2 #Green - done
-   nor rh rh 0
-   and val sw rh
-   bneal val state changestate
-   beqz state main
+   var furn_ingot_ready = d(FURNANCE).RecipeHash(Minimum) #Get furnance ready ingot reciept hash
+   var required_ingot = db.Setting  #Get required ingot reciept, set by UI controller
+   seq furn_ingot_ready required_ingot furn_ingot_ready #Check the recepts are similar, that mean that ingot is ready 
+   var sw_on = switch.Setting
+   brnez sw_on 2 #In case switch is set to OFF make LED gray 
+      LED.Color = 1 #Gray - no activity
+      jr 2 #If swithc is off don't put LED in green 
+   breqz furn_ingot_ready 2 #Check ingot is ready
+      LED.Color = 2 #Green - done
+   #Current state is: (sw_on && !furn_ingot_ready) 
+   xor furn_ingot_ready furn_ingot_ready 1
+   and current_val sw_on furn_ingot_ready
+   #In case the state is changing
+   bneal current_val state onchangestate #Set state inside to current_val
+   beqz state main #Either switch is off or ingot is ready run IDLE cycle
 
    #Calculate Temperature
    var output = 0
-   sp_offset = temperature_offset
-   loadlocal()
-   val = d(furnace).Temperature(Minimum)
-   var error = (sp_tgt - val) / sp_tgt
-   pidcontroller()
-   var output_t = output
+   sp_addr = TEMPERATURE_ADDR
+   loadlocal() #load previous calculation for temperature
+   current_val = d(FURNANCE).Temperature(Minimum)
+   var error = (tgt_val - current_val) / tgt_val #Normalized error in %
+   pidcontroller() #Apply PID algorithm for temp
+   var output_t = output #Normalized output
+   storelocal()
 
    #Calculate pressure
-   sp_offset = pressure_offset
-   loadlocal()
-   val = d(furnace).Pressure(Minimum)
-   brle val PresssureMax 4
-   val = 0
-   jal changestate
-   j main
-   error = (sp_tgt - val) / sp_tgt
-   pidcontroller()
-   var output_p = output
+   sp_addr = PRESSURE_ADDR
+   loadlocal() #load previous calculation for pressure
+   current_val = d(FURNANCE).Pressure(Minimum)
+   brle current_val PRESSURE_MAX 4 #In case we run out of pressure limit stop everything
+      current_val = STATE_IDLE
+      jal onchangestate
+      j main
+   error = (tgt_val - current_val) / tgt_val #Normalized error in %
+   pidcontroller() #Apply PID algorithm for pressure
+   var output_p = output #Normalized output
+   storelocal()
+
+   #Apply temp and pressure settings
    applyactuators()
 j main
 
 function init
    push ra
-   hotinput.On = 1
-   coolinput.On = 1
-   d(furnace).On = 1
+
+   #Set everything to 0
    hotinput.Setting = 0
    coolinput.Setting = 0
+   hotinput.On = 1
+   coolinput.On = 1
+   d(FURNANCE).On = 1
 
-   state = 0
+   state = STATE_IDLE
    previous_error = 0
    integral = 0
+   tgt_val = 0
 
-   sp_offset = temperature_offset
-   sp_tgt = temperature_sp_tgt
+   sp_addr = TEMPERATURE_ADDR
    storelocal()
 
-   sp_offset = pressure_offset
-   sp_tgt = pressure_sp_tgt
+   sp_addr = PRESSURE_ADDR
    storelocal()
    pop ra
 end
 
-function changestate
-   state = val
-   breqz state 8
-   val = temp_sp.Setting
-   sp = temperature_offset
-   push val
-   val = prss_sp.Setting
-   sp = pressure_offset
-   push val
-   j ra
-   d(furnace).SettingInput = 0
-   d(furnace).SettingOutput = 0
+function onchangestate
+   state = current_val
+   breqz state 8 #If Current state is not IDLE
+      current_val = temp_tgt.Setting
+      sp = TEMPERATURE_ADDR
+      push current_val
+      current_val = prss_tgt.Setting
+      sp = PRESSURE_ADDR
+      push current_val
+      j ra #return
+   d(FURNANCE).SettingInput = 0
+   d(FURNANCE).SettingOutput = 0
    hotinput.Setting = 0
    coolinput.Setting = 0
 end
 
 function storelocal
-   pin_sp = sp
-   move sp sp_offset
-   push sp_tgt
+   var pin_adr = sp
+   move sp sp_addr
+   push tgt_val
    push previous_error
    push integral
-   move sp pin_sp
+   move sp pin_adr
 end
 
 function loadlocal
-   pin_sp = sp
-   sp = sp_offset + 3
+   var pin_adr = sp
+   sp = sp_addr + 3
    pop integral
    pop previous_error
-   pop sp_tgt
-   move sp pin_sp
+   pop tgt_val
+   move sp pin_adr
 end
 
 function pidcontroller
    integral = integral + error * dt
    output = Kp * error + Ki * integral  + Kd * ((error - previous_error) / dt)
    previous_error = error
+   #Output is normalized in the [-1:1]
    min output output 1
    max output output -1
-   output = output * 100 
+   output = output * 100 #Turn to procentage 
  end
 
 function applyactuators 
-   d(furnace).SettingInput = 100
+   #We have output as procentage, and for simplicity we consider that max value of our actuator is 100 (if not make proportion)
+   d(FURNANCE).SettingInput = 100
    abs output output_p
-   brgez output_p 4
-      d(furnace).SettingOutput = output
-      output_p = 0
-      jr 2
-      d(furnace).SettingOutput = 0
+   brgez output_p 4 #In case of negative error by pressure open the furnance output
+      d(FURNANCE).SettingOutput = output
+      output_p = 0 #Don't consider pressure error in input gas calculation 
+   jr 2 
+      #else
+      d(FURNANCE).SettingOutput = 0 #Not enough pressure close furnance output
 
+   #We don't have separate actuators for positive presure and (+/-)temepreture errors
+   #This mean we either open cool gas or hot gas and increase the presure by this
+   #Here we check what is the error is more meanfull: pressure or temperature
    abs output output_t
-   max output output output_p
-   brltz output_t 5
-   LED.Color = 4 #Red heating
-   hotinput.Setting = output
-   coolinput.Setting = 0
-   jr 4
-   LED.Color = -1 #Cooling heating
-   hotinput.Setting = 0
-   coolinput.Setting = output
+   max output output output_p 
+   brltz output_t 5 #If temperature is low the target use hot gas, but apply setting max from temp and pressure error
+      LED.Color = 4 #Red heating
+      hotinput.Setting = output
+      coolinput.Setting = 0
+   jr 4 
+      #else
+      #In case of temp is greater then target use cool gas and set output to max of pressure and temp error 
+      LED.Color = -1 #Cooling heating with blue
+      hotinput.Setting = 0
+      coolinput.Setting = output
 
-   brgt output 3.5 2
-   LED.Color = 5 #Yellow in mode 
+   brgt output CONTROLLER_TOLLERANCE 2 #Low output means low error and then we are on target
+      LED.Color = 5 #Yellow in mode 
 end
