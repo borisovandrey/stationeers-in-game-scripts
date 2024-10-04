@@ -37,7 +37,7 @@ move r12 r9
 jal storelocal
 jal applyactuators
 j main
-jr 87
+jr 88
 init:
 push r17
 s d1 Setting 0
@@ -57,6 +57,7 @@ pop r17
 j ra
 onchangestate:
 move r0 r5
+clr db
 breqz r0 8
 l r5 d4 Setting
 move r16 10

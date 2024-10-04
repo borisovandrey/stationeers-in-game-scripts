@@ -113,6 +113,7 @@ end
 
 function onchangestate
    state = current_val
+   clr db #Clear stack
    breqz state 8 #If Current state is not IDLE
       current_val = temp_tgt.Setting
       sp = TEMPERATURE_ADDR
