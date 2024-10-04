@@ -29,12 +29,14 @@ const Kd = 0.2       #Differencial error coeffecient
 const dt = 0.5       #Delta time
 const Klvn = 273.15  #Kelvin value for 0C
 
+#We don't use local varaibles to have control of access 
 var state            #State of furnance
 var sp_addr          #Stack address used in acces to calculated parameters
 var tgt_val          #Active target value for pressure or temperature
 var previous_error   #The value of the normalized previous error in %
 var integral         #Integral value of error in %
 var current_val      #Actual value of temperture or pressure
+var pin_adr          #Pin stack addr
 
 const STATE_IDLE = 0 #Furnance is inactive
 const STATE_ACTIVE = 1 #Furnance is active
@@ -49,7 +51,7 @@ main:
    var required_ingot = db.Setting  #Get required ingot reciept, set by UI controller
    seq furn_ingot_ready required_ingot furn_ingot_ready #Check the recepts are similar, that mean that ingot is ready 
    var sw_on = switch.Setting
-   brnez sw_on 2 #In case switch is set to OFF make LED gray 
+   brnez sw_on 3 #In case switch is set to OFF make LED gray 
       LED.Color = 1 #Gray - no activity
       jr 2 #If swithc is off don't put LED in green 
    breqz furn_ingot_ready 2 #Check ingot is ready
@@ -129,7 +131,7 @@ function onchangestate
 end
 
 function storelocal
-   var pin_adr = sp
+   pin_adr = sp
    move sp sp_addr
    push tgt_val
    push previous_error
@@ -138,7 +140,7 @@ function storelocal
 end
 
 function loadlocal
-   var pin_adr = sp
+   pin_adr = sp
    sp = sp_addr + 3
    pop integral
    pop previous_error
