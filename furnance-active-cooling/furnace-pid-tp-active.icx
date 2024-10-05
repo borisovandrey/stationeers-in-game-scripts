@@ -1,190 +1,193 @@
+#use aliases
+#use constants
 #Inspired by #From https://www.reddit.com/r/Stationeers/comments/yz28ce/furnace_thermal_mechanics_help/
-#Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller and changed to work with normalized error
+#Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller and changed to work with normalized deviation
 #Target point is set as pair (T,P) T in celsius
 #Algorithm works with preapred working body (CO2 cobusted in saved in insulated tank).
 #Is not suit to ignition furnance usage.
 #For fast reach of the SP preapre a big supply of hot gas.
 #600 steel (450 iron and 150 coal) with pressure 2000 and temp 1200 consumes about 9Mpa of 2052 grad in 1000L  
 alias LED d0         #Led indicator for current furnance activity Red for hot gas, Blue for cool gas
-alias hotinput d1    #The pump for hot (2500C) CO2 gas
-alias coolinput d2   #The pump for cool (less 0C) CO2 gas
+alias hotInput d1    #The pump for hot (2500C) CO2 gas
+alias coolInput d2   #The pump for cool (less 0C) CO2 gas
 alias switch d3      #Start switch
-alias temp_tgt d4    #Memory device with set of the temeprature target    
-alias prss_tgt d5    #Memory device with set of the the pressure target
+alias tempTgt d4    #Memory device with set of the temeprature target    
+alias prssTgt d5    #Memory device with set of the the pressure target
 
 #TODO: implement algorithm with input filter for derivative from https://en.wikipedia.org/wiki/PID_controller
 #TODO: think about small resource consumptiom methodics
 
 const FURNANCE = 545937711
-const PRESSURE_MAX = 50000
+const PRESSURExMAX = 50000
 
 #Stack offset for calculated temperature values
-const TEMPERATURE_ADDR = 10 
+const TEMPERATURExADDR = 10 
 #Stack offset for calculated pressure values
-const PRESSURE_ADDR = 30
+const PRESSURExADDR = 30
 
-const Kp = 1.5       #Error coeffecient
-const Ki = 0.5       #Integral error coeffecient
-const Kd = 0.2       #Differencial error coeffecient
+const Kp = 1.5       #deviation coeffecient
+const Ki = 0.5       #Integral deviation coeffecient
+const Kd = 0.2       #Differencial deviation coeffecient
 const dt = 0.5       #Delta time
 const Klvn = 273.15  #Kelvin value for 0C
+const Aging = 0.7    #Aging coeffecient of integral data - step out from classic algorithm to reduce oscilation  
 
 #We don't use local varaibles to have control of access 
 var state            #State of furnance
-var sp_addr          #Stack address used in acces to calculated parameters
-var tgt_val          #Active target value for pressure or temperature
-var previous_error   #The value of the normalized previous error in %
-var integral         #Integral value of error in %
-var current_val      #Actual value of temperture or pressure
-var pin_adr          #Pin stack addr
+var spAddr          #Stack address used in acces to calculated parameters
+var tgtval          #Active target value for pressure or temperature
+var previousdeviation   #The value of the normalized previous deviation in %
+var integral         #Integral value of deviation in %
+var currentVal      #Actual value of temperture or pressure
+var pinAddr          #Pin stack addr
 
-const STATE_IDLE = 0 #Furnance is inactive
-const STATE_ACTIVE = 1 #Furnance is active
+const STATExIDLE = 0 #Furnance is inactive
+const STATExACTIVE = 1 #Furnance is active
 
-const CONTROLLER_TOLLERANCE = 3.5 #If error is less then 0.035 we consider the furnance is on target
-
+const CONTROLLERxTOLLERANCE = 3.5 #If deviation is less then 0.035 we consider the furnance is on target
+ 
 init()
 
 main:
    sleep dt
-   var furn_ingot_ready = d(FURNANCE).RecipeHash(Minimum) #Get furnance ready ingot reciept hash
-   var required_ingot = db.Setting  #Get required ingot reciept, set by UI controller
-   seq furn_ingot_ready required_ingot furn_ingot_ready #Check the recepts are similar, that mean that ingot is ready 
-   var sw_on = switch.Setting
-   brnez sw_on 3 #In case switch is set to OFF make LED gray 
+   var furnIngotReady = d(FURNANCE).RecipeHash(Minimum) #Get furnance ready ingot reciept hash
+   var requiredIngot = db.Setting  #Get required ingot reciept, set by UI controller
+   seq furnIngotReady requiredIngot furnIngotReady #Check the recepts are similar, that mean that ingot is ready 
+   var swOn = switch.Setting
+   brnez swOn 3 #In case switch is set to OFF make LED gray 
       LED.Color = 1 #Gray - no activity
       jr 2 #If swithc is off don't put LED in green 
-   breqz furn_ingot_ready 2 #Check ingot is ready
+   breqz furnIngotReady 2 #Check ingot is ready
       LED.Color = 2 #Green - done
-   #Current state is: (sw_on && !furn_ingot_ready) 
-   xor furn_ingot_ready furn_ingot_ready 1
-   and current_val sw_on furn_ingot_ready
+   #Current state is: (swOn && !furnIngotReady) 
+   xor furnIngotReady furnIngotReady 1
+   and currentVal swOn furnIngotReady
    #In case the state is changing
-   bneal current_val state onchangestate #Set state inside to current_val
+   bneal currentVal state onChangeState #Set state inside to currentVal
    beqz state main #Either switch is off or ingot is ready run IDLE cycle
 
    #Calculate Temperature
    var output = 0
-   sp_addr = TEMPERATURE_ADDR
-   loadlocal() #load previous calculation for temperature
-   current_val = d(FURNANCE).Temperature(Minimum)
-   var error = (tgt_val - current_val) / tgt_val #Normalized error in %
-   pidcontroller() #Apply PID algorithm for temp
-   var output_t = output #Normalized output
-   storelocal()
+   spAddr = TEMPERATURExADDR
+   loadLocal() #load previous calculation for temperature
+   currentVal = d(FURNANCE).Temperature(Minimum)
+   var deviation = (tgtval - currentVal) / tgtval #Normalized deviation in %
+   pidController() #Apply PID algorithm for temp
+   var outputTemp = output #Normalized output
+   storeLocal()
 
    #Calculate pressure
-   sp_addr = PRESSURE_ADDR
-   loadlocal() #load previous calculation for pressure
-   current_val = d(FURNANCE).Pressure(Minimum)
-   brle current_val PRESSURE_MAX 4 #In case we run out of pressure limit stop everything
-      current_val = STATE_IDLE
-      jal onchangestate
+   spAddr = PRESSURExADDR
+   loadLocal() #load previous calculation for pressure
+   currentVal = d(FURNANCE).Pressure(Minimum)
+   brle currentVal PRESSURExMAX 4 #In case we run out of pressure limit stop everything
+      currentVal = STATExIDLE
+      jal onChangeState
       j main
-   error = (tgt_val - current_val) / tgt_val #Normalized error in %
-   pidcontroller() #Apply PID algorithm for pressure
-   var output_p = output #Normalized output
-   storelocal()
+   deviation = (tgtval - currentVal) / tgtval #Normalized deviation in %
+   pidController() #Apply PID algorithm for pressure
+   var outputPrss = output #Normalized output
+   storeLocal()
 
    #Apply temp and pressure settings
-   applyactuators()
+   applyActuators()
 j main
 
 function init
    push ra
 
    #Set everything to 0
-   hotinput.Setting = 0
-   coolinput.Setting = 0
-   hotinput.On = 1
-   coolinput.On = 1
+   hotInput.Setting = 0
+   coolInput.Setting = 0
+   hotInput.On = 1
+   coolInput.On = 1
    d(FURNANCE).On = 1
 
-   state = STATE_IDLE
-   previous_error = 0
+   state = STATExIDLE
+   previousdeviation = 0
    integral = 0
-   tgt_val = 0
+   tgtval = 0
 
-   sp_addr = TEMPERATURE_ADDR
-   storelocal()
+   spAddr = TEMPERATURExADDR
+   storeLocal()
 
-   sp_addr = PRESSURE_ADDR
-   storelocal()
+   spAddr = PRESSURExADDR
+   storeLocal()
    pop ra
 end
 
-function onchangestate
-   state = current_val
+function onChangeState
+   state = currentVal
    clr db #Clear stack
    breqz state 8 #If Current state is not IDLE
-      current_val = temp_tgt.Setting
-      sp = TEMPERATURE_ADDR
-      push current_val
-      current_val = prss_tgt.Setting
-      sp = PRESSURE_ADDR
-      push current_val
+      currentVal = tempTgt.Setting
+      sp = TEMPERATURExADDR
+      push currentVal
+      currentVal = prssTgt.Setting
+      sp = PRESSURExADDR
+      push currentVal
       j ra #return
    d(FURNANCE).SettingInput = 0
    d(FURNANCE).SettingOutput = 0
-   hotinput.Setting = 0
-   coolinput.Setting = 0
+   hotInput.Setting = 0
+   coolInput.Setting = 0
 end
 
-function storelocal
-   pin_adr = sp
-   move sp sp_addr
-   push tgt_val
-   push previous_error
+function storeLocal
+   pinAddr = sp
+   move sp spAddr
+   push tgtval
+   push previousdeviation
    push integral
-   move sp pin_adr
+   move sp pinAddr
 end
 
-function loadlocal
-   pin_adr = sp
-   sp = sp_addr + 3
+function loadLocal
+   pinAddr = sp
+   sp = spAddr + 3
    pop integral
-   pop previous_error
-   pop tgt_val
-   move sp pin_adr
+   pop previousdeviation
+   pop tgtval
+   move sp pinAddr
 end
 
-function pidcontroller
-   integral = integral + error * dt
-   output = Kp * error + Ki * integral  + Kd * ((error - previous_error) / dt)
-   previous_error = error
+function pidController
+   integral = integral * Aging + deviation * dt
+   output = Kp * deviation + Ki * integral  + Kd * ((deviation - previousdeviation) / dt)
+   previousdeviation = deviation
    #Output is normalized in the [-1:1]
    min output output 1
    max output output -1
    output = output * 100 #Turn to procentage 
  end
 
-function applyactuators 
+function applyActuators 
    #We have output as procentage, and for simplicity we consider that max value of our actuator is 100 (if not make proportion)
    d(FURNANCE).SettingInput = 100
-   abs output output_p
-   brgez output_p 4 #In case of negative error by pressure open the furnance output
+   abs output outputPrss
+   brgez outputPrss 4 #In case of negative deviation by pressure open the furnance output
       d(FURNANCE).SettingOutput = output
-      output_p = 0 #Don't consider pressure error in input gas calculation 
+      outputPrss = 0 #Don't consider pressure deviation in input gas calculation 
    jr 2 
       #else
       d(FURNANCE).SettingOutput = 0 #Not enough pressure close furnance output
 
-   #We don't have separate actuators for positive presure and (+/-)temepreture errors
+   #We don't have separate actuators for positive presure and (+/-)temepreture deviations
    #This mean we either open cool gas or hot gas and increase the presure by this
-   #Here we check what is the error is more meanfull: pressure or temperature
-   abs output output_t
-   max output output output_p 
-   brltz output_t 5 #If temperature is low the target use hot gas, but apply setting max from temp and pressure error
+   #Here we check what is the deviation is more meanfull: pressure or temperature
+   abs output outputTemp
+   max output output outputPrss 
+   brltz outputTemp 5 #If temperature is low the target use hot gas, but apply setting max from temp and pressure deviation
       LED.Color = 4 #Red heating
-      hotinput.Setting = output
-      coolinput.Setting = 0
+      hotInput.Setting = output
+      coolInput.Setting = 0
    jr 4 
       #else
-      #In case of temp is greater then target use cool gas and set output to max of pressure and temp error 
+      #In case of temp is greater then target use cool gas and set output to max of pressure and temp deviation 
       LED.Color = -1 #Cooling heating with blue
-      hotinput.Setting = 0
-      coolinput.Setting = output
+      hotInput.Setting = 0
+      coolInput.Setting = output
 
-   brgt output CONTROLLER_TOLLERANCE 2 #Low output means low error and then we are on target
+   brgt output CONTROLLERxTOLLERANCE 2 #Low output means low deviation and then we are on target
       LED.Color = 5 #Yellow in mode 
 end
