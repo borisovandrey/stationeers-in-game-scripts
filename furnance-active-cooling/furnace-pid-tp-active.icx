@@ -1,5 +1,5 @@
-#use aliases
-#use constants
+use aliases
+use constants
 #Inspired by #From https://www.reddit.com/r/Stationeers/comments/yz28ce/furnace_thermal_mechanics_help/
 #Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller and changed to work with normalized deviation
 #Target point is set as pair (T,P) T in celsius
@@ -25,12 +25,19 @@ const TEMPERATURExADDR = 10
 #Stack offset for calculated pressure values
 const PRESSURExADDR = 30
 
-const Kp = 1.5       #deviation coeffecient
-const Ki = 0.5       #Integral deviation coeffecient
-const Kd = 0.2       #Differencial deviation coeffecient
-const dt = 0.5       #Delta time
-const Klvn = 273.15  #Kelvin value for 0C
-const Aging = 0.7    #Aging coeffecient of integral data - step out from classic algorithm to reduce oscilation  
+const Kp = 1.5          #deviation coeffecient
+const Ki = 0.5          #Integral deviation coeffecient
+const Kd = 0.2          #Differencial deviation coeffecient
+const dt = 0.5          #Delta time
+const Klvn = 273.15     #Kelvin value for 0C
+#Decoy coeffecients of integral data - step out from classic algorithm to reduce oscilation  
+const AGINGxERRORxTHRESHOLD = 0.15
+const AGINGxLOWxERROR = 0.5
+const AGINGxHIGHxERROR = 0.8
+#Coeffecient for low-pass filter
+#A larger alpha smooths the derivative more, 
+#while a smaller alpha makes it more responsive but potentially noisier.
+const LOWxPATHxFILTERxALPHA = 0.2
 
 #We don't use local varaibles to have control of access 
 var state            #State of furnance
@@ -39,15 +46,29 @@ var tgtval          #Active target value for pressure or temperature
 var previousdeviation   #The value of the normalized previous deviation in %
 var integral         #Integral value of deviation in %
 var currentVal      #Actual value of temperture or pressure
-var pinAddr          #Pin stack addr
 
 const STATExIDLE = 0 #Furnance is inactive
 const STATExACTIVE = 1 #Furnance is active
 
 const CONTROLLERxTOLLERANCE = 3.5 #If deviation is less then 0.035 we consider the furnance is on target
  
-init()
+#Initialize
+#Set everything to 0
+hotInput.Setting = 0
+coolInput.Setting = 0
+hotInput.On = 1
+coolInput.On = 1
+d(FURNANCE).On = 1
+state = STATExIDLE
+previousdeviation = 0
+integral = 0
+tgtval = 0
+spAddr = TEMPERATURExADDR
+storeLocal()
+spAddr = PRESSURExADDR
+storeLocal()
 
+#Main execution
 main:
    sleep dt
    var furnIngotReady = d(FURNANCE).RecipeHash(Minimum) #Get furnance ready ingot reciept hash
@@ -93,33 +114,11 @@ main:
    applyActuators()
 j main
 
-function init
-   push ra
-
-   #Set everything to 0
-   hotInput.Setting = 0
-   coolInput.Setting = 0
-   hotInput.On = 1
-   coolInput.On = 1
-   d(FURNANCE).On = 1
-
-   state = STATExIDLE
-   previousdeviation = 0
-   integral = 0
-   tgtval = 0
-
-   spAddr = TEMPERATURExADDR
-   storeLocal()
-
-   spAddr = PRESSURExADDR
-   storeLocal()
-   pop ra
-end
-
 function onChangeState
    state = currentVal
    clr db #Clear stack
-   breqz state 8 #If Current state is not IDLE
+   breqz state 9 #If Current state is not IDLE
+      d(FURNANCE).SettingInput = 100 #Don't control input by furnance
       currentVal = tempTgt.Setting
       sp = TEMPERATURExADDR
       push currentVal
@@ -134,25 +133,30 @@ function onChangeState
 end
 
 function storeLocal
-   pinAddr = sp
    move sp spAddr
    push tgtval
    push previousdeviation
    push integral
-   move sp pinAddr
 end
 
 function loadLocal
-   pinAddr = sp
    sp = spAddr + 3
    pop integral
    pop previousdeviation
    pop tgtval
-   move sp pinAddr
 end
 
 function pidController
-   integral = integral * Aging + deviation * dt
+   #Anti windup integral calculation with adaptive decoy
+   abs currentVal deviation
+   sge currentVal currentVal AGINGxERRORxTHRESHOLD
+   select currentVal currentVal AGINGxHIGHxERROR AGINGxLOWxERROR 
+   integral = integral * currentVal + deviation * dt
+   min integral integral 1
+   max integral integral -1
+   #Low-Path filter for deviation
+   previousdeviation = deviation * LOWxPATHxFILTERxALPHA + (1 - LOWxPATHxFILTERxALPHA) * previousdeviation
+   #PID formula application
    output = Kp * deviation + Ki * integral  + Kd * ((deviation - previousdeviation) / dt)
    previousdeviation = deviation
    #Output is normalized in the [-1:1]
@@ -163,7 +167,6 @@ function pidController
 
 function applyActuators 
    #We have output as procentage, and for simplicity we consider that max value of our actuator is 100 (if not make proportion)
-   d(FURNANCE).SettingInput = 100
    abs output outputPrss
    brgez outputPrss 4 #In case of negative deviation by pressure open the furnance output
       d(FURNANCE).SettingOutput = output

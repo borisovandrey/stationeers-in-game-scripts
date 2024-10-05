@@ -1,126 +1,161 @@
-jal init
-main:
-sleep 0.5
-lb r7 545937711 RecipeHash Minimum
-l r8 db Setting
-seq r7 r8 r7
-l r9 d3 Setting
-brnez r9 3
-s d0 Color 1
-jr 2
-breqz r7 2
-s d0 Color 2
-xor r7 r7 1
-and r5 r9 r7
-bneal r5 r0 onChangeState
-beqz r0 main
-move r10 0
-move r1 10
-jal loadLocal
-lb r5 545937711 Temperature Minimum
-sub r15 r2 r5
-div r11 r15 r2
-jal pidController
-move r12 r10
+alias state r0
+alias spAddr r1
+alias tgtval r2
+alias previousdeviation r3
+alias integral r4
+alias currentVal r5
+alias furnIngotReady r6
+alias requiredIngot r7
+alias swOn r8
+alias output r9
+alias deviation r10
+alias outputTemp r11
+alias outputPrss r12
+alias LED d0
+alias hotInput d1
+alias coolInput d2
+alias switch d3
+alias tempTgt d4
+alias prssTgt d5
+define FURNANCE 545937711
+define PRESSURExMAX 50000
+define TEMPERATURExADDR 10
+define PRESSURExADDR 30
+define Kp 1.5
+define Ki 0.5
+define Kd 0.2
+define dt 0.5
+define Klvn 273.15
+define AGINGxERRORxTHRESHOLD 0.15
+define AGINGxLOWxERROR 0.5
+define AGINGxHIGHxERROR 0.8
+define LOWxPATHxFILTERxALPHA 0.2
+define STATExIDLE 0
+define STATExACTIVE 1
+define CONTROLLERxTOLLERANCE 3.5
+s hotInput Setting 0
+s coolInput Setting 0
+s hotInput On 1
+s coolInput On 1
+sb FURNANCE On 1
+move state STATExIDLE
+move previousdeviation 0
+move integral 0
+move tgtval 0
+move spAddr TEMPERATURExADDR
 jal storeLocal
-move r1 30
+move spAddr PRESSURExADDR
+jal storeLocal
+main:
+sleep dt
+lb furnIngotReady FURNANCE RecipeHash Minimum
+l requiredIngot db Setting
+seq furnIngotReady requiredIngot furnIngotReady
+l swOn switch Setting
+brnez swOn 3
+s LED Color 1
+jr 2
+breqz furnIngotReady 2
+s LED Color 2
+xor furnIngotReady furnIngotReady 1
+and currentVal swOn furnIngotReady
+bneal currentVal state onChangeState
+beqz state main
+move output 0
+move spAddr TEMPERATURExADDR
 jal loadLocal
-lb r5 545937711 Pressure Minimum
-brle r5 50000 4
-move r5 0
+lb currentVal FURNANCE Temperature Minimum
+sub r15 tgtval currentVal
+div deviation r15 tgtval
+jal pidController
+move outputTemp output
+jal storeLocal
+move spAddr PRESSURExADDR
+jal loadLocal
+lb currentVal FURNANCE Pressure Minimum
+brle currentVal PRESSURExMAX 4
+move currentVal STATExIDLE
 jal onChangeState
 j main
-sub r15 r2 r5
-div r11 r15 r2
+sub r15 tgtval currentVal
+div deviation r15 tgtval
 jal pidController
-move r13 r10
+move outputPrss output
 jal storeLocal
 jal applyActuators
 j main
-jr 89
-init:
-push r17
-s d1 Setting 0
-s d2 Setting 0
-s d1 On 1
-s d2 On 1
-sb 545937711 On 1
-move r0 0
-move r3 0
-move r4 0
-move r2 0
-move r1 10
-jal storeLocal
-move r1 30
-jal storeLocal
-pop r17
-j ra
+jr 75
 onChangeState:
-move r0 r5
+move state currentVal
 clr db
-breqz r0 8
-l r5 d4 Setting
-move r16 10
-push r5
-l r5 d5 Setting
-move r16 30
-push r5
-j r17
-sb 545937711 SettingInput 0
-sb 545937711 SettingOutput 0
-s d1 Setting 0
-s d2 Setting 0
+breqz state 9
+sb FURNANCE SettingInput 100
+l currentVal tempTgt Setting
+move sp TEMPERATURExADDR
+push currentVal
+l currentVal prssTgt Setting
+move sp PRESSURExADDR
+push currentVal
+j ra
+sb FURNANCE SettingInput 0
+sb FURNANCE SettingOutput 0
+s hotInput Setting 0
+s coolInput Setting 0
 j ra
 storeLocal:
-move r6 r16
-move r16 r1
-push r2
-push r3
-push r4
-move r16 r6
+move sp spAddr
+push tgtval
+push previousdeviation
+push integral
 j ra
 loadLocal:
-move r6 r16
-add r16 r1 3
-pop r4
-pop r3
-pop r2
-move r16 r6
+add sp spAddr 3
+pop integral
+pop previousdeviation
+pop tgtval
 j ra
 pidController:
-mul r15 r4 0.7
-mul r14 r11 0.5
-add r4 r15 r14
-mul r15 1.5 r11
-mul r14 0.5 r4
+abs currentVal deviation
+sge currentVal currentVal AGINGxERRORxTHRESHOLD
+select currentVal currentVal AGINGxHIGHxERROR AGINGxLOWxERROR
+mul r15 integral currentVal
+mul r14 deviation dt
+add integral r15 r14
+min integral integral 1
+max integral integral -1
+mul r15 deviation LOWxPATHxFILTERxALPHA
+sub r14 1 LOWxPATHxFILTERxALPHA
+mul r14 r14 previousdeviation
+add previousdeviation r15 r14
+mul r15 Kp deviation
+mul r14 Ki integral
 add r15 r15 r14
-sub r14 r11 r3
-div r14 r14 0.5
-mul r14 0.2 r14
-add r10 r15 r14
-move r3 r11
-min r10 r10 1
-max r10 r10 -1
-mul r10 r10 100
+sub r14 deviation previousdeviation
+div r14 r14 dt
+mul r14 Kd r14
+add output r15 r14
+move previousdeviation deviation
+min output output 1
+max output output -1
+mul output output 100
 j ra
 applyActuators:
-sb 545937711 SettingInput 100
-abs r10 r13
-brgez r13 4
-sb 545937711 SettingOutput r10
-move r13 0
+abs output outputPrss
+brgez outputPrss 4
+sb FURNANCE SettingOutput output
+move outputPrss 0
 jr 2
-sb 545937711 SettingOutput 0
-abs r10 r12
-max r10 r10 r13
-brltz r12 5
-s d0 Color 4
-s d1 Setting r10
-s d2 Setting 0
+sb FURNANCE SettingOutput 0
+abs output outputTemp
+max output output outputPrss
+brltz outputTemp 5
+s LED Color 4
+s hotInput Setting output
+s coolInput Setting 0
 jr 4
-s d0 Color -1
-s d1 Setting 0
-s d2 Setting r10
-brgt r10 3.5 2
-s d0 Color 5
+s LED Color -1
+s hotInput Setting 0
+s coolInput Setting output
+brgt output CONTROLLERxTOLLERANCE 2
+s LED Color 5
 j ra
