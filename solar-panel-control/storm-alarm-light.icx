@@ -8,6 +8,9 @@ use definitions
 const LEDxALARMxHASH = 1944485013
 const LEDxALARMxNAME = -2037307393
 
+const DSPxALARMxHASH = -815193061
+const DSPxALARMxNAME = 2086992721 #storm-alarm-dsp
+
 const STATExIDLE        = 0   # Still
 const STATExWARNING     = 1   # Storm is comming
 const STATExALARM       = 2   # Storm begins after ALARM_TIME_SEC sec
@@ -22,6 +25,9 @@ const IDLExTIME = 5     #5 secund sleep time in idle
 const ALARMxTIME = 1    #1 second when light is on
 const BLINKxTIME = 0    #0.5 sec when light is blinking       
 
+const SHIFT = 2
+const MASK = 3
+
 alias Alarm d0
 
 var color
@@ -31,13 +37,25 @@ var lightOn
 var alarmSettingOld = INITxVALUE
 
 main:
+    var timeToStorm = 0
     var alarmSetting = Alarm.Setting
+    srl timeToStorm alarmSetting SHIFT
+    and alarmSetting alarmSetting MASK 
     if alarmSetting != alarmSettingOld
        alarmSettingOld = alarmSetting
        defineState()
        sbn LEDxALARMxHASH LEDxALARMxNAME Color color
        snez lightOn lightState
        sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn 
+       if timeToStorm > 0
+            sbn DSPxALARMxHASH DSPxALARMxNAME On 1 
+       else
+            sbn DSPxALARMxHASH DSPxALARMxNAME On 0
+       end
+    end
+
+    if timeToStorm > 0 
+       sbn DSPxALARMxHASH DSPxALARMxNAME Setting timeToStorm 
     end
 
     if lightState == LIGHTxBLINK

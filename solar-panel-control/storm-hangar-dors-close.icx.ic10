@@ -3,6 +3,7 @@ alias dorsOpened r1
 alias dorsOpenedOld r2
 alias weatherState r3
 alias switchState r4
+alias timeToStorm r5
 define STATExIDLE 0
 define STATExWARNING 1
 define STATExALARM 2
@@ -10,6 +11,7 @@ define STATExSTORM 3
 define ALARMxTIMExSEC 30
 define HANGARxPREFABxHASH 1736080881
 define SLEEPxTIME 5
+define SHIFT 2
 alias selfHost       db
 alias WeatherStation d0
 alias handSwitch     d1
@@ -20,6 +22,7 @@ move dorsOpenedOld -1
 main:
 l weatherState WeatherStation Mode
 l switchState handSwitch Open
+l timeToStorm WeatherStation NextWeatherEventTime
 brne weatherState 0 2
 jal OnIdle
 brne weatherState 1 2
@@ -32,6 +35,8 @@ and r13 r15 r14
 beqz r13 if0exit
 move dorsOpened 0
 if0exit:
+sll timeToStorm timeToStorm SHIFT
+or state state timeToStorm
 s selfHost Setting state
 s WIFI Setting state
 sne r15 dorsOpened dorsOpenedOld
@@ -41,14 +46,12 @@ sb HANGARxPREFABxHASH Open dorsOpened
 if1exit:
 sleep SLEEPxTIME
 j main
-jr 24
+jr 21
 OnIdle:
 move state STATExIDLE
 move dorsOpened 1
 j ra
 OnAlarm:
-alias timeToStorm r5
-l timeToStorm WeatherStation NextWeatherEventTime
 sgt r15 timeToStorm ALARMxTIMExSEC
 beqz r15 if2else
 move state STATExWARNING

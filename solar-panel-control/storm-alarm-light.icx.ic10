@@ -3,12 +3,16 @@ alias lightState r1
 alias sleepTime r2
 alias lightOn r3
 alias alarmSettingOld r4
-alias alarmSetting r5
+alias timeToStorm r5
+alias alarmSetting r6
 alias Alarm d0
 move sleepTime 5
 move alarmSettingOld -1
 main:
+move timeToStorm 0
 l alarmSetting Alarm Setting
+srl timeToStorm alarmSetting 2
+and alarmSetting alarmSetting 3
 sne r15 alarmSetting alarmSettingOld
 beqz r15 if0exit
 move alarmSettingOld alarmSetting
@@ -16,12 +20,23 @@ jal defineState
 sbn 1944485013 -2037307393 Color color
 snez lightOn lightState
 sbn 1944485013 -2037307393 On lightOn
+sgtz r14 timeToStorm
+beqz r14 if1else
+sbn -815193061 2086992721 On 1
+j if1exit
+if1else:
+sbn -815193061 2086992721 On 0
+if1exit:
 if0exit:
+sgtz r15 timeToStorm
+beqz r15 if2exit
+sbn -815193061 2086992721 Setting timeToStorm
+if2exit:
 seq r15 lightState 2
-beqz r15 if1exit
+beqz r15 if3exit
 sbn 1944485013 -2037307393 On lightOn
 xor lightOn lightOn 1
-if1exit:
+if3exit:
 sleep sleepTime
 j main
 jr 30

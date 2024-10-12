@@ -16,6 +16,7 @@ const STATExSTORM       = 3   # Storm runs
 const ALARMxTIMExSEC    = 30  # Time for storm starts 
 const HANGARxPREFABxHASH = 1736080881 #HASH("StructureAirlockgate")
 const SLEEPxTIME        = 5  # Process idle time
+const SHIFT             = 2
 
 alias selfHost       db   # Processor's socket itself
 alias WeatherStation d0   # Weather station
@@ -30,6 +31,7 @@ var dorsOpenedOld = -1
 main:
 var weatherState = WeatherStation.Mode
 var switchState = handSwitch.Open
+var timeToStorm = WeatherStation.NextWeatherEventTime
 switch weatherState
     case 0 #Idle
         OnIdle()
@@ -46,6 +48,8 @@ if dorsOpened == 1 && switchState == 1 # apply hand switch to alow close the dor
     dorsOpened = 0
 end
 
+sll timeToStorm timeToStorm SHIFT
+or state state timeToStorm
 selfHost.Setting = state
 WIFI.Setting = state
 if dorsOpened != dorsOpenedOld
@@ -61,7 +65,6 @@ function OnIdle
 end
 
 function OnAlarm
-    var timeToStorm = WeatherStation.NextWeatherEventTime
     if timeToStorm > ALARMxTIMExSEC
         state = STATExWARNING
         dorsOpened = 1
