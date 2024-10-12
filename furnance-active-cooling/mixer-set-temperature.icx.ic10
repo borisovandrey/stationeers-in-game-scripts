@@ -1,0 +1,71 @@
+alias Ttarg r0
+alias step r1
+alias buttonPressedCount r2
+alias S r3
+alias T1 r4
+alias T2 r5
+alias BtnPressed r6
+alias Mixer     d0
+alias HotSns    d1
+alias ColdSns   d2
+alias Display   d3
+alias PlusBtn   d4
+alias MinusBtn  d5
+define Klvn 273.15
+l Ttarg db Setting
+s Display On 1
+move step 0
+move buttonPressedCount 0
+move S 100
+main:
+yield
+l T1 HotSns Temperature
+l T2 HotSns Temperature
+l BtnPressed PlusBtn Open
+snez r15 BtnPressed
+beqz r15 if0else
+add buttonPressedCount buttonPressedCount 1
+jal selectStepModule
+j if0exit
+if0else:
+l BtnPressed MinusBtn Open
+snez r14 BtnPressed
+beqz r14 if1else
+add buttonPressedCount buttonPressedCount 1
+jal selectStepModule
+mul step -1 step
+j if1exit
+if1else:
+move step 0
+move buttonPressedCount 0
+jal performSeetings
+if1exit:
+if0exit:
+add Ttarg Ttarg step
+s Display Setting Ttarg
+s db Setting Ttarg
+j main
+jr 26
+selectStepModule:
+sle r15 buttonPressedCount 6
+beqz r15 if2exit
+move step 1
+j ra
+if2exit:
+sle r15 buttonPressedCount 12
+beqz r15 if3exit
+move step 10
+j ra
+if3exit:
+move step 100
+j ra
+performSeetings:
+sub r15 T2 T1
+div r15 100 r15
+mul r14 T1 T2
+add r13 Ttarg Klvn
+div r14 r14 r13
+sub r14 r14 T1
+mul S r15 r14
+s Mixer Setting S
+j ra
