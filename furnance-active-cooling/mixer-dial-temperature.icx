@@ -1,0 +1,74 @@
+#andrey.borisov@gmx.de 12.10.2024
+#This script allows to combine two CO2 sources with different temperature to get the desired result
+#Uses algorithm from https://www.reddit.com/r/Stationeers/comments/lrorc5/from_now_on_we_can_precisely_mix_different_gases/
+#S = 100 * C2 * (T0 - T2) * T1 / ( C1 * (T1 - T0) * T2 + C * (T0 - T2) * T1 ) 
+#use https://ic10.dev/ for debug
+
+#Let Z be the ratio.
+#Gas Mixer takes such amount (n1, in moles) of gas1 that it takes V*Z litres of the output pipe at pressure Pm 101.325kPa (game limit for gas mixer) per second. V is volume of output pipe.
+#Then it takes n2 amount of gas2 so that it takes V*(1-Z) litres of the output pipe. 
+
+#Energy of mixing gas is:
+#E = C1 * n1 * To + C2*n2*To = To * ( C1*n1 + C2 * n2 ) 
+
+#Some formulas
+#P * V = n * R * T - Ideal Gas Law
+#E = C * n * T - Internal Energy
+#Ppressure, kPa
+#Pm = 101.325 kPa - maximum pressure for Gas Mixer, in-game value
+#V - volume, litres
+#n - amount, moles
+#R = 8.3144 - gas constant, is the exact in-game value
+#T - temperature, K
+#E – energy, J
+#C – heat capacity, J / ( moles * K )
+#0K = -273.15C
+
+#Heat capacity table:
+#Gas 	        CO2 	H2 	    N2 	    N2O 	O2 	    X
+#J / (moles*K) 	28.2 	20.4 	20.6 	23 	    21.1 	24.8 
+
+#The result formula for exactly gas mimixg ratio is
+#S = 100 * ( T1 * a ) / ( T1 * a + T2 * (1 - a) )
+#Where a is the desired ratio
+
+use aliases
+use constants
+
+alias Mixer     d0
+alias HotSns    d1 #Input 1 of mixer
+alias ColdSns   d2 #Input 2 of mixer
+alias Display   d3
+alias Dial100   d4
+alias Dial10    d5
+
+const Klvn = 273.15 #Kelvin value for 0C
+
+var S = 100
+var To = 0
+
+Display.On = 1
+s Display Color Color.Red
+
+main:
+yield
+
+To = Dial100.Setting
+var To10 = Dial10.Setting
+To = To * 100 + To10 * 10
+Display.Setting = To
+
+var T1 = HotSns.Temperature
+var T2 = ColdSns.Temperature
+
+To = To + Klvn
+var diff1 = T1 - To
+var diff2 = To - T2
+S =  diff2 * T1 /  ( diff1 * T2 + diff2 * T1 )   
+
+db.Setting = S
+S = 100 * S
+Mixer.Setting = S 
+
+j main
+

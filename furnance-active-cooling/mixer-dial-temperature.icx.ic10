@@ -1,0 +1,40 @@
+alias S r0
+alias To r1
+alias To10 r2
+alias T1 r3
+alias T2 r4
+alias diff1 r5
+alias diff2 r6
+alias Mixer     d0
+alias HotSns    d1
+alias ColdSns   d2
+alias Display   d3
+alias Dial100   d4
+alias Dial10    d5
+define Klvn 273.15
+move S 100
+move To 0
+s Display On 1
+s Display Color Color.Red
+main:
+yield
+l To Dial100 Setting
+l To10 Dial10 Setting
+mul r15 To 100
+mul r14 To10 10
+add To r15 r14
+s Display Setting To
+l T1 HotSns Temperature
+l T2 ColdSns Temperature
+add To To Klvn
+sub diff1 T1 To
+sub diff2 To T2
+mul r15 diff2 T1
+mul r14 diff1 T2
+mul r13 diff2 T1
+add r14 r14 r13
+div S r15 r14
+s db Setting S
+mul S 100 S
+s Mixer Setting S
+j main
