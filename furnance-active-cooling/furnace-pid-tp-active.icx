@@ -13,9 +13,12 @@ alias tempTgt d4    #Memory device with set of the temeprature target
 alias prssTgt d5    #Memory device with set of the the pressure target
 
 #TODO: think about small resource consumptiom methodics
-
 const FURNANCE = 545937711
 const PRESSURExMAX = 50000
+
+#The valve that closes direct access to preparation countur
+const VALVExTYPE = 113 # HASH("StructureDigitalValve") 
+const VALVExNAME = 114 # HASH("fa-inj-auto-sw")
 
 #Stack offset for calculated temperature values
 const TEMPERATURExADDR = 10 
@@ -115,6 +118,7 @@ function onChangeState
    state = currentVal
    clr db #Clear stack
    breqz state 9 #If Current state is not IDLE
+      sbn VALVExTYPE VALVExNAME On 0
       d(FURNANCE).SettingInput = 100 #Don't control input by furnance
       currentVal = tempTgt.Setting
       sp = TEMPERATURExADDR
@@ -127,6 +131,7 @@ function onChangeState
    d(FURNANCE).SettingOutput = 0
    hotInput.Setting = 0
    coolInput.Setting = 0
+   sbn VALVETYPE VALVENAME On 1
 end
 
 function storeLocal
