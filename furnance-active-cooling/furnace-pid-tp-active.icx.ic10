@@ -49,11 +49,12 @@ move r12 r9
 jal storeLocal
 jal applyActuators
 j main
-jr 74
+jr 76
 onChangeState:
 move r0 r5
 clr db
 breqz r0 9
+sbn HASH("StructureDigitalValve") HASH("fa-inj-auto-sw") On 0
 sb 545937711 SettingInput 100
 l r5 d4 Setting
 move r16 10
@@ -66,6 +67,7 @@ sb 545937711 SettingInput 0
 sb 545937711 SettingOutput 0
 s d1 Setting 0
 s d2 Setting 0
+sbn HASH("StructureDigitalValve") HASH("fa-inj-auto-sw") On 1
 j ra
 storeLocal:
 move r16 r1
