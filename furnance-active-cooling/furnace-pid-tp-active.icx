@@ -56,9 +56,6 @@ const CONTROLLERxTOLLERANCE = 3.5 #If deviation is less then 0.035 we consider t
 #Set everything to 0
 hotInput.Setting = 0
 coolInput.Setting = 0
-hotInput.On = 1
-coolInput.On = 1
-d(FURNANCE).On = 1
 state = STATExIDLE
 previousdeviation = 0
 integral = 0
@@ -117,9 +114,11 @@ j main
 function onChangeState
    state = currentVal
    clr db #Clear stack
-   breqz state 9 #If Current state is not IDLE
+   breqz state 12 #If Current state is not IDLE
       sbn VALVExTYPE VALVExNAME On 0
       d(FURNANCE).SettingInput = 100 #Don't control input by furnance
+      hotInput.On = 1
+      coolInput.On = 1
       currentVal = tempTgt.Setting
       sp = TEMPERATURExADDR
       push currentVal
@@ -131,7 +130,9 @@ function onChangeState
    d(FURNANCE).SettingOutput = 0
    hotInput.Setting = 0
    coolInput.Setting = 0
-   sbn VALVETYPE VALVENAME On 1
+   hotInput.On = 0
+   coolInput.On = 0
+   sbn VALVExTYPE VALVExNAME On 1
 end
 
 function storeLocal

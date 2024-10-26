@@ -1,0 +1,128 @@
+s d1 Setting 0
+s d2 Setting 0
+move r0 0
+move r3 0
+move r4 0
+move r2 0
+move r1 10
+jal storeLocal
+move r1 30
+jal storeLocal
+main:
+sleep 0.5
+lb r6 545937711 RecipeHash Minimum
+l r7 db Setting
+seq r6 r7 r6
+l r8 d3 Setting
+brnez r8 3
+s d0 Color 1
+jr 2
+breqz r6 2
+s d0 Color 2
+xor r6 r6 1
+and r5 r8 r6
+bneal r5 r0 onChangeState
+beqz r0 main
+move r9 0
+move r1 10
+jal loadLocal
+lb r5 545937711 Temperature Minimum
+sub r15 r2 r5
+div r10 r15 r2
+jal pidController
+move r11 r9
+jal storeLocal
+move r1 30
+jal loadLocal
+lb r5 545937711 Pressure Minimum
+brle r5 50000 4
+move r5 0
+jal onChangeState
+j main
+sub r15 r2 r5
+div r10 r15 r2
+jal pidController
+move r12 r9
+jal storeLocal
+jal applyActuators
+j main
+jr 80
+onChangeState:
+move r0 r5
+clr db
+breqz r0 12
+sbn HASH("StructureDigitalValve") HASH("fa-inj-auto-sw") On 0
+sb 545937711 SettingInput 100
+s d1 On 1
+s d2 On 1
+l r5 d4 Setting
+move r16 10
+push r5
+l r5 d5 Setting
+move r16 30
+push r5
+j r17
+sb 545937711 SettingInput 0
+sb 545937711 SettingOutput 0
+s d1 Setting 0
+s d2 Setting 0
+s d1 On 0
+s d2 On 0
+sbn HASH("StructureDigitalValve") HASH("fa-inj-auto-sw") On 1
+j ra
+storeLocal:
+move r16 r1
+push r2
+push r3
+push r4
+j ra
+loadLocal:
+add r16 r1 3
+pop r4
+pop r3
+pop r2
+j ra
+pidController:
+abs r5 r10
+sge r5 r5 0.15
+select r5 r5 0.8 0.5
+mul r15 r4 r5
+mul r14 r10 0.5
+add r4 r15 r14
+min r4 r4 1
+max r4 r4 -1
+mul r15 r10 0.2
+mul r14 0.8 r3
+add r3 r15 r14
+mul r15 1.5 r10
+mul r14 0.5 r4
+add r15 r15 r14
+sub r14 r10 r3
+div r14 r14 0.5
+mul r14 0.2 r14
+add r9 r15 r14
+move r3 r10
+min r9 r9 1
+max r9 r9 -1
+mul r9 r9 100
+j ra
+applyActuators:
+abs r9 r12
+brgez r12 4
+sb 545937711 SettingOutput r9
+move r12 0
+jr 2
+sb 545937711 SettingOutput 0
+abs r9 r11
+max r9 r9 r12
+brltz r11 5
+s d0 Color 4
+s d1 Setting r9
+s d2 Setting 0
+jr 4
+s d0 Color -1
+s d1 Setting 0
+s d2 Setting r9
+brgt r9 3.5 2
+s d0 Color 5
+j ra
