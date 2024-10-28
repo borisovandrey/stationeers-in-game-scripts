@@ -1,0 +1,55 @@
+define MODULExNAME HASH("st-manual-op")
+alias Store d0
+alias Router d1
+alias StoreExitValve d2
+alias ManualSwitch d3
+alias LED d5
+
+define MANUALxROUTE 1
+
+alias lastState r0
+move lastState -1
+
+s LED Color Color.Gray
+s LED On 0
+
+main:
+    sleep 1
+    l r15 ManualSwitch Open
+    beq r15 lastState main
+    move lastState r15
+    bnezal r15 open
+    beqzal r15 close
+j main
+
+open:
+    push ra
+    s LED On 1
+    jal holdline
+    s LED Color Color.Green
+    s Router Setting MANUALxROUTE
+    s StoreExitValve Open 1
+    pop ra
+j ra
+
+close:
+    push ra
+    jal freeline
+    s LED Color Color.Gray
+    s LED On 0
+    pop ra
+j ra
+
+holdline:
+  s LED Color Color.Blue
+  lbn r15 HASH("StructureLogicMemory") HASH("store-mutex") Setting Minimum
+  beqal r15 MODULExNAME ra
+  brnez r15 2
+  sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
+  brnan r15 -1
+  sleep 1
+j holdline
+
+freeline:
+  sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting 0
+j ra
