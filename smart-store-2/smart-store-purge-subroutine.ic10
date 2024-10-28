@@ -2,6 +2,7 @@ define MODULExNAME HASH("st-purge-full")
 define STACKxSIZE 50
 define MEMORYxSTART 0
 define PURGExROUTE 2
+define COALxROUTE 3
 define HOLDxROUTE 0
 alias Store d0
 alias Router d1
@@ -105,13 +106,10 @@ stackhash:
    sub allSlots allSlots 1
    breq r15 STACKxSIZE 3 #Item is full put it on stack
      s Router Setting HOLDxROUTE
-   jr 7
-     breq hash HASH("ItemUraniumOre") 5
-     breq hash HASH("ItemCoalOre") 4
-     breq hash HASH("ItemCobaltOre") 3
-     s Router Setting PURGExROUTE
-     jr 2
-     s Router Setting 1
+   jr 4
+     seq r14 hash HASH("ItemCoalOre")
+     select r14 r14 COALxROUTE PURGExROUTE
+     s Router Setting r14
    s StoreExitValve Open 1
    sleep 1
    ls r15 StoreExitValve 0 Occupied
