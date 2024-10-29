@@ -1,7 +1,5 @@
 define MODULExNAME HASH("st-stack-all")
 define STACKxSIZE 50
-define STACKERxROUTE 4
-define HOLDxROUTE 0
 alias Store d0
 alias Router d1
 alias HoldValve d2
@@ -9,12 +7,10 @@ alias StoreExitValve d3
 alias Stacker d4
 alias LED d5
 alias hashArraySize r1
-alias idx r2
 alias qtty r3
 alias hash r4
 alias slotsToStack r5
 alias allSlots r6
-alias slotsToTest r7
 move r0 0
 main:
   sleep 10
@@ -38,20 +34,20 @@ main:
 j main
 collecthashes:
   s LED Color Color.Yellow
-  l slotsToTest Store Quantity #Get amount of occupated slots
-  beqz slotsToTest ra #If store is empty - return
-  move idx 2 #Start slot for content
+  l r7 Store Quantity #Get amount of occupated slots
+  beqz r7 ra #r7 - slots to test If store is empty - return
+  move r2 2 #r2 - index Start slot for content
   foreachslotfind:
-    ls r14 Store idx Occupied
-    ls qtty Store idx Quantity
-    ls hash Store idx OccupantHash
-    add idx idx 1
+    ls r14 Store r2 Occupied
+    ls qtty Store r2 Quantity
+    ls hash Store r2 OccupantHash
+    add r2 r2 1
     sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
     beqz r14 foreachslotfind #Check the slot is occupied
-    sub slotsToTest slotsToTest 1
+    sub r7 r7 1
     j updatequantity
     updated:
-  bnez slotsToTest foreachslotfind
+  bnez r7 foreachslotfind
 j ra
 updatequantity:
   move sp 0
@@ -84,11 +80,13 @@ handlehashes:
     pop slotsToStack #slots to operate
     pop hash #hash
     sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
-    brle slotsToStack 1 15 #Ignore cases when we have only one or zero slots to stack
+    move r8 0 #r8 hold line protection by limit (10)
+    brle slotsToStack 1 16 #Ignore cases when we have only one or zero slots to stack
       s LED Color Color.Orange
       move r10 ra
       bgtzal allSlots stackhash
-      brgtz allSlots -1 #repeat for all slots
+      brge r8 10 2 #protect hold from overflow (10 section)
+      brgtz allSlots -2 #repeat for all slots
       move ra r10
       s HoldValve Open 1
       sleep 1
@@ -109,9 +107,10 @@ stackhash:
    breqz r15 -2 #Wait qtty on the exit trap
    sub allSlots allSlots 1
    breq r15 STACKxSIZE 3 #Item is full put it on stack
-     s Router Setting STACKERxROUTE
-   jr 2
-     s Router Setting HOLDxROUTE
+     s Router Setting 4 #Stack route
+   jr 3
+     s Router Setting 0 #Hold route
+     add r8 r8 1 #r8 - hold size
    s StoreExitValve Open 1
    sleep 1
    ls r15 StoreExitValve 0 Occupied

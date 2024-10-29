@@ -1,6 +1,5 @@
 define MODULExNAME HASH("st-purge-full")
 define STACKxSIZE 50
-define MEMORYxSTART 0
 define PURGExROUTE 2
 define COALxROUTE 3
 define HOLDxROUTE 0
@@ -54,11 +53,11 @@ collecthashes:
   bnez slotsToTest foreachslotfind
 j ra
 updatequantity:
-  move sp MEMORYxSTART
+  move sp 0
   add sp sp hashArraySize
   seq r15 qtty STACKxSIZE
   searchexistent:
-    ble sp MEMORYxSTART searchexistentend
+    ble sp 0 searchexistentend
     pop r14 #allSlots
     pop r13 #slotsToPurge
     pop r12 #hash
@@ -69,7 +68,7 @@ updatequantity:
     add r14 r14 1
     push r14
   searchexistentend:
-  brne sp MEMORYxSTART 6 #if found do nothing if not add
+  brne sp 0 6 #if found do nothing if not add
     add sp sp hashArraySize
     push hash #hash
     push r15  #full slots
@@ -77,35 +76,38 @@ updatequantity:
     add hashArraySize hashArraySize 3
 j updated
 handlehashes:
-  move sp MEMORYxSTART
+  move sp 0
   add sp sp hashArraySize
   forechhash:
     pop allSlots #all slots
     pop slotsToPurge #slots to operate
     pop hash #hash
     sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
+    move r8 0 #r8 hold line protection by limit (10)
     breqz slotsToPurge 11 #Ignore cases when we have only one or zero slots to stack
       s LED Color Color.Orange
       move r10 ra
-      bgtzal allSlots stackhash
-      brgtz allSlots -1 #repeat for all slots
+      bgtzal allSlots extracthash
+      brge r8 10 2 #protect hold from overflow (10 section)
+      brgtz allSlots -2 #repeat for all slots
       move ra r10
       s HoldValve Open 1
       sleep 6
       ls r15 HoldValve 0 Occupied #Check until clear hold route
       brnez r15 -2
       s HoldValve Open 0
-  bgt sp MEMORYxSTART forechhash
+  bgt sp 0 forechhash
 j ra
-stackhash:
+extracthash:
    s StoreExitValve Open 0
    s Store RequestHash hash
    sleep 1
    ls r15 StoreExitValve 0 Quantity
    breqz r15 -2 #Wait qtty on the exit trap
    sub allSlots allSlots 1
-   breq r15 STACKxSIZE 3 #Item is full put it on stack
+   breq r15 STACKxSIZE 4 #Item is full put it on stack
      s Router Setting HOLDxROUTE
+     add r8 r8 1 #r8 - hold size
    jr 4
      seq r14 hash HASH("ItemCoalOre")
      select r14 r14 COALxROUTE PURGExROUTE
