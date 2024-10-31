@@ -1,12 +1,19 @@
+#andrey.borisov@gmx.de
+#31.10.2024
+#Controls deep miner and 4 attached centrifuges
 use aliases
 alias cfg1 d1
 alias cfg2 d2
 alias cfg3 d3
+alias cfg4 d4
+alias stacker d5
 alias dm d0
 
 const CfgReagentsLimit = 200
-const CfgEmptyLimit = 5
+const CfgEmptyLimit = 0
 const SleepTime = 30
+const AmountOfCentrifuges = 4
+var idx
 
 main:
     CheckCfgOverflow()
@@ -14,11 +21,23 @@ main:
     sleep SleepTime
 j main
 
-function CheckCfgOverflow
-    var a = cfg1.slot(1).Occupied
-    var b = cfg2.slot(1).Occupied
-    var c = cfg3.slot(1).Occupied
-    if (a != 0) && (b != 0) && (c != 0)
+function CheckCfgOverflow 
+    idx = 1
+    var busy = 1
+    var tmp
+    idx = 0
+    while (idx < 3) && busy
+        tmp = stacker.slot(0).Occupied
+        and busy busy tmp
+        tmp = stacker.slot(1).Occupied
+        and busy busy tmp
+        tmp = stacker.slot(2).Occupied
+        and busy busy tmp
+        idx = idx + 1
+        sleep 1
+    end
+
+    if busy == 1
         dm.On = 0
     else
         dm.On = 1
@@ -26,14 +45,15 @@ function CheckCfgOverflow
 end
 
 function CheckCfgReady
-    var idx = 1 
-    while idx <= 3
+    idx = 1 
+    while idx <= AmountOfCentrifuges
+        d[idx].Open = 0
         var rgnts = d[idx].Reagents
         if rgnts >= CfgReagentsLimit
             d[idx].Open = 1
-            var cntr = 60
-            while rgnts >= CfgEmptyLimit && cntr > 0
-                yield
+            var cntr = 480
+            while rgnts > CfgEmptyLimit && cntr > 0
+                sleep 1
                 cntr--
                 rgnts = d[idx].Reagents
             end

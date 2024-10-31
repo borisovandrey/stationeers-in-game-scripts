@@ -1,0 +1,70 @@
+alias idx r0
+alias cfg1 d1
+alias cfg2 d2
+alias cfg3 d3
+alias cfg4 d4
+alias stacker d5
+alias dm d0
+main:
+jal CheckCfgOverflow
+jal CheckCfgReady
+sleep 30
+j main
+jr 71
+CheckCfgOverflow:
+alias busy r1
+alias tmp r2
+move idx 1
+move busy 1
+move idx 0
+while0:
+slt r15 idx 3
+beqz r15 while0exit
+ls tmp stacker 0 Occupied
+and busy busy tmp
+ls tmp stacker 1 Occupied
+and busy busy tmp
+ls tmp stacker 2 Occupied
+and busy busy tmp
+add idx idx 1
+sleep 1
+j while0
+while0exit:
+seq r15 busy 1
+beqz r15 if0else
+s dm On 0
+j if0exit
+if0else:
+s dm On 1
+if0exit:
+j ra
+CheckCfgReady:
+alias rgnts r3
+alias cntr r4
+move idx 1
+while1:
+sle r15 idx 4
+beqz r15 while1exit
+s dr0 Open 0
+l rgnts dr0 Reagents
+sge r14 rgnts 200
+beqz r14 if1exit
+s dr0 Open 1
+move cntr 480
+while2:
+sgt r13 rgnts 0
+sgtz r12 cntr
+and r11 r13 r12
+beqz r11 while2exit
+sleep 1
+sub cntr cntr 1
+l rgnts dr0 Reagents
+j while2
+while2exit:
+s dr0 Open 0
+j while1exit
+if1exit:
+add idx idx 1
+j while1
+while1exit:
+j ra
