@@ -1,5 +1,5 @@
 define MODULExNAME HASH("st-stack-all")
-define STACKxSIZE 50
+define STACKxSIZE 500
 alias Store d0
 alias Router d1
 alias HoldValve d2
@@ -89,7 +89,7 @@ handlehashes:
       brgtz allSlots -2 #repeat for all slots
       move ra r10
       s HoldValve Open 1
-      sleep 1
+      sleep 4
       ls r15 Stacker 0 Occupied
       brnez r15 -2 #Wait stacker is empty
       s Stacker Activate 1 #empty stacker
@@ -107,12 +107,12 @@ stackhash:
    breqz r15 -2 #Wait qtty on the exit trap
    sub allSlots allSlots 1
    breq r15 STACKxSIZE 3 #Item is full put it on stack
-     s Router Setting 4 #Stack route
+     s Router Setting 2 #Stack route
    jr 3
      s Router Setting 0 #Hold route
      add r8 r8 1 #r8 - hold size
    s StoreExitValve Open 1
-   sleep 1
+   sleep 3
    ls r15 StoreExitValve 0 Occupied
    brnez r15 -2 #Wait qtty off the exit trap
 j ra
