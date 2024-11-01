@@ -1,0 +1,122 @@
+define MODULExNAME HASH("man-dev-production")
+alias MnfDev d0
+alias Stacker d1
+alias ExitValve d2
+alias DIAL1 d3
+alias DIAL10 d4
+alias DIAL100 d5
+
+define DSP HASH("StructureConsoleLED5")
+define DSPN HASH("man-al-qtty-dsp")
+
+define FFP HASH("StructureChuteDigitalFlipFlopSplitterRight")
+define FFPN HASH("man-al-ff")
+
+define EXITxMODE 1
+define RETURNxMODE 0
+
+alias opened r0
+alias hash r1
+alias lastActiveState r2
+
+sbn FFP FFPN Setting 0
+sbn FFP FFPN SettingOutput 0
+sbn FFP FFPN Quantity 0
+sbn FFP FFPN Mode EXITxMODE
+s ExitValve Setting 0
+s ExitValve Open 0
+
+s DIAL1 Setting 1
+s DIAL10 Setting 0
+s DIAL100 Setting 0
+
+move lastActiveState 0
+
+main:
+    yield
+    l opened MnfDev Open
+    bnezal opened purge
+    beqzal opened checkneedactivate
+    beqzal opened readallbutttons
+    jal updatedsp
+    jal checkexit
+j main
+
+checkneedactivate:
+   l r12 MnfDev Activate
+   select lastActiveState r12 1 lastActiveState
+   l r15 Stacker Setting
+   l r14 MnfDev ExportCount
+   sub r15 r15 r14
+   sgtz r15 r15
+   select lastActiveState r15 lastActiveState 0
+   breq lastActiveState r12 2
+   s MnfDev Activate lastActiveState
+j ra
+
+checkexit:
+    ls r12 ExitValve 0 Quantity
+    beqz r12 ra
+    ls hash ExitValve 0 OccupantHash
+    push ra
+    jal ifnotingots
+    pop ra
+    sbn FFP FFPN Mode r15
+    s ExitValve Open 1
+    sleep 1
+    s ExitValve Open 0
+j ra
+
+updatedsp:
+    l r15 Stacker Setting
+    l r14 MnfDev ExportCount
+    sub r15 r15 r14
+    sbn DSP DSPN Setting r15
+j ra
+
+purge:
+    move lastActiveState 0
+    s MnfDev Activate 0
+    s MnfDev ClearMemory 1
+j ra
+
+readallbutttons:
+    move r14 0
+    l r13 Stacker Setting
+    l r15 DIAL100 Setting
+    mul r15 r15 100
+    add r14 r14 r15
+    l r15 DIAL10 Setting
+    mul r15 r15 10
+    add r14 r14 r15
+    l r15 DIAL1 Setting
+    add r14 r14 r15
+    beq r14 r13 ra
+    s Stacker Setting r14
+    s MnfDev ClearMemory 1
+    s MnfDev Activate 0
+    move lastActiveState 0
+j ra
+
+ifnotingots:
+    move r15 0
+    beq hash HASH("ItemIronIngot") ra
+    beq hash HASH("ItemCopperIngot") ra
+    beq hash HASH("ItemNickelIngot") ra
+    beq hash HASH("ItemSilverIngot") ra
+    beq hash HASH("ItemGoldIngot") ra
+    beq hash HASH("ItemLeadIngot") ra
+    beq hash HASH("ItemSiliconIngot") ra
+    beq hash HASH("ItemSolidFuel") ra
+    beq hash HASH("ItemConstantanIngot") ra
+    beq hash HASH("ItemInvarIngot") ra
+    beq hash HASH("ItemSteelIngot") ra
+    beq hash HASH("ItemElectrumIngot") ra
+    beq hash HASH("ItemSolderIngot") ra
+    beq hash HASH("ItemAstroloyIngot") ra
+    beq hash HASH("ItemInconelIngot") ra
+    beq hash HASH("ItemWaspaloyIngot") ra
+    beq hash HASH("ItemHastelloyIngot") ra
+    beq hash HASH("ItemStelliteIngot") ra
+    move r15 1
+j ra

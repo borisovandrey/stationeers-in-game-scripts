@@ -1,0 +1,46 @@
+#This code is intendet to ininitalize IC Housing with ingot and reagent hashes
+#Execute it once after instaling hash
+define CRC HASH("man-prod-hashes")
+
+define INGOTSxAMOUNT 18
+move sp 100
+push HASH("ItemIronIngot")
+push HASH("ItemCopperIngot")
+push HASH("ItemNickelIngot")
+push HASH("ItemSilverIngot")
+push HASH("ItemGoldIngot")
+push HASH("ItemLeadIngot")
+push HASH("ItemSiliconIngot")
+push HASH("ItemSolidFuel")
+push HASH("ItemConstantanIngot")
+push HASH("ItemInvarIngot")
+push HASH("ItemSteelIngot")
+push HASH("ItemElectrumIngot")
+push HASH("ItemSolderIngot")
+push HASH("ItemAstroloyIngot")
+push HASH("ItemInconelIngot")
+push HASH("ItemWaspaloyIngot")
+push HASH("ItemHastelloyIngot")
+push HASH("ItemStelliteIngot")
+
+define REAGENTSxAMOUNT 17
+move sp 200
+push HASH("Silicon")
+push HASH("Iron")
+push HASH("Gold")
+push HASH("Copper") 
+push HASH("Silver")
+push HASH("Lead")
+push HASH("Steel") 
+push HASH("Electrum") 
+push HASH("Invar")
+push HASH("Constantan") 
+push HASH("Solder")
+push HASH("Astroloy") 
+push HASH("Hastelloy") 
+push HASH("Inconel")
+push HASH("Waspaloy") 
+push HASH("Stellite")
+push HASH("Nickel")
+
+s db Setting CRC
