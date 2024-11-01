@@ -1,0 +1,37 @@
+define MODULExNAME HASH("man-dial-route-ctrl")
+alias Dial d0
+alias Router d1
+alias LED d2
+define INITxVAL -1 
+alias lastSelection r0
+
+s Dial Setting 4
+move lastSelection INITxVAL
+
+main:
+    yield
+    l r15 Dial Setting
+    beq r15 lastSelection main
+    move lastSelection r15
+    jal holdline
+    s Router Setting r15
+    sleep 1
+    jal freeline
+j main
+
+holdline:
+  s LED On 1
+  s LED Color Color.Blue
+  lbn r15 HASH("StructureLogicMemory") HASH("man-router-mutex") Setting Minimum
+  beqal r15 MODULExNAME ra
+  brnez r15 2
+  sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting MODULExNAME
+  brnan r15 -1
+  sleep 1
+j holdline
+
+freeline:
+    sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting 0
+    s LED Color Color.Gray
+    s LED On 0
+j ra
