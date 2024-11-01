@@ -50,7 +50,7 @@ var currentVal      #Actual value of temperture or pressure
 const STATExIDLE = 0 #Furnance is inactive
 const STATExACTIVE = 1 #Furnance is active
 
-const CONTROLLERxTOLLERANCE = 3.5 #If deviation is less then 0.035 we consider the furnance is on target
+const CONTROLLERxTOLLERANCE = 0.35 #If deviation is less then 0.035 we consider the furnance is on target
  
 #Initialize
 #Set everything to 0
@@ -72,17 +72,16 @@ main:
    var requiredIngot = db.Setting  #Get required ingot reciept, set by UI controller
    seq furnIngotReady requiredIngot furnIngotReady #Check the recepts are similar, that mean that ingot is ready 
    var swOn = switch.Setting
-   brnez swOn 3 #In case switch is set to OFF make LED gray 
-      LED.Color = 1 #Gray - no activity
-      jr 2 #If swithc is off don't put LED in green 
-   breqz furnIngotReady 2 #Check ingot is ready
-      LED.Color = 2 #Green - done
+   r15 = LED.Color
+   select r15 furnIngotReady Color.Green r15 #Check ingot is ready
+   select r15 swOn Color.Grey r15 #In case switch is set to OFF make LED gray 
+   LED.Color = r15 
    #Current state is: (swOn && !furnIngotReady) 
    xor furnIngotReady furnIngotReady 1
    and currentVal swOn furnIngotReady
    #In case the state is changing
    bneal currentVal state onChangeState #Set state inside to currentVal
-   beqz state main #Either switch is off or ingot is ready run IDLE cycle
+beqz state main #Either switch is off or ingot is ready run IDLE cycle
 
    #Calculate Temperature
    var output = 0
@@ -165,13 +164,14 @@ function pidController
    #Output is normalized in the [-1:1]
    min output output 1
    max output output -1
-   output = output * 100 #Turn to procentage 
+   output = output * 10 #Turn to procentage 
  end
 
 function applyActuators 
    #We have output as procentage, and for simplicity we consider that max value of our actuator is 100 (if not make proportion)
    abs output outputPrss
-   brgez outputPrss 4 #In case of negative deviation by pressure open the furnance output
+   brgez outputPrss 5 #In case of negative deviation by pressure open the furnance output
+      output = output * 10
       d(FURNANCE).SettingOutput = output
       outputPrss = 0 #Don't consider pressure deviation in input gas calculation 
    jr 2 
