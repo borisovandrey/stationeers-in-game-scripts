@@ -1,6 +1,6 @@
 #28.10.2024 andrey.borisov@gmx.de
 #Application uses FlipFlop chuts for route input to selected output
-#Output is set as db.Setting as 1,2...max exits  
+#Output is set as db.Setting as 1,2...max exits
 alias Router db
 alias OldRoute r0
 alias Route r1
@@ -36,8 +36,11 @@ jal reset
 j main
 
 reset:
-sb Exits Mode PASS
-sb Exits Setting 0
-sb Exits SettingOutput 0
-sb Exits Quantity 0
+move sp MAXxROUTE
+pop r15
+sbn Exits r15 Mode PASS
+sbn Exits r15 Setting 0
+sbn Exits r15 SettingOutput 0
+sbn Exits r15 Quantity 0
+brnez sp -5
 j ra
