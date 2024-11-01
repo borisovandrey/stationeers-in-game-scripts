@@ -1,0 +1,118 @@
+define MODULExNAME HASH("st-material-dispanser")
+define DISPANCERxROUTE 3
+define CONSUMERSxEXIT 1
+define HOLDxEXIT 0 
+
+alias Store d0
+alias Stacker d1
+alias Router d2
+alias ExitRouter d3
+alias LED d4
+
+define INPUTxADDR 10
+define OUTPUTxADDR 20
+
+alias lastRequester r0
+alias hash r1
+alias qtty r2
+alias idx r3
+alias available r4
+
+s Stacker Mode 1
+s Stacker Activate 0
+
+s LED On 1
+s db Setting 0
+
+move sp INPUTxADDR
+push 0
+push 0
+
+main:
+    s LED Color Color.Gray
+    sleep 1
+    l r15 db Setting
+    beq r15 lastRequester main
+    move lastRequester r15
+    beqz lastRequester main 
+    s LED Color Color.Yellow
+    move idx 10 # 5 sec for waiting the request
+    jal readrequest
+    beqz idx main #If no request was set
+    jal holdline
+    s LED Color Color.Orange
+    jal executerequest
+    jal freeline
+j main
+
+readrequest:
+    beqz idx ra
+    yield
+    move sp INPUTxADDR
+    add sp sp 2
+    pop qtty
+    pop hash
+    sub idx idx 1
+    beqz qtty readrequest
+    beqz hash readrequest
+j ra
+
+executerequest:
+    move idx 2 #Store item slot starts from 2
+    move available 0
+    sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
+search:
+    beq idx 101 finished
+    ls r15 Store idx OccupantHash
+    ls r14 Store idx Quantity
+    add idx idx 1
+    bne r15 hash search
+    add available available r14
+    bge available qtty finsished
+j search
+finsished:
+    move r10 ra
+    move sp OUTPUTxADDR
+    push available
+    bgeal available qtty extracthash
+    move ra r10
+j ra
+
+extracthash:
+    s Router Setting DISPANCERxROUTE
+    sbn HASH("StructureChuteDigitalValveRight") HASH("store-exit-valve") Open 1
+    sbn HASH("StructureChuteDigitalValveRight") HASH("store-input-valve") Open 1
+    sbn HASH("StructureChuteDigitalValveRight") HASH("store-hold-valve") Open 1
+    s Stacker Setting qtty
+    sleep 1
+    move r15 0
+    getnext: 
+        s Store RequestHash hash
+        sleep 1
+        ls r14 Stacker 2 Quantity
+        ls r13 Stacker 1 Quantity
+        add r14 r13 r14
+        breq r14 r15 -2
+        move r15 r14
+    blt r15 qtty getnext
+    s ExitRouter Mode 0 #Send qtty to consumer
+    s Store Activated 1
+    sleep 3
+    s ExitRouter Mode 1 #Return everething back
+    s Store Activated 1
+    sleep 5
+j ra
+
+ holdline:
+  s LED Color Color.Blue
+  lbn r15 HASH("StructureLogicMemory") HASH("store-mutex") Setting Minimum
+  beqal r15 MODULExNAME ra
+  brnez r15 2
+  sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
+  brnan r15 -1
+  sleep 1
+j holdline
+
+freeline:
+    sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
+j ra
