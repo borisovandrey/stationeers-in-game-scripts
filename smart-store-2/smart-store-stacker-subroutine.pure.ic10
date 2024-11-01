@@ -19,7 +19,7 @@ main:
   s LED On 1
   jal holdline
   s HoldValve Open 0
-  s Stacker Activate 0
+  s Stacker Mode 0
   sbn HASH("StructureChuteDigitalValveRight") HASH("store-input-valve") Open 0
   s Stacker Setting STACKxSIZE
   move hashArraySize 0
@@ -81,7 +81,7 @@ handlehashes:
     pop hash #hash
     sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
     move r8 0 #r8 hold line protection by limit (10)
-    brle slotsToStack 1 16 #Ignore cases when we have only one or zero slots to stack
+    brle slotsToStack 1 17 #Ignore cases when we have only one or zero slots to stack
       s LED Color Color.Orange
       move r10 ra
       bgtzal allSlots stackhash
@@ -89,14 +89,15 @@ handlehashes:
       brgtz allSlots -2 #repeat for all slots
       move ra r10
       s HoldValve Open 1
+      s Stacker Mode 1
+      s Stacker Activate 1
       sleep 4
-      ls r15 Stacker 0 Occupied
-      brnez r15 -2 #Wait stacker is empty
-      s Stacker Activate 1 #empty stacker
-      sleep 6
-      ls r15 HoldValve 0 Occupied #Check until clear hold route
+      ls r15 Stacker 2 Quantity
       brnez r15 -2
+      ls r15 HoldValve 0 Occupied #Check until cl
+      brnez r15 -4
       s HoldValve Open 0
+      s Stacker Mode 0
   bgt sp 0 forechhash
 j ra
 stackhash:
