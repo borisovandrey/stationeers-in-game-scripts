@@ -20,7 +20,10 @@ define MAXxROUTE 4
 
 move OldRoute INIT
 s Router Setting INIT
-jal reset
+
+sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting 0
+
+jal reset 
 
 main:
 yield
@@ -37,6 +40,7 @@ j main
 
 reset:
 move sp MAXxROUTE
+add sp sp 1
 pop r15
 sbn Exits r15 Mode PASS
 sbn Exits r15 Setting 0
