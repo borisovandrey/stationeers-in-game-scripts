@@ -1,20 +1,122 @@
 define MODULExNAME HASH("man-dev-production")
-define REAGENTSxAMOUNT 17
-move sp 200
+define MYxADDRESS 1
+alias ManDev d0
+alias Stacker d1
+alias StoreInterface d2
+alias Router d3
+alias HashMemory d4
+alias StartButton d5
+define LED HASH("StructureDiode")
+define LEDN HASH("man-al-led")
+define INPUTxADDRxHASH 10
+define INPUTxADDRxQTTY 11
+define OUTPUTxADDR 20
+define HASHxARRAYxSIZE 17
+move sp 100
 push HASH("Silicon")
 push HASH("Iron")
 push HASH("Gold")
-push HASH("Copper") 
+push HASH("Copper")
 push HASH("Silver")
 push HASH("Lead")
-push HASH("Steel") 
-push HASH("Electrum") 
+push HASH("Steel")
+push HASH("Electrum")
 push HASH("Invar")
-push HASH("Constantan") 
+push HASH("Constantan")
 push HASH("Solder")
-push HASH("Astroloy") 
-push HASH("Hastelloy") 
+push HASH("Astroloy")
+push HASH("Hastelloy")
 push HASH("Inconel")
-push HASH("Waspaloy") 
+push HASH("Waspaloy")
 push HASH("Stellite")
 push HASH("Nickel")
+move sp 0
+
+alias amountToProduce r0
+alias hash r1
+alias qtty r2
+alias reagentHash r3
+alias idx r4
+alias lastError r5
+
+move lastError 0
+
+main:
+    brnez lastError 4
+    s HashMemory Setting hash
+    sbn LED LEDN Color Color.Gray
+    sbn LED LEDN On 0
+    yield
+    l r15 StartButton Activate
+    breqz r15 -2
+    move lastError 0
+    sbn LED LEDN On 1  
+    l r15 Stacker Setting
+    l r14 ManDev ExportCount
+    sub amountToProduce r15 r14
+    beqz amountToProduce main
+    move idx HASHxARRAYxSIZE
+forallhashes:
+    beqz idx main
+    jal getmisinghash
+    beqz qtty main
+    jal requestmising
+j forallhashes
+
+getmisinghash:
+    sbn LED LEDN Color Color.Yellow
+    move sp 100
+    add sp sp idx
+searchhash:
+    move qtty 0
+    ble sp 100 ra
+    pop reagentHash
+    sub idx idx 1
+    rmap hash ManDev reagentHash
+    s HashMemory Setting hash
+    lr r15 ManDev Contents reagentHash
+    lr r14 ManDev Recipe reagentHash
+    beqz r14 searchhash #Don't need it in recipe
+    mul qtty r14 amountToProduce
+    blt r15 qtty ra
+j searchhash
+
+requestmising:
+    move r10 ra
+    jal holdline
+    sbn LED LEDN Color Color.Orange
+    l r12 ManDev ImportCount
+    s Router Setting MYxADDRESS
+    sleep 2
+    put StoreInterface OUTPUTxADDR -1
+    put StoreInterface INPUTxADDRxHASH hash
+    put StoreInterface INPUTxADDRxQTTY qtty
+    s StoreInterface Setting MODULExNAME
+    waitresponse:
+        sleep 1 
+        get r15 StoreInterface OUTPUTxADDR
+    ble r15 -1 waitresponse
+    blt r15 qtty error
+    waitresources:     
+      sleep 1
+      l r15 ManDev ImportCount
+    ble r15 r12 waitresources
+    sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting 0
+    move ra r10
+j ra
+
+error:
+    sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting 0
+    sbn LED LEDN Color Color.Red
+    move lastError 1
+j main
+
+holdline:
+  sbn LED LEDN Color Color.Blue
+  lbn r15 HASH("StructureLogicMemory") HASH("man-router-mutex") Setting Minimum
+  beqal r15 MODULExNAME ra
+  brnez r15 2
+  sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting MODULExNAME
+  brnan r15 -1
+  sleep 1
+j holdline
