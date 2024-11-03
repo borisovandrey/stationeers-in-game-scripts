@@ -44,3 +44,23 @@ push HASH("Stellite")
 push HASH("Nickel")
 
 s db Setting CRC
+
+
+move sp 200
+push HASH("ItemSiliconIngot")
+push HASH("ItemIronIngot")
+push HASH("ItemGoldIngot")
+push HASH("ItemCopperIngot")
+push HASH("ItemSilverIngot")
+push HASH("ItemLeadIngot")
+push HASH("ItemSteelIngot")
+push HASH("ItemElectrumIngot")
+push HASH("ItemInvarIngot")
+push HASH("ItemConstantanIngot")
+push HASH("ItemSolderIngot")
+push HASH("ItemAstroloyIngot")
+push HASH("ItemHastelloyIngot")
+push HASH("ItemInconelIngot")
+push HASH("ItemWaspaloyIngot")
+push HASH("ItemStelliteIngot")
+push HASH("ItemNickelIngot")
