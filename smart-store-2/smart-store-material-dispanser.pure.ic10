@@ -89,6 +89,8 @@ extracthash:
     sbn HASH("StructureChuteDigitalValveRight") HASH("store-hold-valve") Open 1
     s Stacker Setting qtty
     s ExitRouter Mode 0 #Send qtty to consumer
+    s ExitRouter Setting 1
+    sleep 1
     move r15 0
     getnext:
         s Store RequestHash hash
@@ -104,8 +106,6 @@ extracthash:
     breqz r15 -2
     s Stacker Mode 1
     s Stacker Setting 500
-    s ExitRouter Mode 1 #Return everething back
-    sleep 2
     s Stacker Activate 1
     sleep 3
 j ra
