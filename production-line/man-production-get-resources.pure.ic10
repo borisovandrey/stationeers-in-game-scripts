@@ -32,24 +32,29 @@ push HASH("Stellite")
 push HASH("Nickel")
 move sp 0
 
+define IDLExSTATE 0
+define REQUESTxSTATE 1
+define SUCCESSxSTATE 2
+define ERRORxSTATE 3
 alias amountToProduce r0
 alias hash r1
 alias qtty r2
 alias reagentHash r3
 alias idx r4
-alias lastError r5
-
-move lastError 0
+alias executionState r5
+move executionState IDLExSTATE
 
 main:
-    brnez lastError 4
-    s HashMemory Setting hash
-    sbn LED LEDN Color Color.Gray
-    sbn LED LEDN On 0
+    breq executionState ERRORxSTATE 4 #In case of error don't turn red line off
+        s HashMemory Setting 0
+        sbn LED LEDN Color Color.Gray
+        sbn LED LEDN On 0
+    brne executionState SUCCESSxSTATE 2 #In case of Success - start autolat
+        s ManDev Activate 1
     yield
     l r15 StartButton Activate
     breqz r15 -2
-    move lastError 0
+    move executionState IDLExSTATE
     sbn LED LEDN On 1  
     l r15 Stacker Setting
     l r14 ManDev ExportCount
@@ -60,7 +65,9 @@ forallhashes:
     beqz idx main
     jal getmisinghash
     beqz qtty main
+    move executionState REQUESTxSTATE
     jal requestmising
+    move executionState SUCCESSxSTATE
 j forallhashes
 
 getmisinghash:
@@ -104,13 +111,11 @@ requestmising:
     sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting 0
     move ra r10
 j ra
-
 error:
     sbn HASH("StructureLogicMemory") HASH("man-router-mutex") Setting 0
     sbn LED LEDN Color Color.Red
-    move lastError 1
+    move executionState ERRORxSTATE
 j main
-
 holdline:
   sbn LED LEDN Color Color.Blue
   lbn r15 HASH("StructureLogicMemory") HASH("man-router-mutex") Setting Minimum
