@@ -1,6 +1,11 @@
-use aliases 
-alias sns d0
-alias dsp d1
+use aliases
+alias MediumDSP d1
+alias SmallDSP d2
+
+const MediumDSP = HASH("StructureConsoleLED1x2")
+const LargeDSP = HASH("StructureConsoleLED1x3")
+const GasSNS = HASH("StructureGasSensor")
+const SensorName = HASH("atm-quality-sns")
 
 const Blue = -1
 const Gray = 1
@@ -12,7 +17,7 @@ const White = 6
 const Purple = 11
 
 main:
-    var a  = 0
+    lbn r15 GasSNS SensorName Pressure Average
     a = sns.Pressure
     dsp.Color = Green
     dsp.Mode = 0

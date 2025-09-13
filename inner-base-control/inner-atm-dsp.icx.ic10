@@ -1,0 +1,36 @@
+alias a r0
+alias b r1
+main:
+move a 0
+l a sns Pressure
+s dsp Color 2
+s dsp Mode 0
+s dsp Setting a
+sleep 3
+move b 1
+l a sns RatioOxygen
+s dsp Color 6
+s dsp Mode 1
+s dsp Setting a
+sleep 3
+sub b b a
+l a sns RatioCarbonDioxide
+s dsp Color 5
+s dsp Mode 1
+s dsp Setting a
+sleep 3
+sub b b a
+l a sns RatioPollutant
+s dsp Color 4
+s dsp Mode 1
+s dsp Setting a
+sleep 3
+sub b b a
+l a sns RatioNitrogen
+sub b b a
+brapz b 1 5
+s dsp Color 11
+s dsp Mode 1
+s dsp Setting b
+sleep 6
+j main

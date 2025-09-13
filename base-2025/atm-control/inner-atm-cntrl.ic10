@@ -1,0 +1,89 @@
+#base-2025/atm-control/inner-atm-cntrl.ic10
+alias ControlSetting d0
+define GasSNS HASH("StructureGasSensor")
+define SensorName HASH("atm-quality-sns")
+
+define CO2xLIMIT 0.05
+define POLUTANTxLIMIT 0.0005
+define OTHERxLIMIT 0
+define O2xLIMIT 0.30
+define PRESSURExLIMIT 110 # 110 kPa
+define UNKNOWNxLIMIT 0.0005
+
+define IDLE 0
+define SLOW 1
+define MEDIUM 2
+define FORCED 3
+define HARD 4
+
+alias State r0
+alias Rest r1
+alias Step2 r2
+alias Step3 r3
+alias Step4 r4
+
+move State IDLE
+
+main:
+s ControlSetting Setting State
+s db Setting State
+#sleep 10
+move Rest 1.0
+move State IDLE
+#Pressure
+lbn r15 GasSNS SensorName Pressure Average
+sub r15 r15 PRESSURExLIMIT
+move Step2 10 
+move Step3 30
+move Step4 50
+jal calculateState
+#Oxigen
+lbn r15 GasSNS SensorName RatioOxygen Average
+sub Rest Rest r15
+sub r15 O2xLIMIT r15
+move Step2 0.02 
+move Step3 0.05
+move Step4 0.1
+jal calculateState
+#CO2
+lbn r15 GasSNS SensorName RatioCarbonDioxide Average
+sub Rest Rest r15
+sub r15 r15 CO2xLIMIT
+move Step2 0.1 
+move Step3 0.15
+move Step4 0.2
+jal calculateState
+#Polutant
+lbn r15 GasSNS SensorName RatioPollutant Average
+sub Rest Rest r15
+move Step2 0.001 
+move Step3 0.01
+move Step4 0.1
+jal calculateState
+#Rest
+lbn r15 GasSNS SensorName RatioNitrogen Average
+sub r15 Rest r15
+sub r15 r15 UNKNOWNxLIMIT
+move Step2 0.001 
+move Step3 0.005
+move Step4 0.01
+jal calculateState
+
+s ControlSetting Setting State
+j main
+
+calculateState:
+brgtz r15 3
+max State State IDLE
+j ra
+brgt r15 Step2 3  
+max State State SLOW
+j ra
+brgt r15 Step3 3
+max State State MEDIUM
+j ra
+brgt r15 Step4 3
+max State State FORCED
+j ra
+max State State HARD
+j ra
