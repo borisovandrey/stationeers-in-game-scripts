@@ -1,0 +1,74 @@
+#terain-mars\solar-panel-control\follow-sun-calibration.ic10
+define Solar HASH("StructureSolarPanelDual")
+define SOLARxTURN_MAX 40 #seconds as maximal turn time 
+
+alias Sensor d0
+alias ParkingPositionHor r1
+alias AdjastmentHor r2
+
+move ParkingPositionHor 0
+move AdjastmentHor 0
+l r15 Sensor Activate
+beqzal r15 NightParking
+jal Calibrate
+
+main:
+    l r15 Sensor Activate
+    beqzal r15 NightParking
+    l r15 Sensor Horizontal
+    add r15 r15 AdjastmentHor
+    jal Normalize
+    sb Solar Horizontal r15
+    l r15 Sensor Vertical
+    sub r15 90 r15
+    sb Solar Vertical r15
+    yield
+j main
+
+Calibrate:
+    alias MaxPower r14
+    alias CurrentAdjustment r13
+    move MaxPower 0
+    move CurrentAdjustment 0
+    sb Solar Vertical 45
+    sleep 2
+    CalibCycleStart:
+        l r15 Sensor Activate
+        beqz r15 Calibrate
+        l r15 Sensor Horizontal
+        add r15 r15 CurrentAdjustment
+        push ra
+        jal Normalize
+        pop ra
+        sb Solar Horizontal r15
+        sleep SOLARxTURN_MAX #We can't take real solar position, so wait maximal time for turn
+        lb r15 Solar Charge Average
+        ble r15 MaxPower CalibCycleLess
+            move MaxPower r15
+            move AdjastmentHor CurrentAdjustment
+        CalibCycleLess:
+        add CurrentAdjustment CurrentAdjustment 90
+    blt CurrentAdjustment 360 CalibCycleStart
+j ra
+
+NightParking:
+    add r15 ParkingPositionHor AdjastmentHor
+    push ra
+    jal Normalize
+    pop ra
+    sb Solar Horizontal r15
+    sb Solar Vertical 0
+    sleep 5
+        l r15 Sensor Activate
+    breqz r15 -2
+    l ParkingPositionHor Sensor Horizontal
+j ra
+
+Normalize:
+    brgez r15 3
+        add r15 r15 360
+    jr -2
+    brlt r15 360 3
+        sub r15 r15 360
+    jr -2
+j ra
