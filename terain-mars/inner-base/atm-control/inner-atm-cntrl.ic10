@@ -1,4 +1,5 @@
-#base-2025/atm-control/inner-atm-cntrl.ic10
+#terain-mars\inner-base\atm-control\inner-atm-cntrl.ic10
+#Controls atmosphere
 alias ControlSetting d0
 define GasSNS HASH("StructureGasSensor")
 define SensorName HASH("atm-quality-sns")

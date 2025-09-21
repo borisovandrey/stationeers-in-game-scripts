@@ -1,0 +1,33 @@
+#terain-mars\inner-base\atm-control\inner-tmp-cntrl.ic10
+#Control temperature using passive cooling (gigital valve or door to cool camera)
+alias Dial d0
+alias Cooler d1
+define GasSNS HASH("StructureGasSensor")
+define SensorName HASH("inner-gas-sns")
+define SLEEPxTIME 3
+define TEMPERATURExTOLLERANCE 0.5
+define KLVN 273.15 #Kelvin value for 0C
+
+jal stopCool
+main:
+    l r15 Dial Setting
+    lbn r14 GasSNS SensorName Temperature Average
+    sub r14 r14 KLVN
+    sub r15 r14 r15
+    s db Setting r15
+    abs r13 r15
+    brgt r13 TEMPERATURExTOLLERANCE 3 #Don't react on the temperature diff in 0.5
+         jal stopCool
+    jr 3
+    bgtzal r15 startCool
+    blezal r15 stopCool
+    sleep SLEEPxTIME
+j main
+
+startCool:
+    s Cooler On 1
+j ra
+
+stopCool:
+    s Cooler On 0
+j ra
