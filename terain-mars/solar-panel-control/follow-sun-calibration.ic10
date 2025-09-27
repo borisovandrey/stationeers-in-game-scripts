@@ -1,6 +1,6 @@
 #terain-mars\solar-panel-control\follow-sun-calibration.ic10
 define Solar HASH("StructureSolarPanelDual")
-define SOLARxTURN_MAX 40 #seconds as maximal turn time 
+define SOLARxTURNxMAX 40 #seconds as maximal turn time 
 
 alias Sensor d0
 alias ParkingPositionHor r1
@@ -41,7 +41,7 @@ Calibrate:
         jal Normalize
         pop ra
         sb Solar Horizontal r15
-        sleep SOLARxTURN_MAX #We can't take real solar position, so wait maximal time for turn
+        sleep SOLARxTURNxMAX #We can't take real solar position, so wait maximal time for turn
         lb r15 Solar Charge Average
         ble r15 MaxPower CalibCycleLess
             move MaxPower r15
