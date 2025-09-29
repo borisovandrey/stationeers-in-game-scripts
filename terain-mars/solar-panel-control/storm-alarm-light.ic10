@@ -1,0 +1,89 @@
+#terain-mars\solar-panel-control\storm-alarm-light.ic10
+#andrey.borisov@gmx.de 03.10.2024
+#This script conrols LED ligts with name led-storm-alarm setiing alarm color and blonk dep
+#reading by WIFI or directly from alarm IC controller
+#use https://ic10.dev/ for debug
+define LEDxALARMxHASH HASH("StructureDiode")
+define LEDxALARMxNAME HASH("led-storm-alarm")
+define DSPxALARMxHASH HASH("StructureConsoleLED5")
+define DSPxALARMxNAME HASH("storm-alarm-dsp")
+
+define STATExIDLE 0      # Still
+define STATExWARNING 1   # Storm is comming
+define STATExALARM 2     # Storm begins after ALARM_TIME_SEC sec
+define STATExSTORM 3     # Storm runs
+
+define INITxVALUE -1
+define LIGHTxOFF 0
+define LIGHTxON 1
+define LIGHTxBLINK 2
+
+define IDLExTIME 5       #5 secund sleep time in idle
+define ALARMxTIME 1      #1 second when light is on
+define BLINKxTIME 0      #0.5 sec when light is blinking
+
+define SHIFT 2
+define MASK 3
+
+alias Alarm d0
+
+alias color r0
+alias lightState r1
+alias sleepTime r2
+move sleepTime IDLExTIME
+alias lightOn r3
+alias alarmSettingOld r4
+move alarmSettingOld INITxVALUE
+alias timeToStorm r5
+alias alarmSetting r6
+
+main:
+    move timeToStorm 0
+    l alarmSetting Alarm Setting
+    srl timeToStorm alarmSetting SHIFT
+    and alarmSetting alarmSetting MASK
+    beq alarmSetting alarmSettingOld AlarmStateTheSame #Chek alarm state is the same
+       move alarmSettingOld alarmSetting
+       jal defineState
+       sbn LEDxALARMxHASH LEDxALARMxNAME Color color
+       snez lightOn lightState
+       sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn
+       breqz timeToStorm 3
+            sbn DSPxALARMxHASH DSPxALARMxNAME On 1 #If timeToStorm > 0
+       jr 2
+            sbn DSPxALARMxHASH DSPxALARMxNAME On 0
+    AlarmStateTheSame:
+
+    breqz timeToStorm 2
+        sbn DSPxALARMxHASH DSPxALARMxNAME Setting timeToStorm #If is not still
+
+    brne lightState LIGHTxBLINK 3
+        sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn #If we need to blink in warning state
+        xor lightOn lightOn 1
+
+    sleep sleepTime
+j main
+
+defineState:
+    brne alarmSetting STATExIDLE 5
+        move color Color.White
+        move lightState LIGHTxOFF
+        move sleepTime IDLExTIME
+    j defineStateEnd
+    brne alarmSetting STATExWARNING 5
+        move color Color.Yellow
+        move lightState LIGHTxON
+        move sleepTime ALARMxTIME
+    j defineStateEnd
+    brne alarmSetting STATExALARM 5
+        move color Color.Red
+        move lightState LIGHTxBLINK
+        move sleepTime BLINKxTIME
+    j defineStateEnd
+    brne alarmSetting STATExSTORM 5
+        move color Color.Red
+        move lightState LIGHTxON
+        move sleepTime ALARMxTIME
+    j defineStateEnd
+defineStateEnd:
+j ra
