@@ -1,0 +1,74 @@
+#terain-mars\solar-panel-control\storm-hangar-dors-close.ic10
+#andrey.borisov@gmx.de 27.09.2025
+#This script is intended to protect solar pannels during storm using hangar dors
+#Script read data from weather station and if it is lees than 30 sec for storm
+#it closes hangar dors using batch command.
+#Also it sets current state to the chip setting (db.Setting).
+#The chip setting can be red by wireless module to implement alarm ligting.
+
+define HANGARxSMALLxHASH HASH("StructureAirlockGate") #1736080881
+define HANGARxMEDIUMxHASH HASH("StructureMediumHangerDoor")
+
+define STATExIDLE 0       # Still
+define STATExWARNING 1    # Storm is comming
+define STATExALARM 2      # Storm begins after ALARM_TIME_SEC sec
+define STATExSTORM 3      # Storm runs
+define ALARMxTIMExSEC 30  # Time for storm starts
+define SLEEPxTIME 5       # Process idle time
+define SHIFT 2            # Alarm packegin shift
+
+alias selfHost db         # Processor's socket itself
+alias WeatherStation d0   # Weather station
+alias HandSwitch d1       # Switch, if on, allows to close doors if there is no storm
+alias WIFI d2             # Wifi transmitter broadcasts alarm state over subscribers
+
+alias state r0
+alias dorsOpened r1
+alias dorsOpenedOld r2
+alias weatherState r3
+alias switchState r4
+alias timeToStorm r5
+
+# Initialization
+move state STATExIDLE
+move dorsOpened 1 # 1 - means protection is down, 0 - protrction is on
+move dorsOpenedOld -1
+main:
+    l weatherState WeatherStation Mode
+    l switchState HandSwitch Open
+    l timeToStorm WeatherStation NextWeatherEventTime
+    beqal weatherState 0 OnIdle #Idle
+    beqal weatherState 1 OnAlarm #Warning
+    beqal weatherState 2 OnStorm #Storm
+    brne dorsOpened 1 3 # if (dorsOpened == 1 && switchState == 1) make protectors up
+    brne switchState 1 2
+        move dorsOpened 0
+    sll timeToStorm timeToStorm SHIFT #pack timestorm with state
+    or state state timeToStorm
+    s selfHost Setting state #write state
+    s WIFI Setting state
+    breq dorsOpened dorsOpenedOld 4 #If dors state is changed apply it
+        move dorsOpenedOld dorsOpened
+        sb HANGARxSMALLxHASH Open dorsOpened
+        sb HANGARxMEDIUMxHASH Open dorsOpened
+    sleep SLEEPxTIME
+j main
+
+OnIdle:
+    move state STATExIDLE
+    move dorsOpened 1
+j ra
+
+OnAlarm:
+    brgt timeToStorm ALARMxTIMExSEC 4 #If time to storm is more then 30 sec - don't panic
+        move state STATExALARM #Close the dors
+        move dorsOpened 0
+    jr 3
+        move state STATExWARNING #Keep dors opened
+        move dorsOpened 1
+j ra
+
+OnStorm:
+    move state STATExSTORM
+    move dorsOpened 0
+j ra
