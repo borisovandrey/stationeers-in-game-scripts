@@ -1,0 +1,90 @@
+#terain-mars\hangar\hangar-vertical-control.ic10
+#This script is intended to work with vertical hangar with elevator
+define HANGARxDOORSxHASH HASH("StructureMediumHangerDoor")
+define HANGARxDOORSxNAME HASH("hangar-doors-plate")
+define HANGARxLIFTxHASH HASH("StructureLargeHangerDoor")
+define HANGARxLIFTxNAME HASH("hangar-lift-plate")
+define HANGARxALARMxHASH HASH("StructureFlashingLight")
+define HANGARxALARMxNAME HASH("hangar-alarm")
+
+alias Up d0
+alias Down d1
+alias ManualDoorsSw d2
+alias ManualLiftSw d3
+
+define CLOSED 0
+define OPENED 1
+define DOWN 1
+define UP 0
+define ACTIONxSLEEPxTIMEOUT 2
+
+alias doorsState r0
+alias liftState r1
+alias newState r3
+
+#Initialization
+sbn HANGARxDOORSxHASH HANGARxDOORSxNAME Open CLOSED
+sbn HANGARxLIFTxHASH HANGARxLIFTxNAME Open DOWN
+sbn HANGARxALARMxHASH HANGARxALARMxNAME On 0
+move doorsState CLOSED
+move liftState DOWN
+sleep ACTIONxSLEEPxTIMEOUT
+
+main:
+    yield
+    l r15 ManualDoorsSw Open
+    select newState r15 OPENED CLOSED
+    bneal newState doorsState MooveDoors
+    move r14 r15
+    l r15 ManualLiftSw Open
+    select newState r15 UP DOWN
+    bneal newState liftState MooveLift
+    or r15 r15 r14
+    bnezal r15 main
+        l r15 Up Activate
+        beqal r15 1 MoveUp
+        l r15 Down Activate
+        beqal r15 1 MoveDown
+j main
+
+MooveDoors:
+    move doorsState newState
+    sbn HANGARxDOORSxHASH HANGARxDOORSxNAME Open doorsState
+    sleep ACTIONxSLEEPxTIMEOUT
+j ra
+
+MooveLift:
+    move liftState newState
+    sbn HANGARxLIFTxHASH HANGARxLIFTxNAME Open liftState
+    sleep ACTIONxSLEEPxTIMEOUT
+j ra
+
+MoveUp:
+    push ra
+    sbn HANGARxALARMxHASH HANGARxALARMxNAME On 1
+    move newState OPENED
+    jal MooveDoors
+    move newState UP
+    jal MooveLift
+    move newState CLOSED
+    jal MooveDoors
+    move newState DOWN
+    jal MooveLift
+    sbn HANGARxALARMxHASH HANGARxALARMxNAME On 0
+    pop ra
+j ra
+
+MoveDown:
+    push ra
+    sbn HANGARxALARMxHASH HANGARxALARMxNAME On 1
+    move newState UP
+    jal MooveLift
+    move newState OPENED
+    jal MooveDoors
+    move newState DOWN
+    jal MooveLift
+    move newState CLOSED
+    jal MooveDoors
+    sbn HANGARxALARMxHASH HANGARxALARMxNAME On 0
+    pop ra
+j ra
