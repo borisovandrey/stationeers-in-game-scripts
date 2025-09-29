@@ -1,8 +1,16 @@
 #terain-mars\solar-panel-control\follow-sun-calibration.ic10
+#Script intended to follow solar position with solar pannel
+#It has 3 modes:
+# 1. Night parking (in position of previous sunraise)
+# 2. Solar follow at daylight
+# 3. Calibration on first start (wait untill day begins) to adjust positions of sensor and batteries
+# Note: All solar pannels shall be installed orienting in the same direction
+# Note: Sensor is assumed in a horisontal position
 define Solar HASH("StructureSolarPanelDual")
 define SOLARxTURNxMAX 40 #seconds as maximal turn time 
 
-alias Sensor d0
+alias Sensor d0 #Daylight sensor
+
 alias ParkingPositionHor r1
 alias AdjastmentHor r2
 
@@ -41,7 +49,7 @@ Calibrate:
         jal Normalize
         pop ra
         sb Solar Horizontal r15
-        sleep SOLARxTURNxMAX #We can't take real solar position, so wait maximal time for turn
+        sleep SOLARxTURNxMAX #We can't take real solar panel position, so wait maximal time for turn
         lb r15 Solar Charge Average
         ble r15 MaxPower CalibCycleLess
             move MaxPower r15
