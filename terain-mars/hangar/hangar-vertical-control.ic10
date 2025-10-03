@@ -28,6 +28,8 @@ sbn HANGARxLIFTxHASH HANGARxLIFTxNAME Open DOWN
 sbn HANGARxALARMxHASH HANGARxALARMxNAME On 0
 move doorsState CLOSED
 move liftState DOWN
+s Up On 0
+s Down On 1
 sleep ACTIONxSLEEPxTIMEOUT
 
 main:
@@ -71,6 +73,8 @@ MoveUp:
     move newState DOWN
     jal MooveLift
     sbn HANGARxALARMxHASH HANGARxALARMxNAME On 0
+    s Up On 0
+    s Down On 1
     pop ra
 j ra
 
@@ -86,5 +90,7 @@ MoveDown:
     move newState CLOSED
     jal MooveDoors
     sbn HANGARxALARMxHASH HANGARxALARMxNAME On 0
+    s Up On 1
+    s Down On 0
     pop ra
 j ra
