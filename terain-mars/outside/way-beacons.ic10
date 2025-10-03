@@ -1,0 +1,27 @@
+#terain-mars\outside\way-beacons.ic10
+#Light pass control
+define BLINK_ON_TIME 2
+define BLINK_OFF_TIME 3
+alias SNS d0
+alias Light d1
+alias State r0
+move State 0
+
+main:
+   l r15 SNS Activate
+   bnez r15 day
+      xor State State 0
+      s Light On State
+      s db Setting State
+      brnez State 2
+         sleep BLINK_ON_TIME
+      jr 2
+         sleep BLINK_OFF_TIME
+      j main
+   day:
+      breqz State 4
+        move State 0
+        s Light On State
+        s db Setting State
+      sleep BLINK_OFF_TIME
+j main
