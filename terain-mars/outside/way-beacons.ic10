@@ -1,27 +1,27 @@
 #terain-mars\outside\way-beacons.ic10
 #Light pass control
-define BLINK_ON_TIME 2
-define BLINK_OFF_TIME 3
+define BLINKxONxTIME 1
+define BLINKxOFFxTIME 3
+define LIGHTxHASH HASH("StructureWallLight")
 alias SNS d0
-alias Light d1
 alias State r0
 move State 0
 
 main:
    l r15 SNS Activate
    bnez r15 day
-      xor State State 0
-      s Light On State
+      xor State State 1
+      sb LIGHTxHASH On State
       s db Setting State
-      brnez State 2
-         sleep BLINK_ON_TIME
+      brnez State 3
+         sleep BLINKxONxTIME
       jr 2
-         sleep BLINK_OFF_TIME
+         sleep BLINKxOFFxTIME
       j main
    day:
       breqz State 4
         move State 0
-        s Light On State
+        sb LIGHTxHASH On State
         s db Setting State
-      sleep BLINK_OFF_TIME
+      sleep BLINKxOFFxTIME
 j main
