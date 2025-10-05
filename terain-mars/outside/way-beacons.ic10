@@ -13,7 +13,7 @@ main:
       xor State State 1
       sb LIGHTxHASH On State
       s db Setting State
-      brnez State 3
+      breqz State 3
          sleep BLINKxONxTIME
       jr 2
          sleep BLINKxOFFxTIME
