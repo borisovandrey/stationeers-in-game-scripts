@@ -1,0 +1,38 @@
+#terain-mars\energy-console\power-input-displays.ic10
+#This script is reponsible for power output display the nerergy balance
+#From power sources, batteries and consumption
+define Solar HASH("StructureSolarPanelDual")
+
+alias SolarRatioIndcator r0
+move r0 $51305
+alias SolarIncomeDisplay r1
+move r1 $51306
+alias SolarInputGauge r2
+move r2 $51298
+
+s SolarIncomeDisplay Mode DisplayMode.Power
+
+main:
+    jal displaySolar
+    yield
+j main
+
+displaySolar:
+    lb r15 Solar Maximum Sum
+    s SolarInputGauge Mode r15
+    lb r15 Solar Charge Sum
+    s SolarIncomeDisplay Setting r15
+    s SolarInputGauge Setting r15
+    lb r15 Solar Ratio Average
+    s SolarRatioIndcator Setting r15
+    brle r15 0.9 3
+        s SolarInputGauge Color Color.Blue
+        j ra
+    brle r15 0.3 3
+        s SolarInputGauge Color Color.Green
+        j ra
+    breqz r15 3
+        s SolarInputGauge Color Color.Yellow
+        j ra
+    s SolarInputGauge Color Color.Gray
+j ra
