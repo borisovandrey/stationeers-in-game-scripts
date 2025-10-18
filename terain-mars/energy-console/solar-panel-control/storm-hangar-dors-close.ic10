@@ -5,10 +5,8 @@
 #it closes hangar dors using batch command.
 #Also it sets current state to the chip setting (db.Setting).
 #The chip setting can be red by wireless module to implement alarm ligting.
-
 define HANGARxSMALLxHASH HASH("StructureAirlockGate") #1736080881
 define HANGARxMEDIUMxHASH HASH("StructureMediumHangerDoor")
-
 define STATExIDLE 0       # Still
 define STATExWARNING 1    # Storm is comming
 define STATExALARM 2      # Storm begins after ALARM_TIME_SEC sec
@@ -16,11 +14,17 @@ define STATExSTORM 3      # Storm runs
 define ALARMxTIMExSEC 30  # Time for storm starts
 define SLEEPxTIME 5       # Process idle time
 define SHIFT 2            # Alarm packegin shift
+define WEATHERxSTATIONxID $1FCA3
+define HANDxSWITCHxID $50FD9
+define WIFIxID $511E9
 
-alias selfHost db         # Processor's socket itself
-alias WeatherStation d0   # Weather station
-alias HandSwitch d1       # Switch, if on, allows to close doors if there is no storm
-alias WIFI d2             # Wifi transmitter broadcasts alarm state over subscribers
+alias WeatherStation r7   # Weather station
+alias HandSwitch r8       # Switch, if on, allows to close doors if there is no storm
+alias WIFI r9             # Wifi transmitter broadcasts alarm state over subscribers
+
+move WeatherStation WEATHERxSTATIONxID
+move HandSwitch HANDxSWITCHxID
+move WIFI WIFIxID
 
 alias state r0
 alias dorsOpened r1
@@ -45,7 +49,6 @@ main:
         move dorsOpened 0
     sll timeToStorm timeToStorm SHIFT #pack timestorm with state
     or state state timeToStorm
-    s selfHost Setting state #write state
     s WIFI Setting state
     breq dorsOpened dorsOpenedOld 4 #If dors state is changed apply it
         move dorsOpenedOld dorsOpened

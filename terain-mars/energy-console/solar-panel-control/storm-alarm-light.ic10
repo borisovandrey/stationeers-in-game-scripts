@@ -4,13 +4,15 @@
 #reading by WIFI or directly from alarm IC controller
 #use https://ic10.dev/ for debug
 define LEDxALARMxHASH HASH("StructureDiode")
+define MLEDxALARMxHASH HASH("ModularDeviceLight")
 define LEDxALARMxNAME HASH("led-storm-alarm")
 define DSPxALARMxHASH HASH("StructureConsoleLED5")
+define MDSPxALARMxHASH HASH("ModularDeviceLEDdisplay3")
 define DSPxALARMxNAME HASH("storm-alarm-dsp")
 
 define STATExIDLE 0      # Still
 define STATExWARNING 1   # Storm is comming
-define STATExALARM 2     # Storm begins after ALARM_TIME_SEC sec
+define STATExALARM 2     # Storm begins after ALARMxTIME sec
 define STATExSTORM 3     # Storm runs
 
 define INITxVALUE -1
@@ -25,7 +27,7 @@ define BLINKxTIME 0      #0.5 sec when light is blinking
 define SHIFT 2
 define MASK 3
 
-alias Alarm d0
+alias Alarm $511E9
 
 alias color r0
 alias lightState r1
@@ -37,6 +39,11 @@ move alarmSettingOld INITxVALUE
 alias timeToStorm r5
 alias alarmSetting r6
 
+sbn DSPxALARMxHASH DSPxALARMxNAME On 0
+sbn MDSPxALARMxHASH DSPxALARMxNAME On 0
+sbn DSPxALARMxHASH DSPxALARMxNAME Mode DisplayMode.Seconds
+sbn MDSPxALARMxHASH DSPxALARMxNAME Mode DisplayMode.Seconds
+
 main:
     move timeToStorm 0
     l alarmSetting Alarm Setting
@@ -46,19 +53,25 @@ main:
        move alarmSettingOld alarmSetting
        jal defineState
        sbn LEDxALARMxHASH LEDxALARMxNAME Color color
+       sbn MLEDxALARMxHASH LEDxALARMxNAME Color color
        snez lightOn lightState
        sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn
-       breqz timeToStorm 3
-            sbn DSPxALARMxHASH DSPxALARMxNAME On 1 #If timeToStorm > 0
-       jr 2
+       sbn MLEDxALARMxHASH LEDxALARMxNAME On lightOn
+       breqz alarmSetting STATExWARNING 5 #If warning or alarm turn display on
+       breqz alarmSetting STATExALARM 4
             sbn DSPxALARMxHASH DSPxALARMxNAME On 0
+            sbn MDSPxALARMxHASH DSPxALARMxNAME On 0
+       jr 3
+            sbn DSPxALARMxHASH DSPxALARMxNAME On 1
+            sbn MDSPxALARMxHASH DSPxALARMxNAME On 1
     AlarmStateTheSame:
 
-    breqz timeToStorm 2
-        sbn DSPxALARMxHASH DSPxALARMxNAME Setting timeToStorm #If is not still
-
-    brne lightState LIGHTxBLINK 3
+    breqz timeToStorm 3
+        sbn DSPxALARMxHASH DSPxALARMxNAME Setting timeToStorm
+        sbn MDSPxALARMxHASH DSPxALARMxNAME Setting timeToStorm 
+    brne lightState LIGHTxBLINK 4
         sbn LEDxALARMxHASH LEDxALARMxNAME On lightOn #If we need to blink in warning state
+        sbn MLEDxALARMxHASH LEDxALARMxNAME On lightOn
         xor lightOn lightOn 1
 
     sleep sleepTime
