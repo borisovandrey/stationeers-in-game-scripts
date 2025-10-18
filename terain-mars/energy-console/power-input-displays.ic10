@@ -2,37 +2,78 @@
 #This script is reponsible for power output display the nerergy balance
 #From power sources, batteries and consumption
 define Solar HASH("StructureSolarPanelDual")
+define SmallBattery HASH("StructureBattery")
+define SOLARxRATIOxINDICATOR $51305
+define SOLARxINCOMExDISPLAY $51306
+define SOLARxINPUTxGAUGE $51298
+define SMALLxINPUTxDISPLAY $5130E
+define SMALLxOUTPUTxDISPLAY $51325
+define SMALLxCAPACITYxDISPLAY $519B9
+define SMALLxBATTERYxINPUT $5134F
+define SMALLxBATTERYxOUTPUT $5163F
+define SOLARxGAUGExSETUPxTICKS 100 #Timeout for set gauge scale
 
-alias SolarRatioIndcator r0
-move r0 $51305
-alias SolarIncomeDisplay r1
-move r1 $51306
-alias SolarInputGauge r2
-move r2 $51298
+alias CounterSolar r1
 
-s SolarIncomeDisplay Mode DisplayMode.Power
+s $51306 Mode DisplayMode.Power #SOLARxINCOMExDISPLAY
+s $5130E Mode DisplayMode.Power #SMALLxINPUTxDISPLAY
+s $5130E Color Color.Green #SMALLxINPUTxDISPLAY
+s $51325 Mode DisplayMode.Power #SMALLxOUTPUTxDISPLAY
+s $51325 Color Color.Yellow #SMALLxOUTPUTxDISPLAY
+s $519B9 Mode DisplayMode.Power #SMALLxCAPACITYxDISPLAY
+s $519B9 Color Color.Blue #SMALLxCAPACITYxDISPLAY
+
+move CounterSolar SOLARxGAUGExSETUPxTICKS #First time do gauge calibration
 
 main:
     jal displaySolar
+    jal displaySmall
     yield
 j main
 
 displaySolar:
-    lb r15 Solar Maximum Sum
-    s SolarInputGauge Mode r15
+    brlt CounterSolar SOLARxGAUGExSETUPxTICKS 4
+        lb r15 Solar Maximum Sum
+        s $51298 Mode r15 #SOLARxINPUTxGAUGE
+        move CounterSolar 0
+    add CounterSolar CounterSolar 1
     lb r15 Solar Charge Sum
-    s SolarIncomeDisplay Setting r15
-    s SolarInputGauge Setting r15
+    s $51306 Setting r15 #SOLARxINCOMExDISPLAY
+    s $51298 Setting r15 #SOLARxINPUTxGAUGE
     lb r15 Solar Ratio Average
-    s SolarRatioIndcator Setting r15
+    s $51305 Setting r15 #SOLARxRATIOxINDICATOR
+    push ra
+    move r14 $51298 #SOLARxINPUTxGAUGE
+    jal setColorbyRatio
+    move r14 $51305 #SOLARxRATIOxINDICATOR
+    jal setColorbyRatio
+    pop ra
+j ra
+
+displaySmall:
+    lb r15 SmallBattery Charge Sum
+    s $519B9 Setting r15 #SMALLxCAPACITYxDISPLAY
+    lb r15 SmallBattery Ratio Average
+    move r14 $519B9 #SMALLxCAPACITYxDISPLAY
+    push ra
+    jal setColorbyRatio
+    pop ra
+    l r15 $5134F PowerActual #SMALLxBATTERYxINPUT
+    s $5130E Setting r15 #SMALLxINPUTxDISPLAY
+    l r15 $5163F PowerActual #SMALLxBATTERYxOUTPUT
+    s $51325 Setting r15 #SMALLxOUTPUTxDISPLAY
+j ra
+
+#r15 - ratio, #r14 device id
+setColorbyRatio:
     brle r15 0.9 3
-        s SolarInputGauge Color Color.Blue
+        s r14 Color Color.Blue #SMALLxCAPACITYxDISPLAY
         j ra
     brle r15 0.3 3
-        s SolarInputGauge Color Color.Green
+        s r14 Color Color.Green #SMALLxCAPACITYxDISPLAY
         j ra
     breqz r15 3
-        s SolarInputGauge Color Color.Yellow
+        s r14 Color Color.Yellow #SMALLxCAPACITYxDISPLAY
         j ra
-    s SolarInputGauge Color Color.Gray
+    s r14 Color Color.Gray #SMALLxCAPACITYxDISPLAY
 j ra
