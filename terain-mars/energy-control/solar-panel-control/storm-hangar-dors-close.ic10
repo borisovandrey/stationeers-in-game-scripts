@@ -1,5 +1,6 @@
-#terain-mars\solar-panel-control\storm-hangar-dors-close.ic10
+#terain-mars\energy-control\solar-panel-control\storm-hangar-dors-close.ic10
 #andrey.borisov@gmx.de 27.09.2025
+#NOTE: This script contains direct access to devices using their HASH and ID.
 #This script is intended to protect solar pannels during storm using hangar dors
 #Script read data from weather station and if it is lees than 30 sec for storm
 #it closes hangar dors using batch command.

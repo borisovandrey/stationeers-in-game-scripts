@@ -1,4 +1,4 @@
-#terain-mars\solar-panel-control\follow-sun-calibration.ic10
+#terain-mars\energy-control\solar-panel-control\follow-sun-calibration.ic10
 #Script intended to follow solar position with solar pannel
 #It has 3 modes:
 # 1. Night parking (in position of previous sunraise)

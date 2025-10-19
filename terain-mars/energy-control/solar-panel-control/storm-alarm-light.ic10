@@ -1,5 +1,6 @@
-#terain-mars\solar-panel-control\storm-alarm-light.ic10
+#terain-mars\energy-control\solar-panel-control\storm-alarm-light.ic10
 #andrey.borisov@gmx.de 03.10.2024
+#NOTE: This script contains direct access to devices using their HASH and ID.
 #This script conrols LED ligts with name led-storm-alarm setiing alarm color and blonk dep
 #reading by WIFI or directly from alarm IC controller
 #use https://ic10.dev/ for debug
