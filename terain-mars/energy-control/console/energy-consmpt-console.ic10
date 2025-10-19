@@ -1,0 +1,73 @@
+#terain-mars\energy-control\console\energy-consmpt-console.ic10
+#andrey.borisov@gmx.de 03.10.2024
+#NOTE: This script contains direct access to devices using their HASH and ID.
+#This script is responsible for energy consumption display on console
+move r15 sp
+push $525A0 #Green House Meter
+push $51B38 #Green House Dsp
+push Color.Green
+push $51AA8 #Solar Panel Meter
+push $51B39 #Solar Panel Dsp
+push Color.Yellow
+push $51AE8 #Control Meter
+push $51B3A #Control Dsp
+push Color.Gray
+push $51E3E #Lift Meter
+push $51F86 #Lift Dsp
+push Color.Brown
+push $51B30 #Living Meter
+push $51B3B #Living Dsp
+push Color.White
+push $51EB1 #Hole Meter
+push $51B3C #Hole Dsp
+push Color.Khaki
+push $51EF1 #Manufacture Meter
+push $51B3D #Manufacture Dsp
+push Color.Red
+push $52523 #Furnance Meter
+push $51B44 #Furnance Dsp
+push Color.Purple
+push $52564 #Gas Mnfctr Meter
+push $51B45 #Gas Mnfctr Dsp
+push Color.Blue
+#push $9 #Gas Meter
+#push $9 #Gas Dsp
+#push Color.Green
+
+alias dataStart r0
+alias dataSize r1
+move dataStart sp
+sub dataSize sp r15
+
+jal initDisplay
+
+main:
+    jal showData
+    yield
+j main
+
+initDisplay:
+    move sp dataStart
+    move r15 dataSize
+    beqzal r15 ra
+       pop r14 #color
+       pop r13 #dsp
+       pop r12 #meter
+       sub r15 r15 3
+       s r13 Mode DisplayMode.Power
+       s r13 Color r14
+    jr -7
+j ra
+
+showData:
+    move sp dataStart
+    move r15 dataSize
+    beqzal r15 ra
+        pop r14 #color
+        pop r13 #dsp
+        pop r12 #meter
+        sub r15 r15 3
+        l r14 r12 PowerActual
+        s r13 Setting r14
+    jr -7
+j ra
