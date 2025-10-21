@@ -1,0 +1,127 @@
+#terain-mars\energy-control\wireless-transmiter\transmitter-calibration.ic10
+#==== Wireless Power Calibration v1.0 ====#
+# Author:   andrey.borisov@gmx.de (21.10.2025)
+# Devices:  d0=Transmitter/Receiver to calibrate,
+#           d1=Memory from Advanced Computer mode
+#           d2=Button to start calibration,
+#           d3=LED indicator,
+# Memory:   0-3=Transmitter, 6-9=Receiver (X,Y,Z,Angle)
+#====================================#
+# Operation:
+# 1. Measures device position at cardinal points (N,E,S,W)
+# 2. Calculates center point for optimal alignment
+# 3. Determines angle correction for power transfer
+# 4. Stores calibration in memory for reuse
+#
+# Note: Memory chip can be moved between devices to
+#       quickly set up paired transmitter-receiver
+alias Device d0
+alias Memory d1
+alias Button d2
+alias LED d3
+alias DSP d4
+
+alias PositionXxADDR r10
+alias PositionYxADDR r11
+alias PositionZxADDR r12
+alias HorizontalShiftxADDR r13
+
+define MOOVEMENTxTIME 30
+define TRANSMITTERxHASH HASH("StructurePowerTransmitter")
+define RECEIVERxHASH HASH("StructurePowerTransmitterReceiver")
+
+main:
+yield
+s LED On 0
+s LED Color Color.Gray
+s DSP On 0
+l r15 Button Activate
+beqz r15 main
+l r15 Device PrefabHash
+breq r15 TRANSMITTERxHASH 2
+bne r15 RECEIVERxHASH main
+s LED On 1
+s LED Color Color.Orange
+s DSP On 1
+s DSP Mode DisplayMode.String
+s DSP Color Color.White
+s DSP Setting $43414c494252 #CALIBR
+brne r15 TRANSMITTERxHASH 6
+    move PositionXxADDR 1
+    move PositionYxADDR 2
+    move PositionZxADDR 3
+    move HorizontalShiftxADDR 4
+    j calibrate
+brne r15 RECEIVERxHASH 6
+    move PositionXxADDR 6
+    move PositionYxADDR 7
+    move PositionZxADDR 8
+    move HorizontalShiftxADDR 9
+    j calibrate
+jr main
+calibrate:
+put Memory PositionXxADDR 0  # Reset setting
+put Memory PositionYxADDR 0  # Reset setting
+put Memory PositionZxADDR 0  # Reset setting
+put Memory HorizontalShiftxADDR 0  # Reset setting
+put db PositionXxADDR 0  # Reset setting
+put db PositionYxADDR 0  # Reset setting
+put db PositionZxADDR 0  # Reset setting
+put db HorizontalShiftxADDR 0  # Reset setting
+
+#Calibrate Y axis
+s Device Vertical 0
+sleep MOOVEMENTxTIME
+l r15 Device PositionY
+s Device Vertical 180
+sleep MOOVEMENTxTIME
+l r14 Device PositionY
+add r14 r14 r15 #Calculate difference
+div r14 r14 2   #Calculate half of difference
+put Memory PositionYxADDR r14
+put db PositionYxADDR r14
+
+#Calibrate X axis
+s Device Vertical 90  # Set to horizontal plane for measurements
+s Device Horizontal 0
+sleep MOOVEMENTxTIME
+l r0 Device PositionX  # North (0) X position
+l r1 Device PositionZ  # North (0) Z position
+s Device Horizontal 90
+sleep MOOVEMENTxTIME
+l r2 Device PositionX  # East (90) X position
+l r3 Device PositionZ  # East (90) Z position
+s Device Horizontal 180
+sleep MOOVEMENTxTIME
+l r4 Device PositionX  # South (180) X position
+l r5 Device PositionZ  # South (180) Z position
+s Device Horizontal 270
+sleep MOOVEMENTxTIME
+l r6 Device PositionX  # West (270) X position
+l r7 Device PositionZ  # West (270) Z position
+
+add r8 r0 r2  # Calculate average X position from all measurements
+add r8 r8 r4
+add r8 r8 r6
+div r8 r8 4
+put Memory PositionXxADDR r8
+put db PositionXxADDR r8
+
+add r9 r1 r3  # Calculate average Z position from all measurements
+add r9 r9 r5
+add r9 r9 r7
+div r9 r9 4
+put Memory PositionZxADDR r9
+put db PositionZxADDR r9
+
+#Calibrate additional horizontal angle shift
+brap r0 r4 0.001 4  # Check if 0 and 90 positions are approximately equal
+  sgt r8 r0 r4      # Compare 0 and 90 positions (r8=1 if 0 > 90)
+  select r9 r8 0 180  # Select 0 or 180 based on comparison
+jr 3
+  sgt r8 r2 r6      # Compare 180 and 270 positions
+  select r9 r8 90 270  # Select 90 or 270 based on comparison
+put Memory HorizontalShiftxADDR r9  # Store optimal angle shift
+put db HorizontalShiftxADDR r9
+s LED Color Color.Green
+j main
