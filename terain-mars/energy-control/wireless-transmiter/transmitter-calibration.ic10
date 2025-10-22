@@ -58,7 +58,7 @@ brne r15 RECEIVERxHASH 6
     move PositionZxADDR 8
     move HorizontalShiftxADDR 9
     j calibrate
-jr main
+j main
 calibrate:
 put Memory PositionXxADDR 0  # Reset setting
 put Memory PositionYxADDR 0  # Reset setting
