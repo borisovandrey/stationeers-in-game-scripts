@@ -15,6 +15,7 @@ alias Memory d1
 alias Button d2
 alias LED d3
 alias DSP d4
+alias RedSwitch d5
 
 define RAD2DEGREE 57.295779513
 
@@ -37,7 +38,12 @@ main:
 yield
     s LED On 0
     s LED Color Color.Gray
-    s DSP On 0
+    s DSP On 1
+    s DSP Mode DisplayMode.String
+    s DSP Color Color.White
+    s DSP Setting $414c49474e #ALIGN
+    l r15 RedSwitch On
+    sbn HASH("StructureConsoleWallMount1") HASH("cnsl-transmitter") On r15
     l r15 Button Activate
     beqz r15 main
     l r15 Device PrefabHash
@@ -45,10 +51,6 @@ yield
     bne r15 RECEIVERxHASH main
     s LED On 1
     s LED Color Color.Orange
-    s DSP On 1
-    s DSP Mode DisplayMode.String
-    s DSP Color Color.White
-    s DSP Setting $414c49474e #ALIGN
     brne r15 TRANSMITTERxHASH 9
         get LocalPosX Memory 1
         get LocalPosY Memory 2
