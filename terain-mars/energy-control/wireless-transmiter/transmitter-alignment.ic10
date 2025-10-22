@@ -1,0 +1,112 @@
+#==== Wireless Power Alignment v1.0 ====#
+# Path:   terain-mars/energy-control/wireless-transmiter
+# Author: andrey.borisov@gmx.de (21.10.2025)
+# Devices: d0=Device to align, d1=Memory
+# Memory:  0-3=Transmitter, 6-9=Receiver (X,Y,Z,Angle)
+#====================================#
+# Operation:
+# 1. Detects device type (transmitter/receiver)
+# 2. Loads calibration from memory
+# 3. Calculates angles to remote device
+# 4. Applies alignment with angle correction
+#====================================#
+alias Device d0
+alias Memory d1
+alias Button d2
+alias LED d3
+alias DSP d4
+
+define RAD2DEGREE 57.295779513
+
+alias LocalPosX r0
+alias LocalPosY r1
+alias LocalPosZ r2
+alias LocalShift r3
+alias RemotePosX r4
+alias RemotePosY r5
+alias RemotePosZ r6
+
+define MOOVEMENTxTIME 30
+define TRANSMITTERxHASH HASH("StructurePowerTransmitter")
+define RECEIVERxHASH HASH("StructurePowerTransmitterReceiver")
+
+alias HorizAngle r7
+alias VertAngle r8
+
+main:
+yield
+    s LED On 0
+    s LED Color Color.Gray
+    s DSP On 0
+    l r15 Button Activate
+    beqz r15 main
+    l r15 Device PrefabHash
+    breq r15 TRANSMITTERxHASH 2
+    bne r15 RECEIVERxHASH main
+    s LED On 1
+    s LED Color Color.Orange
+    s DSP On 1
+    s DSP Mode DisplayMode.String
+    s DSP Color Color.White
+    s DSP Setting $414c49474e #ALIGN
+    brne r15 TRANSMITTERxHASH 9
+        get LocalPosX Memory 1
+        get LocalPosY Memory 2
+        get LocalPosZ Memory 3
+        get LocalShift Memory 4
+        get RemotePosX Memory 6
+        get RemotePosY Memory 7
+        get RemotePosZ Memory 8
+        jal align
+    brne r15 RECEIVERxHASH 9
+        get LocalPosX Memory 6
+        get LocalPosY Memory 7
+        get LocalPosZ Memory 8
+        get LocalShift Memory 9
+        get RemotePosX Memory 1
+        get RemotePosY Memory 2
+        get RemotePosZ Memory 3
+        jal align
+j main
+
+align:
+    push ra
+    #Calculate vector
+    sub RemotePosX RemotePosX LocalPosX
+    sub RemotePosY RemotePosY LocalPosY
+    sub RemotePosZ RemotePosZ LocalPosZ
+    #Horizontal angle
+    atan2 r15 RemotePosZ RemotePosX
+    mul r15 r15 RAD2DEGREE
+    sub r15 LocalShift r15 
+    jal normailzeAngle
+    move HorizAngle  r15
+    #Vertical angle
+    mul r15 RemotePosX RemotePosX
+    mul r14 RemotePosZ RemotePosZ
+    add r15 r14 r15
+    sqrt r15 r15
+    atan2 r15 RemotePosY r15
+    mul r15 r15 RAD2DEGREE
+    add r15 90 r15
+    jal normailzeAngle
+    move VertAngle r15
+
+    #Apply alignment
+    s Device Horizontal HorizAngle
+    s Device Vertical VertAngle
+    sleep MOOVEMENTxTIME
+
+    put db 1 HorizAngle
+    put db 2 VertAngle
+
+    s LED Color Color.Green
+    pop ra
+j ra
+
+normailzeAngle:
+  brgtz r15 3
+  add r15 r15 360
+  jr -2
+  mod r15 r15 360
+j ra 
