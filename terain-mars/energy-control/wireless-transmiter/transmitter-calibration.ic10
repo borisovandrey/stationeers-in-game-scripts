@@ -20,6 +20,7 @@ alias Memory d1
 alias Button d2
 alias LED d3
 alias DSP d4
+alias RedSwitch d5
 
 alias PositionXxADDR r10
 alias PositionYxADDR r11
@@ -29,12 +30,16 @@ alias HorizontalShiftxADDR r13
 define MOOVEMENTxTIME 30
 define TRANSMITTERxHASH HASH("StructurePowerTransmitter")
 define RECEIVERxHASH HASH("StructurePowerTransmitterReceiver")
-
 main:
 yield
-s LED On 0
-s LED Color Color.Gray
-s DSP On 0
+  s LED On 0
+  s LED Color Color.Gray
+  s DSP On 1
+  s DSP Mode DisplayMode.String
+  s DSP Color Color.White
+  s DSP Setting $43414c494252 #CALIBR
+  l r15 RedSwitch On
+  sbn HASH("StructureConsoleWallMount1") HASH("cnsl-transmitter") On r15
 l r15 Button Activate
 beqz r15 main
 l r15 Device PrefabHash
@@ -42,10 +47,6 @@ breq r15 TRANSMITTERxHASH 2
 bne r15 RECEIVERxHASH main
 s LED On 1
 s LED Color Color.Orange
-s DSP On 1
-s DSP Mode DisplayMode.String
-s DSP Color Color.White
-s DSP Setting $43414c494252 #CALIBR
 brne r15 TRANSMITTERxHASH 6
     move PositionXxADDR 1
     move PositionYxADDR 2
@@ -68,7 +69,6 @@ put db PositionXxADDR 0  # Reset setting
 put db PositionYxADDR 0  # Reset setting
 put db PositionZxADDR 0  # Reset setting
 put db HorizontalShiftxADDR 0  # Reset setting
-
 #Calibrate Y axis
 s Device Vertical 0
 sleep MOOVEMENTxTIME
@@ -80,7 +80,6 @@ add r14 r14 r15 #Calculate difference
 div r14 r14 2   #Calculate half of difference
 put Memory PositionYxADDR r14
 put db PositionYxADDR r14
-
 #Calibrate X axis
 s Device Vertical 90  # Set to horizontal plane for measurements
 s Device Horizontal 0
@@ -99,21 +98,18 @@ s Device Horizontal 270
 sleep MOOVEMENTxTIME
 l r6 Device PositionX  # West (270) X position
 l r7 Device PositionZ  # West (270) Z position
-
 add r8 r0 r2  # Calculate average X position from all measurements
 add r8 r8 r4
 add r8 r8 r6
 div r8 r8 4
 put Memory PositionXxADDR r8
 put db PositionXxADDR r8
-
 add r9 r1 r3  # Calculate average Z position from all measurements
 add r9 r9 r5
 add r9 r9 r7
 div r9 r9 4
 put Memory PositionZxADDR r9
 put db PositionZxADDR r9
-
 #Calibrate additional horizontal angle shift
 brap r0 r4 0.001 4  # Check if 0 and 90 positions are approximately equal
   sgt r8 r0 r4      # Compare 0 and 90 positions (r8=1 if 0 > 90)
