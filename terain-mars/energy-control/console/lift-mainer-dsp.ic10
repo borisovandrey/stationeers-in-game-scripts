@@ -1,0 +1,31 @@
+#terain-mars\energy-control\console\lift-mainer-dsp.ic10
+#andrey.borisov@gmx.de 26.11.2025
+#NOTE: This script contains direct access to devices using their HASH and ID.
+#This script is responsible for lift and miners display on console
+define SPEEDxMIN 1
+define SPEEDxMAX 3
+define ACTIVE 0.5
+define POWERxSAFE 5
+
+alias sleepTime r0
+
+main:
+   l r15 $59EC0 On #Check lift switch
+   s $52D62 On r15 #Set display power
+   select sleepTime r15 ACTIVE POWERxSAFE
+   bnezal r15 liftspeed
+   jal miners
+   sleep sleepTime
+j main
+
+miners:
+  l r15 $59E64 Setting #Read Silver-Gold WIFI
+  s $59EC5 Setting r15
+j ra
+
+liftspeed:
+   l r15 $52D52 Setting #Read input speed
+   lerp r14 SPEEDxMIN SPEEDxMAX r15
+   s $52D62 Setting r14 #Lift speed display
+   s $4CCB5 ElevatorSpeed r14 #Elevator
+j ra
