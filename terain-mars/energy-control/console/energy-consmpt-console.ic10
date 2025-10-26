@@ -33,17 +33,28 @@ push Color.Blue
 #push $9 #Gas Meter
 #push $9 #Gas Dsp
 #push Color.Green
+push $53434 #Maining Meter
+push $558FE #Maining Dsp
+push Color.Orange
 
 alias dataStart r0
 alias dataSize r1
+alias PowerOn r2
 move dataStart sp
 sub dataSize sp r15
+
+move PowerOn -1
 
 jal initDisplay
 
 main:
+    sleep 1
+    l r15 $558FF On
+    breq PowerOn r15 3
+         s $51293 On r15
+         move PowerOn r15
+    beqzal PowerOn main
     jal showData
-    yield
 j main
 
 initDisplay:
