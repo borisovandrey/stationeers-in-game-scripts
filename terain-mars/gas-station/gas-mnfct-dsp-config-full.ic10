@@ -1,0 +1,223 @@
+#terain-mars\gas-station\gas-mnfct-dsp-config-full.ic10 
+#This script is intended to configure stack of display IC10 script
+# Add Sensors
+define GASxANALISER_HASH     HASH("StructurePipeAnalysizer")
+define LIQUIDxANALISER_HASH  HASH("StructureLiquidPipeAnalyzer")
+define TANKxINSxGAS_HASH     HASH("StructureTankSmallInsulated")
+define SILOxHASH             HASH("StructureSDBSilo")
+define DISPLAYxHASH          HASH("ModularDeviceLEDdisplay2")
+define ICExCRASHERxHASH      HASH("StructureIceCrusher")
+define LDExHASH              HASH("ModularDeviceLightSmall")
+
+clr db
+s db Setting 0
+alias Device d0
+alias FullSize r0
+alias StructureSize r1
+alias Count r2
+move FullSize sp
+#1 Silo 
+push SILOxHASH 
+push HASH("gm-silo")
+push LogicType.Quantity
+push DISPLAYxHASH 
+push HASH("gm-silo-dsp")
+push Color.Gray
+push DisplayMode.Default
+push LogicType.Setting
+#Structure size
+sub StructureSize sp FullSize
+#2 Mix
+push TANKxINSxGAS_HASH 
+push HASH("gm-mix-tank")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-mix-tank-dsp")
+push Color.Green
+push DisplayMode.Pa
+push LogicType.Setting
+#3 Gas-Output
+push GASxANALISER_HASH 
+push HASH("gm-out-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-out-dsp")
+push Color.Gray
+push DisplayMode.Pa
+push LogicType.Setting
+#4 Water-Output
+push LIQUIDxANALISER_HASH 
+push HASH("gm-out-water-sns")
+push LogicType.Volume
+push DISPLAYxHASH 
+push HASH("gm-out-water-dsp")
+push Color.Blue
+push DisplayMode.Litres
+push LogicType.Setting
+#5 Nitro-Output
+push LIQUIDxANALISER_HASH 
+push HASH("gm-out-nitro-sns")
+push LogicType.Volume
+push DISPLAYxHASH 
+push HASH("gm-out-nitro-dsp")
+push Color.Green
+push DisplayMode.Litres
+push LogicType.Setting
+#6 02-pa
+push GASxANALISER_HASH 
+push HASH("gm-O2-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-O2-pa-dsp") 
+push Color.White
+push DisplayMode.Pa
+push LogicType.Setting
+#7 02-tmp
+push GASxANALISER_HASH 
+push HASH("gm-O2-sns")
+push LogicType.Temperature
+push DISPLAYxHASH 
+push HASH("gm-O2-tmp-dsp")
+push Color.White
+push DisplayMode.Celsius
+push LogicType.Setting
+#8 N2-pa
+push GASxANALISER_HASH 
+push HASH("gm-N2-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-N2-pa-dsp") 
+push Color.Green
+push DisplayMode.Pa
+push LogicType.Setting
+#9 N2-tmp
+push GASxANALISER_HASH 
+push HASH("gm-N2-sns")
+push LogicType.Temperature
+push DISPLAYxHASH 
+push HASH("gm-N2-tmp-dsp")
+push Color.Green
+push DisplayMode.Celsius
+push LogicType.Setting
+#10 Vol-pa
+push GASxANALISER_HASH 
+push HASH("gm-vol-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-vol-pa-dsp")
+push Color.Pink
+push DisplayMode.Pa
+push LogicType.Setting
+#11 Vol-tmp
+push GASxANALISER_HASH 
+push HASH("gm-vol-sns")
+push LogicType.Temperature
+push DISPLAYxHASH 
+push HASH("gm-vol-tmp-dsp") 
+push Color.Pink
+push DisplayMode.Celsius
+push LogicType.Setting
+#12 CO2-pa
+push GASxANALISER_HASH 
+push HASH("gm-co2-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-co2-pa-dsp")
+push Color.Yellow
+push DisplayMode.Pa
+push LogicType.Setting
+#13 CO2-tmp
+push GASxANALISER_HASH 
+push HASH("gm-co2-sns")
+push LogicType.Temperature
+push DISPLAYxHASH 
+push HASH("gm-co2-tmp-dsp")
+push Color.Yellow
+push DisplayMode.Celsius
+push LogicType.Setting
+#14 Watter-pa
+push LIQUIDxANALISER_HASH 
+push HASH("gm-water-sns")
+push LogicType.Volume
+push DISPLAYxHASH 
+push HASH("gm-water-lt-dsp")
+push Color.Blue
+push DisplayMode.Litres
+push LogicType.Setting
+#15 Water-tmp
+push LIQUIDxANALISER_HASH 
+push HASH("gm-water-sns")
+push LogicType.Temperature
+push DISPLAYxHASH
+push HASH("gm-water-tmp-dsp")
+push Color.Blue
+push DisplayMode.Celsius
+push LogicType.Setting
+#16 Nitro-pa
+push LIQUIDxANALISER_HASH 
+push HASH("gm-nitro-sns")
+push LogicType.Volume
+push DISPLAYxHASH 
+push HASH("gm-nitro-lt-dsp")
+push Color.Khaki
+push DisplayMode.Litres
+push LogicType.Setting
+#17 Nitro-tmp
+push LIQUIDxANALISER_HASH 
+push HASH("gm-nitro-sns")
+push LogicType.Temperature
+push DISPLAYxHASH 
+push HASH("gm-nitro-tmp-dsp")
+push Color.Khaki
+push DisplayMode.Celsius
+push LogicType.Setting
+
+sub FullSize sp FullSize
+div Count FullSize StructureSize
+
+alias idx r3
+move idx 0
+
+alias SxDisplaySetting r4
+alias SxDisplayMode r5
+alias SxDisplayColor r6
+alias SxDisplayName r7
+alias SxDisplayHash r8
+alias SxSourceValue r9
+alias SxSourceName r10
+alias SxSourceHash r11
+alias Addrress r12
+
+clr Device
+move Addrress 10
+put Device 9 Count
+
+cycle:
+    pop SxDisplaySetting
+    pop SxDisplayMode
+    pop SxDisplayColor
+    pop SxDisplayName
+    pop SxDisplayHash
+    pop SxSourceValue
+    pop SxSourceName
+    pop SxSourceHash
+    lbn r15 SxDisplayHash SxDisplayName ReferenceId Sum
+    lbn r14 SxSourceHash SxSourceName ReferenceId Sum
+
+    put Device Addrress SxSourceValue
+    add Addrress Addrress 1
+    put Device Addrress r14
+    add Addrress Addrress 1
+    put Device Addrress SxDisplaySetting
+    add Addrress Addrress 1
+    put Device Addrress SxDisplayMode
+    add Addrress Addrress 1
+    put Device Addrress SxDisplayColor
+    add Addrress Addrress 1
+    put Device Addrress r15 
+    add Addrress Addrress 1
+
+    add idx idx 1
+    s db Setting idx
+blt idx Count cycle
+

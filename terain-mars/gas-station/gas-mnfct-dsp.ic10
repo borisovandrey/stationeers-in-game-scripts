@@ -1,0 +1,77 @@
+#terain-mars\gas-station\gas-mnfct-dsp.ic10
+#Setup displays
+define STRUCTURExSIZE 6
+define SHIFT 10
+define COUNTxPOS 9
+alias Count r0
+alias Display r1
+alias DColor r2
+alias DMode r3
+alias DSetting r4
+alias Source r5
+alias SSetting r6
+alias spStorage r10
+alias raStorage r11
+alias idx r12
+get Count db COUNTxPOS
+
+define KelvinToCelsius 273.15
+
+jal begin
+jal init
+jal end
+
+main:
+  sleep 1
+  jal begin
+  jal show
+  jal end
+j main
+
+show:
+  move idx 0
+showcycle:
+  s db Setting idx
+  move raStorage ra
+  jal read
+  move ra raStorage
+  l r15 Source SSetting
+  brne SSetting LogicType.Temperature 2
+    sub r15 r15 KelvinToCelsius 
+  s Display DSetting r15 
+  add idx idx 1
+  blt idx Count showcycle
+j ra
+
+init:
+  move idx 0
+initcycle:
+  s db Setting idx
+  move raStorage ra
+  jal read
+  move ra raStorage
+  s Display Color DColor
+  s Display Mode DMode
+  add idx idx 1
+  blt idx Count initcycle
+j ra
+
+begin:
+  move spStorage sp
+  move sp Count
+  mul sp sp STRUCTURExSIZE
+  add sp sp SHIFT
+j ra
+
+end:
+  move sp spStorage
+j ra
+
+read:
+    pop Display
+    pop DColor
+    pop DMode
+    pop DSetting
+    pop Source
+    pop SSetting
+j ra

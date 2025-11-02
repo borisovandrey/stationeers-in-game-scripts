@@ -1,0 +1,85 @@
+alias PWR r0
+alias IcePWR r1
+alias WaterPWR r2
+alias PompPWR r3
+move PWR 0
+move IcePWR 0
+move WaterPWR 0
+move PompPWR 0
+main:
+  sleep 1
+  l r15 $5F25B On #PWR
+  bneal r15 PWR power
+  l r15 $5F25C On #IcePWR
+  and r15 r15 PWR
+  bneal r15 IcePWR icePwr
+  l r15 $5F25D On #Water
+  and r15 r15 PWR
+  bneal r15 WaterPWR waterPwr
+  or r15 WaterPWR IcePWR
+  bneal r15 PompPWR pompPwr
+  beqz PWR main
+  jal controlManufacture
+j main
+controlManufacture:
+  l r15 $60886 Pressure #Ice crushers pressure
+  l r14 $60984 Volume #Water
+  l r13 $60982 Volume #Nitro
+  sle r15 r15 20000 #Pressure less 20Mpa
+  sle r14 r14 180   #Volume less 200l
+  sle r13 r13 180   #Volume less 200l
+  and r15 r15 r14   #Check all safe
+  and r15 r15 r13
+  l r14 $5FE3A On   #Silo switch
+  and r14 r15 r14
+  s $5FE3A On r14
+  s $5C7BB Open r14 #Open or close silo
+  l r14 $5C8B5 Activate #ice active
+  select r13 r14 Color.Green Color.Gray
+  select r13 r15 r13 Color.Red
+  s $5FEA7 On r14
+  s $5FEA7 Color r13
+  l r14 $5C8B3 Activate #water active
+  select r13 r14 Color.Green Color.Gray
+  select r13 r15 r13 Color.Red
+  s $6003F On r14
+  s $6003F Color r13
+j ra
+pompPwr:
+  move PompPWR r15
+  s $5FE63 On PompPWR
+j ra
+waterPwr:
+  move WaterPWR r15
+  s $5F25D On WaterPWR #Apply switch
+  s $5C8B3 On WaterPWR #Water
+  s $5E801 On WaterPWR #Water pump
+  s $60984 On WaterPWR #Water sns
+j ra
+icePwr:
+  move IcePWR r15
+  s $5F25C On IcePWR #Apply switch
+  s $5C8B5 On IcePWR #Ice
+  s $5E805 On IcePWR #Nitro pump
+  s $60982 On IcePWR #Nitro sns
+j ra
+power:
+  move PWR r15
+  s $5E49F On PWR #Console
+  s $5E9B5 On PWR #Unloader
+  s $5C82D On PWR #Sorter Ice
+  s $5C7BB On PWR #Silo
+  s $5C89C On PWR #Water sorter
+  s $5D9DF On PWR #O2 Filter
+  s $5D9E1 On PWR #N2 Filter
+  s $5D9F0 On PWR #Vol Filter
+  s $5D9F1 On PWR #CO2
+  s $60886 On PWR #Output-sns
+  s $608A1 On PWR #O2-sns
+  s $608A2 On PWR #N2-sns
+  s $608A3 On PWR #Vol-sns
+  s $608A4 On PWR #CO2-sns
+  s $609A0 On PWR #Nitro-sns
+  s $609D7 On PWR #Water-sns
+  s $6092E On PWR #Display Controller
+j ra
