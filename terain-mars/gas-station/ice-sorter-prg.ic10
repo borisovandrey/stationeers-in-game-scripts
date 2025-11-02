@@ -1,0 +1,32 @@
+#terain-mars\gas-station\ice-sorter-prg.ic10
+#Program Logic Sorter to sort all ice
+alias Sorter r0
+alias Hash r1
+alias Address r2
+clr db
+push HASH("ItemOxite")
+push HASH("ItemNitrice")
+push HASH("ItemVolatiles")
+push HASH("ItemIce")
+push HASH("ItemPureIceSteam")
+push HASH("ItemPureIceCarbonDioxide")
+push HASH("ItemPureIce")
+push HASH("ItemPureIcePollutant")
+push HASH("ItemPureIceOxygen")
+push HASH("ItemPureIceVolatiles")
+push HASH("ItemPureIcePollutedWater")
+push $5C82D
+
+pop Sorter
+s Sorter Mode 1 # Any
+clrd Sorter # erase any stale instructions in RAM
+move Address 0
+cycle:
+beqz sp end
+pop Hash
+sll r15 Hash 8
+or r15 r15 SorterInstruction.FilterPrefabHashEquals
+put Sorter Address r15
+add Address Address 1
+j cycle
+end:
