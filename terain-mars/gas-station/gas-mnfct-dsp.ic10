@@ -1,77 +1,122 @@
 #terain-mars\gas-station\gas-mnfct-dsp.ic10
-#Setup displays
 define STRUCTURExSIZE 6
-define SHIFT 10
-define COUNTxPOS 9
-alias Count r0
+define SHIFTxDSP 10
+define SHIFTxFLTR 200
+alias CountDsp r0
 alias Display r1
 alias DColor r2
 alias DMode r3
 alias DSetting r4
 alias Source r5
 alias SSetting r6
+alias CountFltr r7
+alias LargeFilter r8
+alias MediumFilter r9
 alias spStorage r10
 alias raStorage r11
 alias idx r12
-get Count db COUNTxPOS
-
+alias BannerColor r13
+get CountDsp db 9
+get CountFltr db 199
 define KelvinToCelsius 273.15
-
-jal begin
-jal init
+jal beginDsp
+jal initDsp
 jal end
-
 main:
   sleep 1
-  jal begin
-  jal show
+  jal beginDsp
+  jal showDsp
+  jal end
+  jal beginFltr
+  jal showFltr
   jal end
 j main
-
-show:
+showDsp:
   move idx 0
 showcycle:
   s db Setting idx
   move raStorage ra
-  jal read
+  jal readDsp
   move ra raStorage
   l r15 Source SSetting
   brne SSetting LogicType.Temperature 2
-    sub r15 r15 KelvinToCelsius 
-  s Display DSetting r15 
+    sub r15 r15 KelvinToCelsius
+  s Display DSetting r15
   add idx idx 1
-  blt idx Count showcycle
+  blt idx CountDsp showcycle
 j ra
-
-init:
+initDsp:
   move idx 0
 initcycle:
   s db Setting idx
   move raStorage ra
-  jal read
+  jal readDsp
   move ra raStorage
   s Display Color DColor
   s Display Mode DMode
   add idx idx 1
-  blt idx Count initcycle
+  blt idx CountDsp initcycle
 j ra
-
-begin:
+beginDsp:
   move spStorage sp
-  move sp Count
+  move sp CountDsp
   mul sp sp STRUCTURExSIZE
-  add sp sp SHIFT
+  add sp sp SHIFTxDSP
 j ra
-
 end:
   move sp spStorage
 j ra
-
-read:
+readDsp:
     pop Display
     pop DColor
     pop DMode
     pop DSetting
     pop Source
     pop SSetting
+j ra
+beginFltr:
+  move spStorage sp
+  move sp CountFltr
+  mul sp sp 4
+  add sp sp SHIFTxFLTR
+j ra
+showFltr:
+  move idx 0
+fltrcycle:
+  pop Source
+  pop LargeFilter #Large filter
+  pop MediumFilter #Medium filter
+  pop Display
+  ls r15 Source 0 Quantity
+  ls r14 Source 1 Quantity
+  add r14 r15 r14
+  sgt r15 r14 100
+  select BannerColor r15 Color.Blue Color.Orange
+  seqz r15 r14
+  select BannerColor r15 Color.Red BannerColor
+  move raStorage ra
+  move r15 0
+  jal checkFilter
+  select BannerColor r15 BannerColor Color.Red
+  breqz r15 4 #Banner is red
+  move r15 1
+  jal checkFilter
+  select BannerColor r15 BannerColor Color.Red
+  move ra raStorage
+  s Display Color BannerColor
+  seq r15 BannerColor Color.Red  
+  s Display Mode r15  
+  add idx idx 1
+blt idx CountFltr fltrcycle
+j ra
+checkFilter:
+  ls r14 Source r15 Occupied
+  beqz r14 goodFilter
+  ls r14 Source r15 OccupantHash
+  beq r14 LargeFilter goodFilter
+  beq r14 MediumFilter goodFilter
+  move r15 0
+  j ra
+goodFilter:
+  move r15 1
 j ra

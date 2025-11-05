@@ -8,6 +8,9 @@ define SILOxHASH             HASH("StructureSDBSilo")
 define DISPLAYxHASH          HASH("ModularDeviceLEDdisplay2")
 define ICExCRASHERxHASH      HASH("StructureIceCrusher")
 define LDExHASH              HASH("ModularDeviceLightSmall")
+define MIRRORxHASH           HASH("StructureLogicMemory")
+define FILTERxHASH           HASH("StructureFiltration")
+define BANNERxHASH           HASH("ModularDeviceLabelDiode2")
 
 clr db
 s db Setting 0
@@ -16,7 +19,7 @@ alias FullSize r0
 alias StructureSize r1
 alias Count r2
 move FullSize sp
-#1 Silo 
+#0 Silo 
 push SILOxHASH 
 push HASH("gm-silo")
 push LogicType.Quantity
@@ -27,7 +30,7 @@ push DisplayMode.Default
 push LogicType.Setting
 #Structure size
 sub StructureSize sp FullSize
-#2 Mix
+#1 Mix
 push TANKxINSxGAS_HASH 
 push HASH("gm-mix-tank")
 push LogicType.Pressure
@@ -36,7 +39,7 @@ push HASH("gm-mix-tank-dsp")
 push Color.Green
 push DisplayMode.Pa
 push LogicType.Setting
-#3 Gas-Output
+#2 Gas-Output
 push GASxANALISER_HASH 
 push HASH("gm-out-sns")
 push LogicType.Pressure
@@ -45,25 +48,25 @@ push HASH("gm-out-dsp")
 push Color.Gray
 push DisplayMode.Pa
 push LogicType.Setting
-#4 Water-Output
+#3 Water-Output
 push LIQUIDxANALISER_HASH 
 push HASH("gm-out-water-sns")
-push LogicType.Volume
+push LogicType.VolumeOfLiquid
 push DISPLAYxHASH 
 push HASH("gm-out-water-dsp")
 push Color.Blue
 push DisplayMode.Litres
 push LogicType.Setting
-#5 Nitro-Output
+#4 Nitro-Output
 push LIQUIDxANALISER_HASH 
 push HASH("gm-out-nitro-sns")
-push LogicType.Volume
+push LogicType.VolumeOfLiquid
 push DISPLAYxHASH 
 push HASH("gm-out-nitro-dsp")
 push Color.Green
 push DisplayMode.Litres
 push LogicType.Setting
-#6 02-pa
+#5 02-pa
 push GASxANALISER_HASH 
 push HASH("gm-O2-sns")
 push LogicType.Pressure
@@ -72,7 +75,7 @@ push HASH("gm-O2-pa-dsp")
 push Color.White
 push DisplayMode.Pa
 push LogicType.Setting
-#7 02-tmp
+#6 02-tmp
 push GASxANALISER_HASH 
 push HASH("gm-O2-sns")
 push LogicType.Temperature
@@ -81,7 +84,7 @@ push HASH("gm-O2-tmp-dsp")
 push Color.White
 push DisplayMode.Celsius
 push LogicType.Setting
-#8 N2-pa
+#7 N2-pa
 push GASxANALISER_HASH 
 push HASH("gm-N2-sns")
 push LogicType.Pressure
@@ -90,7 +93,7 @@ push HASH("gm-N2-pa-dsp")
 push Color.Green
 push DisplayMode.Pa
 push LogicType.Setting
-#9 N2-tmp
+#8 N2-tmp
 push GASxANALISER_HASH 
 push HASH("gm-N2-sns")
 push LogicType.Temperature
@@ -99,7 +102,7 @@ push HASH("gm-N2-tmp-dsp")
 push Color.Green
 push DisplayMode.Celsius
 push LogicType.Setting
-#10 Vol-pa
+#9 Vol-pa
 push GASxANALISER_HASH 
 push HASH("gm-vol-sns")
 push LogicType.Pressure
@@ -108,7 +111,7 @@ push HASH("gm-vol-pa-dsp")
 push Color.Pink
 push DisplayMode.Pa
 push LogicType.Setting
-#11 Vol-tmp
+#10 Vol-tmp
 push GASxANALISER_HASH 
 push HASH("gm-vol-sns")
 push LogicType.Temperature
@@ -117,7 +120,7 @@ push HASH("gm-vol-tmp-dsp")
 push Color.Pink
 push DisplayMode.Celsius
 push LogicType.Setting
-#12 CO2-pa
+#11 CO2-pa
 push GASxANALISER_HASH 
 push HASH("gm-co2-sns")
 push LogicType.Pressure
@@ -126,7 +129,7 @@ push HASH("gm-co2-pa-dsp")
 push Color.Yellow
 push DisplayMode.Pa
 push LogicType.Setting
-#13 CO2-tmp
+#12 CO2-tmp
 push GASxANALISER_HASH 
 push HASH("gm-co2-sns")
 push LogicType.Temperature
@@ -135,16 +138,16 @@ push HASH("gm-co2-tmp-dsp")
 push Color.Yellow
 push DisplayMode.Celsius
 push LogicType.Setting
-#14 Watter-pa
-push LIQUIDxANALISER_HASH 
-push HASH("gm-water-sns")
-push LogicType.Volume
-push DISPLAYxHASH 
+#13 Watter-lt
+push MIRRORxHASH
+push HASH("tank-water-mrr")
+push LogicType.Setting
+push DISPLAYxHASH
 push HASH("gm-water-lt-dsp")
 push Color.Blue
 push DisplayMode.Litres
 push LogicType.Setting
-#15 Water-tmp
+#14 Water-tmp
 push LIQUIDxANALISER_HASH 
 push HASH("gm-water-sns")
 push LogicType.Temperature
@@ -153,16 +156,16 @@ push HASH("gm-water-tmp-dsp")
 push Color.Blue
 push DisplayMode.Celsius
 push LogicType.Setting
-#16 Nitro-pa
-push LIQUIDxANALISER_HASH 
-push HASH("gm-nitro-sns")
-push LogicType.Volume
+#15 Nitro-lt
+push MIRRORxHASH
+push HASH("tank-nitro-mrr")
+push LogicType.Setting
 push DISPLAYxHASH 
 push HASH("gm-nitro-lt-dsp")
 push Color.Khaki
 push DisplayMode.Litres
 push LogicType.Setting
-#17 Nitro-tmp
+#16 Nitro-tmp
 push LIQUIDxANALISER_HASH 
 push HASH("gm-nitro-sns")
 push LogicType.Temperature
@@ -192,7 +195,7 @@ clr Device
 move Addrress 10
 put Device 9 Count
 
-cycle:
+cyclesns:
     pop SxDisplaySetting
     pop SxDisplayMode
     pop SxDisplayColor
@@ -203,7 +206,6 @@ cycle:
     pop SxSourceHash
     lbn r15 SxDisplayHash SxDisplayName ReferenceId Sum
     lbn r14 SxSourceHash SxSourceName ReferenceId Sum
-
     put Device Addrress SxSourceValue
     add Addrress Addrress 1
     put Device Addrress r14
@@ -219,5 +221,61 @@ cycle:
 
     add idx idx 1
     s db Setting idx
-blt idx Count cycle
+blt idx Count cyclesns
 
+#Programm banners
+move sp 200
+move FullSize sp
+#0 O2
+push HASH("gm-o2-filter")
+push HASH("ItemGasFilterOxygenM")
+push HASH("ItemGasFilterOxygenL")
+push HASH("O2 Filters") 
+#1 N2
+push HASH("gm-n2-filter")
+push HASH("ItemGasFilterNitrogenM")
+push HASH("ItemGasFilterNitrogenL")
+push HASH("N2 Filters") 
+#2 Vol
+push HASH("gm-vol-filter")
+push HASH("ItemGasFilterVolatilesM")
+push HASH("ItemGasFilterVolatilesL")
+push HASH("Vol Filters") 
+#2 Vol
+push HASH("gm-co2-filter")
+push HASH("ItemGasFilterCarbonDioxideM")
+push HASH("ItemGasFilterCarbonDioxideL")
+push HASH("CO2 Filters") 
+
+sub FullSize sp FullSize
+div Count FullSize 4
+move Addrress 200
+put Device 199 Count
+
+alias BannerNameHash r4
+alias LargeFilterHash r5
+alias MediumFilterHash r6
+alias FilterNameHash r7    
+
+move idx 0
+cycleflt:
+    s db Setting idx 
+    pop BannerNameHash
+    pop LargeFilterHash
+    pop MediumFilterHash
+    pop FilterNameHash
+    lbn r15 FILTERxHASH FilterNameHash ReferenceId Sum
+    lbn r14 BANNERxHASH BannerNameHash ReferenceId Sum
+    put Device Addrress r14
+    add Addrress Addrress 1
+    put Device Addrress MediumFilterHash 
+    add Addrress Addrress 1
+    put Device Addrress LargeFilterHash 
+    add Addrress Addrress 1
+    put Device Addrress r15 
+    add Addrress Addrress 1
+    add idx idx 1
+blt idx Count cycleflt    
+
+s db Setting 1001 
+s Device LineNumber 0
