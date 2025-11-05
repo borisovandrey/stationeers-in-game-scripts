@@ -23,8 +23,8 @@ main:
 j main
 controlManufacture:
   l r15 $60886 Pressure #Ice crushers pressure
-  l r14 $60984 Volume #Water
-  l r13 $60982 Volume #Nitro
+  l r14 $60984 VolumeOfLiquid #Water
+  l r13 $60982 VolumeOfLiquid #Nitro
   sle r15 r15 20000 #Pressure less 20Mpa
   sle r14 r14 180   #Volume less 200l
   sle r13 r13 180   #Volume less 200l
@@ -70,10 +70,6 @@ power:
   s $5C82D On PWR #Sorter Ice
   s $5C7BB On PWR #Silo
   s $5C89C On PWR #Water sorter
-  s $5D9DF On PWR #O2 Filter
-  s $5D9E1 On PWR #N2 Filter
-  s $5D9F0 On PWR #Vol Filter
-  s $5D9F1 On PWR #CO2
   s $60886 On PWR #Output-sns
   s $608A1 On PWR #O2-sns
   s $608A2 On PWR #N2-sns

@@ -9,12 +9,11 @@ define DISPLAYxHASH          HASH("ModularDeviceLEDdisplay2")
 define ICExCRASHERxHASH      HASH("StructureIceCrusher")
 define LDExHASH              HASH("ModularDeviceLightSmall")
 define MIRRORxHASH           HASH("StructureLogicMemory")
-define FILTERxHASH           HASH("StructureFiltration")
-define BANNERxHASH           HASH("ModularDeviceLabelDiode2")
 
 clr db
 s db Setting 0
-alias Device d0
+alias DeviceDisplay d0
+alias DeviceFilters d1
 alias FullSize r0
 alias StructureSize r1
 alias Count r2
@@ -191,9 +190,9 @@ alias SxSourceName r10
 alias SxSourceHash r11
 alias Addrress r12
 
-clr Device
+clr DeviceDisplay
 move Addrress 10
-put Device 9 Count
+put DeviceDisplay 9 Count
 
 cyclesns:
     pop SxDisplaySetting
@@ -206,76 +205,100 @@ cyclesns:
     pop SxSourceHash
     lbn r15 SxDisplayHash SxDisplayName ReferenceId Sum
     lbn r14 SxSourceHash SxSourceName ReferenceId Sum
-    put Device Addrress SxSourceValue
+    put DeviceDisplay Addrress SxSourceValue
     add Addrress Addrress 1
-    put Device Addrress r14
+    put DeviceDisplay Addrress r14
     add Addrress Addrress 1
-    put Device Addrress SxDisplaySetting
+    put DeviceDisplay Addrress SxDisplaySetting
     add Addrress Addrress 1
-    put Device Addrress SxDisplayMode
+    put DeviceDisplay Addrress SxDisplayMode
     add Addrress Addrress 1
-    put Device Addrress SxDisplayColor
+    put DeviceDisplay Addrress SxDisplayColor
     add Addrress Addrress 1
-    put Device Addrress r15 
+    put DeviceDisplay Addrress r15 
     add Addrress Addrress 1
 
     add idx idx 1
     s db Setting idx
 blt idx Count cyclesns
 
-#Programm banners
+
+alias Switch r4
+alias Filter r5 
+alias Banner r6
+
+define SWITCHxHASH HASH("ModularDeviceSwitch")
+define FILTERxHASH HASH("StructureFiltration")
+define BANNERxHASH HASH("ModularDeviceLabelDiode2")
+
 move sp 200
 move FullSize sp
 #0 O2
-push HASH("gm-o2-filter")
-push HASH("ItemGasFilterOxygenM")
+lbn Switch SWITCHxHASH HASH("gw-o2-sw") ReferenceId Sum
+lbn Filter FILTERxHASH HASH("gm-o2-filter") ReferenceId Sum
+lbn Banner BANNERxHASH HASH("O2 Filters") ReferenceId Sum
+push Switch
+push Banner
 push HASH("ItemGasFilterOxygenL")
-push HASH("O2 Filters") 
+push HASH("ItemGasFilterOxygenM")
+push Filter
+sub StructureSize sp FullSize
 #1 N2
-push HASH("gm-n2-filter")
-push HASH("ItemGasFilterNitrogenM")
-push HASH("ItemGasFilterNitrogenL")
-push HASH("N2 Filters") 
+lbn Switch SWITCHxHASH HASH("gw-n2-sw") ReferenceId Sum
+lbn Filter FILTERxHASH HASH("gm-n2-filter") ReferenceId Sum
+lbn Banner BANNERxHASH HASH("N2 Filters") ReferenceId Sum
+push Switch
+push Banner
+push HASH("ItemGasFilterOxygenL")
+push HASH("ItemGasFilterOxygenM")
+push Filter
 #2 Vol
-push HASH("gm-vol-filter")
-push HASH("ItemGasFilterVolatilesM")
-push HASH("ItemGasFilterVolatilesL")
-push HASH("Vol Filters") 
-#2 Vol
-push HASH("gm-co2-filter")
-push HASH("ItemGasFilterCarbonDioxideM")
-push HASH("ItemGasFilterCarbonDioxideL")
-push HASH("CO2 Filters") 
+lbn Switch SWITCHxHASH HASH("gw-vol-sw") ReferenceId Sum
+lbn Filter FILTERxHASH HASH("gm-vol-filter") ReferenceId Sum
+lbn Banner BANNERxHASH HASH("Vol Filters") ReferenceId Sum
+push Switch
+push Banner
+push HASH("ItemGasFilterOxygenL")
+push HASH("ItemGasFilterOxygenM")
+push Filter
+#2 Co2
+lbn Switch SWITCHxHASH HASH("gw-co2-sw") ReferenceId Sum
+lbn Filter FILTERxHASH HASH("gm-co2-filter") ReferenceId Sum
+lbn Banner BANNERxHASH HASH("CO2 Filters") ReferenceId Sum
+push Switch
+push Banner
+push HASH("ItemGasFilterOxygenL")
+push HASH("ItemGasFilterOxygenM")
+push Filter
 
 sub FullSize sp FullSize
-div Count FullSize 4
-move Addrress 200
-put Device 199 Count
+div Count FullSize StructureSize
 
-alias BannerNameHash r4
-alias LargeFilterHash r5
-alias MediumFilterHash r6
-alias FilterNameHash r7    
+clr DeviceFilters
+move Addrress 10
+put DeviceFilters 9 Count
 
 move idx 0
-cycleflt:
-    s db Setting idx 
-    pop BannerNameHash
-    pop LargeFilterHash
-    pop MediumFilterHash
-    pop FilterNameHash
-    lbn r15 FILTERxHASH FilterNameHash ReferenceId Sum
-    lbn r14 BANNERxHASH BannerNameHash ReferenceId Sum
-    put Device Addrress r14
+cyclefilters:
+    pop Filter
+    pop r15
+    pop r14
+    pop Banner
+    pop Switch    
+    put DeviceFilters Addrress Switch
     add Addrress Addrress 1
-    put Device Addrress MediumFilterHash 
+    put DeviceFilters Addrress Banner
     add Addrress Addrress 1
-    put Device Addrress LargeFilterHash 
+    put DeviceFilters Addrress r14
     add Addrress Addrress 1
-    put Device Addrress r15 
+    put DeviceFilters Addrress r15
+    add Addrress Addrress 1
+    put DeviceFilters Addrress Filter
     add Addrress Addrress 1
     add idx idx 1
-blt idx Count cycleflt    
+    s db Setting idx
+blt idx Count cyclefilters
 
-s db Setting 1001 
-s Device LineNumber 0
+s DeviceDisplay LineNumber 0
+s DeviceFilters LineNumber 0
+s db Setting 1001

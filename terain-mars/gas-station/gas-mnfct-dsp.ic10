@@ -1,7 +1,6 @@
 #terain-mars\gas-station\gas-mnfct-dsp.ic10
 define STRUCTURExSIZE 6
 define SHIFTxDSP 10
-define SHIFTxFLTR 200
 alias CountDsp r0
 alias Display r1
 alias DColor r2
@@ -9,15 +8,11 @@ alias DMode r3
 alias DSetting r4
 alias Source r5
 alias SSetting r6
-alias CountFltr r7
-alias LargeFilter r8
-alias MediumFilter r9
 alias spStorage r10
 alias raStorage r11
 alias idx r12
 alias BannerColor r13
 get CountDsp db 9
-get CountFltr db 199
 define KelvinToCelsius 273.15
 jal beginDsp
 jal initDsp
@@ -26,9 +21,6 @@ main:
   sleep 1
   jal beginDsp
   jal showDsp
-  jal end
-  jal beginFltr
-  jal showFltr
   jal end
 j main
 showDsp:
@@ -73,50 +65,4 @@ readDsp:
     pop DSetting
     pop Source
     pop SSetting
-j ra
-beginFltr:
-  move spStorage sp
-  move sp CountFltr
-  mul sp sp 4
-  add sp sp SHIFTxFLTR
-j ra
-showFltr:
-  move idx 0
-fltrcycle:
-  pop Source
-  pop LargeFilter #Large filter
-  pop MediumFilter #Medium filter
-  pop Display
-  ls r15 Source 0 Quantity
-  ls r14 Source 1 Quantity
-  add r14 r15 r14
-  sgt r15 r14 100
-  select BannerColor r15 Color.Blue Color.Orange
-  seqz r15 r14
-  select BannerColor r15 Color.Red BannerColor
-  move raStorage ra
-  move r15 0
-  jal checkFilter
-  select BannerColor r15 BannerColor Color.Red
-  breqz r15 4 #Banner is red
-  move r15 1
-  jal checkFilter
-  select BannerColor r15 BannerColor Color.Red
-  move ra raStorage
-  s Display Color BannerColor
-  seq r15 BannerColor Color.Red  
-  s Display Mode r15  
-  add idx idx 1
-blt idx CountFltr fltrcycle
-j ra
-checkFilter:
-  ls r14 Source r15 Occupied
-  beqz r14 goodFilter
-  ls r14 Source r15 OccupantHash
-  beq r14 LargeFilter goodFilter
-  beq r14 MediumFilter goodFilter
-  move r15 0
-  j ra
-goodFilter:
-  move r15 1
 j ra
