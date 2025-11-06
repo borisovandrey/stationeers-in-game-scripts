@@ -1,4 +1,6 @@
 define STRUCTURExSIZE 5
+define SHIFT 10
+define COUNTxADDRESS 9
 alias Switch r1
 alias Filter r2 
 alias Banner r3
@@ -7,26 +9,30 @@ alias MediumFilter r5
 alias AutoSwitch r6
 alias ExternalSwitch r7
 alias Count r8
-get Count db 9
+get Count db COUNTxADDRESS
 alias idx r9
-alias raStorage r10
+alias dataAddres r10
 alias PWR r11
 alias BannerColor r12
 alias FilterState r13 #1 requested to start 0 requested to stop 
 define SWITCHxHASH HASH("ModularDeviceSwitch")
 lbn AutoSwitch SWITCHxHASH HASH("gw-auto-sw") ReferenceId Sum
 lbn ExternalSwitch SWITCHxHASH HASH("gw-extern-sw") ReferenceId Sum
+s $62791 Mode DisplayMode.Pa #Auto display 
+s $62791 Color Color.Gray
+move sp 0
 main:
     yield
     l PWR $5F25B On #PWR
+    beqz PWR shutdown
     jal chekFilters
 j main 
 chekFilters:
     move idx 0
-    move sp Count
-    mul sp sp STRUCTURExSIZE
-    add sp sp 10 #Shift
-    move raStorage ra
+    move dataAddres Count
+    mul dataAddres dataAddres STRUCTURExSIZE
+    add dataAddres dataAddres SHIFT #Shift
+    push ra
 cycleFilters:
     jal read
     bnezal PWR checkAuto
@@ -36,25 +42,30 @@ cycleFilters:
     s Filter On FilterState
     add idx idx 1
     blt idx Count cycleFilters
-    move ra raStorage
+    pop ra
 j ra
 checkAuto:
+    l r14 $62790 Setting  #Pressure limit
+    mul r15 r14 100000
+    mul r14 r14 100
+    s $62791 Setting r15  #Store limit for DSP 
     l r15 AutoSwitch On
-    select r14 r15 Color.Red Color.Gray
+    select r14 r15 Color.Blue Color.Red
     s AutoSwitch Color r14
     beqz r15 ra
     l r15 $5D68F Pressure #Mix tank pressure
-    l r14 $62790 Setting  #Pressure limit
-    mul r14 r14 10
-    s $62791 Setting r14  #Store limit for DSP 
     sgt FilterState r15 r14
 j ra
 read:
+    move r15 sp
+    move sp dataAddres
     pop Filter
     pop MediumFilter
     pop LargeFilter
     pop Banner
     pop Switch
+    move dataAddres sp
+    move sp r15
 j ra
 checkFiltersState:
   ls r15 Filter 0 Quantity
@@ -64,7 +75,7 @@ checkFiltersState:
   select BannerColor r15 Color.Blue Color.Orange
   seqz r15 r14
   select BannerColor r15 Color.Red BannerColor
-  move raStorage ra
+  push ra
   move r15 0
   jal checkFalseFilter
   select BannerColor r15 BannerColor Color.Red
@@ -72,10 +83,10 @@ checkFiltersState:
   move r15 1
   jal checkFalseFilter
   select BannerColor r15 BannerColor Color.Red
-  move ra raStorage
+  pop ra
   s Banner Color BannerColor
   seq r15 BannerColor Color.Red
-  not FilterState r15
+  seqz FilterState r15
   s Banner Mode r15
 j ra
 checkFalseFilter:
@@ -94,6 +105,19 @@ selectSwitchState:
         l FilterState Switch On
         and FilterState FilterState PWR
     s Switch On FilterState 
-    select r14 FilterState r14 Color.Gray
+    select r14 FilterState r14 Color.Red
     s Switch Color r14  
+j ra
+shutdown:
+    move r14 Count
+    mul r14 r14 STRUCTURExSIZE
+    add r14 r14 COUNTxADDRESS #Shift 10 - 9
+    move idx 0
+cycleShutdown:
+    get r15 db r14
+    s r15 On 0
+    sub r14 r14 STRUCTURExSIZE
+    add idx idx 1
+blt idx Count cycleShutdown
+    s db On 0 #Shutdown self
 j ra

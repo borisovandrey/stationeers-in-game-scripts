@@ -249,8 +249,8 @@ lbn Filter FILTERxHASH HASH("gm-n2-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("N2 Filters") ReferenceId Sum
 push Switch
 push Banner
-push HASH("ItemGasFilterOxygenL")
-push HASH("ItemGasFilterOxygenM")
+push HASH("ItemGasFilterNitrogenL")
+push HASH("ItemGasFilterNitrogenM")
 push Filter
 #2 Vol
 lbn Switch SWITCHxHASH HASH("gw-vol-sw") ReferenceId Sum
@@ -258,8 +258,8 @@ lbn Filter FILTERxHASH HASH("gm-vol-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("Vol Filters") ReferenceId Sum
 push Switch
 push Banner
-push HASH("ItemGasFilterOxygenL")
-push HASH("ItemGasFilterOxygenM")
+push HASH("ItemGasFilterVolatilesL")
+push HASH("ItemGasFilterVolatilesM")
 push Filter
 #2 Co2
 lbn Switch SWITCHxHASH HASH("gw-co2-sw") ReferenceId Sum
@@ -267,8 +267,8 @@ lbn Filter FILTERxHASH HASH("gm-co2-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("CO2 Filters") ReferenceId Sum
 push Switch
 push Banner
-push HASH("ItemGasFilterOxygenL")
-push HASH("ItemGasFilterOxygenM")
+push HASH("ItemGasFilterCarbonDioxideL")
+push HASH("ItemGasFilterCarbonDioxideM")
 push Filter
 
 sub FullSize sp FullSize

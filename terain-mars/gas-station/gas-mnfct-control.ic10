@@ -78,4 +78,6 @@ power:
   s $609A0 On PWR #Nitro-sns
   s $609D7 On PWR #Water-sns
   s $6092E On PWR #Display Controller
+  beqz PWR ra
+  s $6092F On PWR #Switch ons filter Controller
 j ra
