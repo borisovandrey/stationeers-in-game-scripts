@@ -1,9 +1,10 @@
-define STRUCTURExSIZE 5
+define STRUCTURExSIZE 6
 define SHIFT 10
 define COUNTxADDRESS 9
-alias Switch r1
-alias Filter r2 
-alias Banner r3
+alias Switch r0
+alias Filter r1 
+alias Banner r2
+alias Bypass r3
 alias LargeFilter r4
 alias MediumFilter r5
 alias AutoSwitch r6
@@ -40,6 +41,8 @@ cycleFilters:
     move r14 Color.Green
     jal selectSwitchState
     s Filter On FilterState
+    seqz r15 FilterState
+    s Bypass On r15
     add idx idx 1
     blt idx Count cycleFilters
     pop ra
@@ -62,6 +65,7 @@ read:
     pop Filter
     pop MediumFilter
     pop LargeFilter
+    pop Bypass
     pop Banner
     pop Switch
     move dataAddres sp

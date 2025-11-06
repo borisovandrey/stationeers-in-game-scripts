@@ -226,10 +226,12 @@ blt idx Count cyclesns
 alias Switch r4
 alias Filter r5 
 alias Banner r6
+alias Bypass r7
 
 define SWITCHxHASH HASH("ModularDeviceSwitch")
 define FILTERxHASH HASH("StructureFiltration")
 define BANNERxHASH HASH("ModularDeviceLabelDiode2")
+define VALVExHASH HASH("StructureDigitalValve")
 
 move sp 200
 move FullSize sp
@@ -237,8 +239,10 @@ move FullSize sp
 lbn Switch SWITCHxHASH HASH("gw-o2-sw") ReferenceId Sum
 lbn Filter FILTERxHASH HASH("gm-o2-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("O2 Filters") ReferenceId Sum
+lbn Bypass VALVExHASH HASH("gm-o2-bypass") ReferenceId Sum
 push Switch
 push Banner
+push Bypass
 push HASH("ItemGasFilterOxygenL")
 push HASH("ItemGasFilterOxygenM")
 push Filter
@@ -247,8 +251,10 @@ sub StructureSize sp FullSize
 lbn Switch SWITCHxHASH HASH("gw-n2-sw") ReferenceId Sum
 lbn Filter FILTERxHASH HASH("gm-n2-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("N2 Filters") ReferenceId Sum
+lbn Bypass VALVExHASH HASH("gm-n2-bypass") ReferenceId Sum
 push Switch
 push Banner
+push Bypass
 push HASH("ItemGasFilterNitrogenL")
 push HASH("ItemGasFilterNitrogenM")
 push Filter
@@ -256,8 +262,10 @@ push Filter
 lbn Switch SWITCHxHASH HASH("gw-vol-sw") ReferenceId Sum
 lbn Filter FILTERxHASH HASH("gm-vol-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("Vol Filters") ReferenceId Sum
+lbn Bypass VALVExHASH HASH("gm-vol-bypass") ReferenceId Sum
 push Switch
 push Banner
+push Bypass
 push HASH("ItemGasFilterVolatilesL")
 push HASH("ItemGasFilterVolatilesM")
 push Filter
@@ -265,8 +273,10 @@ push Filter
 lbn Switch SWITCHxHASH HASH("gw-co2-sw") ReferenceId Sum
 lbn Filter FILTERxHASH HASH("gm-co2-filter") ReferenceId Sum
 lbn Banner BANNERxHASH HASH("CO2 Filters") ReferenceId Sum
+lbn Bypass VALVExHASH HASH("gm-co2-bypass") ReferenceId Sum
 push Switch
 push Banner
+push Bypass
 push HASH("ItemGasFilterCarbonDioxideL")
 push HASH("ItemGasFilterCarbonDioxideM")
 push Filter
@@ -283,11 +293,14 @@ cyclefilters:
     pop Filter
     pop r15
     pop r14
+    pop Bypass
     pop Banner
     pop Switch    
     put DeviceFilters Addrress Switch
     add Addrress Addrress 1
     put DeviceFilters Addrress Banner
+    add Addrress Addrress 1
+    put DeviceFilters Addrress Bypass
     add Addrress Addrress 1
     put DeviceFilters Addrress r14
     add Addrress Addrress 1
