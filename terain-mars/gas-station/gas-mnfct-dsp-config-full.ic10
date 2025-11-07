@@ -173,6 +173,15 @@ push HASH("gm-nitro-tmp-dsp")
 push Color.Khaki
 push DisplayMode.Celsius
 push LogicType.Setting
+#17 Nitro-tmp
+push LIQUIDxANALISER_HASH 
+push HASH("gm-nitro-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-nitro-pa-dsp")
+push Color.Khaki
+push DisplayMode.Pa
+push LogicType.Setting
 
 sub FullSize sp FullSize
 div Count FullSize StructureSize
