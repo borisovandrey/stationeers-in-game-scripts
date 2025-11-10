@@ -1,0 +1,127 @@
+define MODULExNAME HASH("st-manual-op") #Subprogram for manual extarction ingots from smart-store
+alias Store.Router d1
+alias Manufacture.Router d2
+alias Store.ExitValve d3
+alias LED1 d4
+alias LED2 d5
+define EXTRACTxROUTE 5
+define STORExMANUALxROUTE 1
+alias SwitchState r0
+alias SelectedMode r1
+alias Route.On r2
+alias idx r3
+alias begin r4
+alias Buttons.Count r5
+move SwitchState -1 #Initial state is unknown
+move SelectedMode -1
+move Route.On 0
+move sp 10
+move begin sp
+push $65BF1 #AUTOLATxBUTTON
+push $65BF2 #ATMOxBUTTON
+push $65BF3 #ELECTROxBUTTON
+push $65BF4 #TOOLSxBOTTON
+push $65BF5 #EXTRACTxBUTTON
+sub Buttons.Count sp begin
+move sp 0
+main:
+    l r15 $65BF8 On #Console switch
+    beq r15 SwitchState doSleep
+    move SwitchState r15
+    s $65B9C On SwitchState #Turn on/off console
+    beqzal SwitchState switchOff
+    bnezal SwitchState switchOn
+doSleep:
+    bnezal SwitchState monitorButtons
+    select r15 SwitchState 0.5 1
+    sleep r15
+j main
+switchOff:
+   push ra
+   move SelectedMode -1
+   jal setButtonColor
+   jal closeRoute
+   pop ra
+j ra
+switchOn:
+    push ra
+    move SelectedMode EXTRACTxROUTE
+    jal setButtonColor
+    yield
+    jal openRoute
+    pop ra
+j ra
+monitorButtons:
+    move idx 0
+monitorLoop:
+    add r15 begin idx
+    get r15 db r15
+    l r15 r15 Activate
+    add idx idx 1
+    brnez r15 2
+blt idx Buttons.Count monitorLoop
+    beqz r15 ra
+    beq idx SelectedMode ra
+    move SelectedMode idx
+    push ra
+    jal setButtonColor
+    jal closeRoute
+    jal openRoute
+    pop ra
+j ra
+setButtonColor:
+    move idx 0
+setButtonLoop:
+    add r15 begin idx
+    add idx idx 1
+    get r15 db r15
+    seq r14 idx SelectedMode
+    select r13 r14 Color.Green Color.Red
+    sltz r14 SelectedMode
+    select r13 r14 Color.Gray r13
+    s r15 Color r13
+blt idx Buttons.Count setButtonLoop
+j ra
+holdline:
+  lbn r14 HASH("StructureLogicMemory") r15 Setting Minimum
+  beq r14 MODULExNAME ra
+  brnez r14 2
+  sbn HASH("StructureLogicMemory") r15 Setting MODULExNAME
+  brnan r14 -1
+  sleep 1
+j holdline
+freeline:
+  sbn HASH("StructureLogicMemory") r15 Setting 0
+j ra
+openRoute:
+   bltz SelectedMode ra
+   s LED1 Color Color.Blue
+   s LED2 Color Color.Blue
+   push ra
+   move r15 HASH("man-router-mutex")
+   jal holdline
+   move r15 HASH("store-mutex")
+   jal holdline
+   s Store.Router Setting STORExMANUALxROUTE
+   s Manufacture.Router Setting SelectedMode
+   s Store.ExitValve Open 1
+   move Route.On 1
+   seq r14 SelectedMode EXTRACTxROUTE
+   sbn HASH("StructureChuteDigitalFlipFlopSplitterRight") HASH("st-extract-exit") Mode r14
+   sleep 2
+   s LED1 Color Color.Green
+   s LED2 Color Color.Green
+   pop ra
+j ra
+closeRoute:
+    beqz Route.On ra
+    push ra
+    move r15 HASH("store-mutex")
+    jal freeline
+    move r15 HASH("man-router-mutex")
+    jal freeline
+    move Route.On 0
+    s LED1 Color Color.Gray
+    s LED2 Color Color.Gray
+    pop ra
+j ra

@@ -1,0 +1,52 @@
+#terain-mars\manufacture\smart-store\store-router.ic10
+#28.10.2024 andrey.borisov@gmx.de 
+#Color: white
+#Application uses FlipFlop chuts for route input to selected output
+#Output is set as db.Setting as 1,2...max exits
+alias Router db
+alias OldRoute r0
+alias Route r1
+define PASS 0 # When set to Mode, cause direct pass
+define EXTRACT 1 # When set to Mode, cause side exit
+define INIT -1
+define Exits HASH("StructureChuteDigitalFlipFlopSplitterRight")
+
+push 0
+push HASH("router-exit-1")
+push HASH("router-exit-2")
+push HASH("router-exit-3")
+push HASH("router-exit-4")
+move sp 0
+
+define MAXxROUTE 4
+
+move OldRoute INIT
+s Router Setting INIT
+
+sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting 0
+
+jal reset
+
+main:
+yield
+l Route Router Setting
+bltz Route main #If route is low 0 continue
+beq Route OldRoute main #If route is not chnaged do nothing
+move OldRoute Route
+bgt Route MAXxROUTE main #In case of incorrect route pass through
+get r15 Router Route #Read exit hash from the memory
+sbn Exits r15 Mode EXTRACT
+jal reset
+
+j main
+
+reset:
+move sp MAXxROUTE
+add sp sp 1
+pop r15
+sbn Exits r15 Mode PASS
+sbn Exits r15 Setting 0
+sbn Exits r15 SettingOutput 0
+sbn Exits r15 Quantity 0
+brnez sp -5
+j ra
