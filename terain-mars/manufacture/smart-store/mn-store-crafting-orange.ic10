@@ -1,5 +1,5 @@
 define MODULExNAME HASH("st-material-dispanser")
-define DISPANCERxROUTE 3
+define DISPANCERxROUTE 2
 define CONSUMERSxEXIT 1
 define HOLDxEXIT 0
 alias Store d0
@@ -85,8 +85,7 @@ j ra
 extracthash:
     s Router Setting DISPANCERxROUTE
     sbn HASH("StructureChuteDigitalValveRight") HASH("store-exit-valve") Open 1
-    sbn HASH("StructureChuteDigitalValveRight") HASH("store-input-valve") Open 1
-    sbn HASH("StructureChuteDigitalValveRight") HASH("store-hold-valve") Open 1
+    sbn HASH("StructureChuteDigitalValveLeft") HASH("store-input-valve") Open 1
     s Stacker Setting qtty
     s ExitRouter Mode 0 #Send qtty to consumer
     s ExitRouter Setting 1
