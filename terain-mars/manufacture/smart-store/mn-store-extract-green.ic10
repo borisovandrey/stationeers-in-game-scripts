@@ -4,8 +4,6 @@ alias Manufacture.Router d2
 alias Store.ExitValve d3
 alias LED1 d4
 alias LED2 d5
-define EXTRACTxROUTE 5
-define STORExMANUALxROUTE 1
 alias SwitchState r0
 alias SelectedMode r1
 alias Route.On r2
@@ -45,9 +43,8 @@ switchOff:
 j ra
 switchOn:
     push ra
-    move SelectedMode EXTRACTxROUTE
+    move SelectedMode 5 #EXTRACTxROUTE
     jal setButtonColor
-    yield
     jal openRoute
     pop ra
 j ra
@@ -94,7 +91,9 @@ freeline:
   sbn HASH("StructureLogicMemory") r15 Setting 0
 j ra
 openRoute:
+   yield
    bltz SelectedMode ra
+   s LED1 On 1
    s LED1 Color Color.Blue
    s LED2 Color Color.Blue
    push ra
@@ -102,11 +101,12 @@ openRoute:
    jal holdline
    move r15 HASH("store-mutex")
    jal holdline
-   s Store.Router Setting STORExMANUALxROUTE
+   s Store.Router Setting 1 #Exit to manual extraction
    s Manufacture.Router Setting SelectedMode
    s Store.ExitValve Open 1
    move Route.On 1
-   seq r14 SelectedMode EXTRACTxROUTE
+   seq r14 SelectedMode 5 #Extract route
+   sbn HASH("StructureChuteDigitalFlipFlopSplitterRight") HASH("st-extract-exit") SettingOutput 0
    sbn HASH("StructureChuteDigitalFlipFlopSplitterRight") HASH("st-extract-exit") Mode r14
    sleep 2
    s LED1 Color Color.Green
@@ -123,5 +123,6 @@ closeRoute:
     move Route.On 0
     s LED1 Color Color.Gray
     s LED2 Color Color.Gray
+    s LED1 On 0
     pop ra
 j ra
