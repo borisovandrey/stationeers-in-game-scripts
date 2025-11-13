@@ -1,0 +1,13 @@
+#terain-mars\manufacture\not-ingots-sorter-prg.ic10
+#Program Logic Sorter to sort all production (side exit) form crafting removing ingots (di
+alias Sorter d0
+alias Hash r1
+alias Address r2
+clr Sorter
+
+s Sorter Mode 0 # All
+sll r15 SlotClass.Ingot 16
+sll r14 NotEquals 8
+or r15 r15 r14
+or r15 r15 SorterInstruction.FilterSlotTypeCompare
+put Sorter 0 r15
