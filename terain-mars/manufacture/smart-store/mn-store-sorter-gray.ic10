@@ -26,6 +26,7 @@ main:
   bnezal hashArraySize handlehashes
   l r0 Store ImportCount
   sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting 0 #Free line
+  yield
   s Silo Open 1
   s LED Color Color.Gray
   s LED On 0
@@ -96,6 +97,7 @@ handlehashes:
       brnez r15 -4
       s Silo Open 0
       s Stacker Mode 0
+      yield
   bgt sp 0 forechhash
 j ra
 stackhash:
