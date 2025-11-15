@@ -1,0 +1,140 @@
+define POWERxOFFxSTATE 0
+define SWITCHINGxONxTRANSITION 1
+define SWITCHINGxOFFxTRANSITION 2
+define IDLExSTATE 3 
+define STARTxCRAFTINGxTRANSITION 4
+define CRAFTINGxSTATE 5
+define RESETxTRANSITION 6
+alias State     r0
+alias Qtty      r1
+alias Hash      r2
+alias Led.Color r3
+alias CRFT.RID  r4 
+alias PWR.VAL     r10
+alias Numpad.Mode r11
+move CRFT.RID $4B135
+move PWR.VAL -1
+move Qtty 0
+move Numpad.Mode -1
+move State POWERxOFFxSTATE
+move Led.Color Color.Gray
+s $65BD9 Color Color.Red #Reset button red
+main:
+  s $65BF0 Color Led.Color #Led
+  yield
+  l PWR.VAL $69E7B On #Power ID 
+  beqal State POWERxOFFxSTATE inPowerOff
+  beqal State SWITCHINGxONxTRANSITION doPowerOnTransition
+  beq State POWERxOFFxSTATE main
+  beqal State IDLExSTATE inIdle
+  beqal State STARTxCRAFTINGxTRANSITION doStartCrafting
+  beqal State CRAFTINGxSTATE inCraftingState
+  beqal State RESETxTRANSITION doReset
+  beqal State SWITCHINGxOFFxTRANSITION doPowerOffTransition
+j main  
+numpad:
+    l r15 $65BCB Mode #Numpad
+    beq r15 Numpad.Mode ra
+    move Numpad.Mode r15
+    beqz Numpad.Mode ra
+    l r15 $65BCB Setting
+    mul Qtty Qtty 10
+    add Qtty Qtty r15 
+j ra
+clear:  
+    l r15 $65BD6 Activate #Clear button
+    beqz r15 ra
+    move Qtty 0  
+j ra
+inPowerOff:
+    select State PWR.VAL SWITCHINGxONxTRANSITION POWERxOFFxSTATE     
+j ra
+doPowerOnTransition:
+    push ra
+    jal powerSwitch
+    move State IDLExSTATE
+    pop ra
+j ra 
+powerSwitch:
+    s $65BCA On PWR.VAL #CONSOLE
+    s CRFT.RID On PWR.VAL #DEVICE
+    s $4B137 On PWR.VAL #STACKER
+    s $69D7A On PWR.VAL #SORTER
+j ra
+inIdle:
+    move Led.Color Color.Green
+    select State PWR.VAL IDLExSTATE SWITCHINGxOFFxTRANSITION
+    beqz PWR.VAL ra
+    push ra
+    jal isActive
+    select State r15 CRAFTINGxSTATE IDLExSTATE 
+    breq State CRAFTINGxSTATE 9 #In case of active crafting - exit
+        s CRFT.RID ClearMemory 1
+        jal numpad
+        jal clear
+        s $65BD5 Setting Qtty #DSP
+        l Hash CRFT.RID RecipeHash 
+        s $68BD2 Setting Hash #Hash memory
+        l r15 $65BD8 Activate #Start button
+        select State r15 STARTxCRAFTINGxTRANSITION IDLExSTATE  
+    pop ra
+j ra
+doPowerOffTransition:
+    push ra
+    jal powerSwitch
+    move State POWERxOFFxSTATE
+    move Led.Color Color.Gray
+    pop ra
+j ra
+doStartCrafting:
+    move Led.Color Color.Blue
+    clrd CRFT.RID
+    l r15 CRFT.RID ExportCount
+    sub r15 Qtty r15
+    sgtz r14 r15
+    select State r14 CRAFTINGxSTATE IDLExSTATE 
+    beqz r14 ra 
+    min r15 r15 255
+    sll r15 r15 8
+    sll r14 Hash 16
+    or r15 r14 r15
+    or r15 r15 PrinterInstruction.ExecuteRecipe
+    put CRFT.RID 0 PrinterInstruction.WaitUntilNextValid
+    put CRFT.RID 1 r15
+    yield
+j ra
+inCraftingState:
+    select State PWR.VAL IDLExSTATE SWITCHINGxOFFxTRANSITION
+    beqz PWR.VAL ra
+    l r15 $65BD9 Activate #Reset button
+    select State r15 RESETxTRANSITION CRAFTINGxSTATE 
+    bnez r15 ra
+    l r15 CRFT.RID ExportCount
+    sub r14 Qtty r15
+    sgez r13 r14 #If still have what to produce
+    select r15 r13 r14 r15 #Display setting
+    s $65BD5 Setting r15 #Dsp
+    push ra
+    jal isActive
+    pop ra
+    brnez r15 2 #Production is active continue
+        select State r13 STARTxCRAFTINGxTRANSITION IDLExSTATE
+    breqz r14 2 #Device is running
+        move Led.Color Color.Orange #LED
+j ra
+doReset:
+    clrd CRFT.RID
+    s CRFT.RID Activate 0
+    yield  
+    put CRFT.RID 0 PrinterInstruction.EjectAllReagents
+    sleep 3
+    move State IDLExSTATE 
+j ra
+isActive:
+    get r15 CRFT.RID 1
+    l r14 CRFT.RID Activate
+    or r15 r15 r14
+j ra
+
+
+
