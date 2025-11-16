@@ -1,0 +1,96 @@
+define MODULE.NAME HASH("man-ingots-al")
+define MY.ADDRESS 1
+define INPUTxADDRxHASH 10
+define INPUTxADDRxQTTY 11
+define OUTPUTxADDR 20
+alias CRFT.PIN      d0
+alias iROUTER.PIN   d1
+alias iSTORE.PIN    d2
+alias MUTEX.PIN     d3
+define IDLExSTATE                   0
+define HOLDINGxLINExSTATE           1
+define ASKxRESOURCExTRANSITION      2
+define WAITxRESOURCExSTATE          3
+alias State r0
+alias Opcode r1
+alias Qtty r2
+alias Hash r3
+alias IncommingRequest r4
+alias ExecutingRequest r5
+alias LED.Color r6
+move Hash 0
+move Qtty 0
+move IncommingRequest 0
+move State IDLExSTATE
+move LED.Color Color.Gray
+main:
+    s $6A1AB Color LED.Color #Small led color
+    sleep 1
+    get IncommingRequest CRFT.PIN 54
+    beqal State IDLExSTATE inIdleState
+    beqal State HOLDINGxLINExSTATE inHoldingLine
+    beqal State ASKxRESOURCExTRANSITION doAskResource
+    beqal State WAITxRESOURCExSTATE inWaitResource  
+j main
+inIdleState:
+    move LED.Color Color.Gray
+    move ExecutingRequest 0
+    beqz IncommingRequest ra
+    and Opcode IncommingRequest $FF
+    bne Opcode PrinterInstruction.MissingRecipeReagent ra
+    move State HOLDINGxLINExSTATE
+j ra
+inHoldingLine:
+    move LED.Color Color.Blue
+    l r15 MUTEX.PIN Setting
+    seq r14 r15 MODULE.NAME
+    select State r14 ASKxRESOURCExTRANSITION State 
+    bnez r14 ra
+    brnez r15 3
+    beqz IncommingRequest ra
+    s MUTEX.PIN Setting MODULE.NAME
+    brnan r15 -2
+j ra
+doAskResource:
+    move LED.Color Color.Orange
+    srl Qtty IncommingRequest 8
+    and Qtty Qtty $FF
+    srl Hash IncommingRequest 16
+    and Hash Hash $FFFFFFFF
+    brgtz IncommingRequest 2
+        or Hash Hash $FFFFFFFF00000000 #Workaround for negative values
+    rmap Hash CRFT.PIN Hash
+    select State Qtty WAITxRESOURCExSTATE IDLExSTATE
+    beqz Qtty ra 
+    s iROUTER.PIN Setting MY.ADDRESS
+    s $68BD2 Setting Hash #Hash memory
+    move ExecutingRequest IncommingRequest
+    sleep 2    
+    put iSTORE.PIN OUTPUTxADDR -1
+    put iSTORE.PIN INPUTxADDRxHASH Hash
+    put iSTORE.PIN INPUTxADDRxQTTY Qtty
+    s iSTORE.PIN Setting MODULE.NAME
+j ra
+inWaitResource:
+    bne IncommingRequest ExecutingRequest cancelRequest
+    get r15 iSTORE.PIN OUTPUTxADDR 
+    ble r15 -1 ra #In progress
+    bne r15 Qtty error
+    j ra
+cancelRequest:
+    push ra
+    jal releaseMutex
+    move State IDLExSTATE
+    pop ra
+    j ra
+error:
+    push ra
+    move LED.Color Color.Red #Error, but still waiting
+    jal releaseMutex
+    pop ra
+j ra
+releaseMutex:
+    l r15 MUTEX.PIN Setting
+    bne r15 MODULE.NAME ra
+    s MUTEX.PIN Setting 0
+j ra
