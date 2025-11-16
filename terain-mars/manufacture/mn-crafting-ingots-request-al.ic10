@@ -73,9 +73,9 @@ doAskResource:
 j ra
 inWaitResource:
     bne IncommingRequest ExecutingRequest cancelRequest
-    get r15 iSTORE.PIN OUTPUTxADDR 
+    get r15 iSTORE.PIN OUTPUTxADDR
     ble r15 -1 ra #In progress
-    bne r15 Qtty error
+    blt r15 Qtty error
     j ra
 cancelRequest:
     push ra
