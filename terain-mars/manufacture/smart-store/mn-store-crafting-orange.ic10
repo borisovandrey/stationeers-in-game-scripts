@@ -87,8 +87,9 @@ extracthash:
     sbn HASH("StructureChuteDigitalValveRight") HASH("store-exit-valve") Open 1
     sbn HASH("StructureChuteDigitalValveLeft") HASH("store-input-valve") Open 1
     s Stacker Setting qtty
-    s ExitRouter Mode 0 #Send qtty to consumer
-    s ExitRouter Setting 1
+    s ExitRouter Mode 1 #Send qtty to consumer
+    s ExitRouter Setting 0
+    s ExitRouter SettingOutput 1
     sleep 1
     move r15 0
     getnext:
@@ -99,7 +100,8 @@ extracthash:
         move r15 r14
     blt r15 qtty getnext
     s Stacker ClearMemory 1
-    s Stacker Mode 0
+    s Stacker Mode 1
+    s Stacker Output 1 
     yield
     l r15 Stacker ExportCount
     breqz r15 -2
