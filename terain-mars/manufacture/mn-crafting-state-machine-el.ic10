@@ -10,20 +10,22 @@ alias Qtty      r1
 alias Hash      r2
 alias Led.Color r3
 alias CRFT.RID  r4 
+alias ToProduce r5
+alias ToDisplay r6
 alias PWR.VAL     r10
 alias Numpad.Mode r11
-move CRFT.RID $4B135
+move CRFT.RID $4B436
 move PWR.VAL -1
 move Qtty 0
 move Numpad.Mode -1
 move State POWERxOFFxSTATE
 move Led.Color Color.Gray
-s $65BD9 Color Color.Red #Reset button red
-s $65BD6 Color Color.Orange
+s $6BCA9 Color Color.Red #Reset button red
+s $6BCA6 Color Color.Orange
 main:
-  s $65BF0 Color Led.Color #Led
+  s $6BC8F Color Led.Color #Led
   yield
-  l PWR.VAL $69E7B On #Power ID 
+  l PWR.VAL $6BC5B On #Power ID 
   beqal State POWERxOFFxSTATE inPowerOff
   beqal State SWITCHINGxONxTRANSITION doPowerOnTransition
   beq State POWERxOFFxSTATE main
@@ -34,16 +36,16 @@ main:
   beqal State SWITCHINGxOFFxTRANSITION doPowerOffTransition
 j main  
 numpad:
-    l r15 $65BCB Mode #Numpad
+    l r15 $6BCA5 Mode #Numpad
     beq r15 Numpad.Mode ra
     move Numpad.Mode r15
     beqz Numpad.Mode ra
-    l r15 $65BCB Setting
+    l r15 $6BCA5 Setting
     mul Qtty Qtty 10
     add Qtty Qtty r15 
 j ra
 clear:  
-    l r15 $65BD6 Activate #Clear button
+    l r15 $6BCA6 Activate #Clear button
     beqz r15 ra
     move Qtty 0  
 j ra
@@ -57,14 +59,14 @@ doPowerOnTransition:
     pop ra
 j ra 
 powerSwitch:
-    s $65BCA On PWR.VAL #CONSOLE
+    s $6BC58 On PWR.VAL #CONSOLE
     s CRFT.RID On PWR.VAL #DEVICE
-    s $4B137 On PWR.VAL #STACKER
-    s $69D7A On PWR.VAL #SORTER
+    s $4B43A On PWR.VAL #STACKER
+    s $6BCB9 On PWR.VAL #SORTER
 j ra
 inIdle:
     move Led.Color Color.Green
-    select State PWR.VAL IDLExSTATE SWITCHINGxOFFxTRANSITION
+    select State PWR.VAL State SWITCHINGxOFFxTRANSITION
     beqz PWR.VAL ra
     push ra
     jal isActive
@@ -73,10 +75,10 @@ inIdle:
         s CRFT.RID ClearMemory 1
         jal numpad
         jal clear
-        s $65BD5 Setting Qtty #DSP
+        s $6BC91 Setting Qtty #DSP
         l Hash CRFT.RID RecipeHash 
-        s $68BD2 Setting Hash #Hash memory
-        l r15 $65BD8 Activate #Start button
+        s $69A6C Setting Hash #Hash memory
+        l r15 $6BCA7 Activate #Start button
         select State r15 STARTxCRAFTINGxTRANSITION IDLExSTATE  
     pop ra
 j ra
@@ -107,22 +109,24 @@ j ra
 inCraftingState:
     select State PWR.VAL State SWITCHINGxOFFxTRANSITION
     beqz PWR.VAL ra
-    l r15 $65BD9 Activate #Reset button
+    l r15 $6BCA9 Activate #Reset button
     select State r15 RESETxTRANSITION CRAFTINGxSTATE 
     bnez r15 ra
-    l r15 CRFT.RID ExportCount
-    sub r14 Qtty r15
-    sgez r13 r14 #If still have what to produce
-    select r15 r13 r14 r15 #Display setting
-    s $65BD5 Setting r15 #Dsp
     push ra
+    jal calculateCount
+    s $6BC91 Setting ToDisplay #Dsp
     jal isActive
-    pop ra
-    brnez r15 2 #Production is active continue
-        select State r13 STARTxCRAFTINGxTRANSITION IDLExSTATE
-    breqz r14 3 #Device is running
-        s $68BD2 Setting Hash #Hash memory
+    brnez r15 6 #Production is active continue
+        sleep 2 #Purge last output
+        jal calculateCount
+        select State ToProduce STARTxCRAFTINGxTRANSITION IDLExSTATE
+        pop ra
+    j ra
+    get r15 CRFT.RID 54 #Check the last ingot request
+    brnez r15 3 #Ingot request is still active  
+        s $69A6C Setting Hash #Hash memory
         move Led.Color Color.Orange #LED
+    pop ra
 j ra
 doReset:
     clrd CRFT.RID
@@ -137,6 +141,9 @@ isActive:
     l r14 CRFT.RID Activate
     or r15 r15 r14
 j ra
-
-
-
+calculateCount:
+    l r15 CRFT.RID ExportCount
+    sub r14 Qtty r15
+    sgez ToProduce r14 #If still have what to produce
+    select ToDisplay ToProduce r14 r15 #Display setting
+j ra
