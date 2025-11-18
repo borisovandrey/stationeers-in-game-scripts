@@ -46,10 +46,9 @@ inHoldingLine:
     seq r14 r15 MODULE.NAME
     select State r14 ASKxRESOURCExTRANSITION State 
     bnez r14 ra
-    brnez r15 3
+    bnez r15 ra
     beqz IncommingRequest ra
     s MUTEX.PIN Setting MODULE.NAME
-    brnan r15 -2
 j ra
 doAskResource:
     move LED.Color Color.Orange

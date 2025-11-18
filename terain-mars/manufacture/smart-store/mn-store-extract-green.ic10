@@ -84,7 +84,6 @@ holdline:
   beq r14 MODULExNAME ra
   brnez r14 2
   sbn HASH("StructureLogicMemory") r15 Setting MODULExNAME
-  brnan r14 -1
   sleep 1
 j holdline
 freeline:

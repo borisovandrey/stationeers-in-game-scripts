@@ -117,7 +117,6 @@ holdline:
   beq r15 MODULExNAME ra
   brnez r15 2
   sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
-  brnan r15 -1
   sleep 1
 j holdline
 
