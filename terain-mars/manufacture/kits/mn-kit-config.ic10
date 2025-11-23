@@ -19,20 +19,8 @@ define DISPLAY.START 110
 define BUTTON.START  120 
 clr MEM.PIN
 jal configConsole
-#Test
-move name STR("TEST") 
-jal begin
-move hash HASH("ItemCableCoil")
-move qtty 2 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemCableCoil")
-move qtty 2 
-move dev AUTO
-jal insert
-jal end
 #Large battery
-move name STR("BATTRL") 
+move name STR("LBATTR") 
 jal begin
 move hash HASH("ItemKitBatteryLarge")
 move qtty 1 
@@ -44,7 +32,7 @@ move dev AUTO
 jal insert
 move hash HASH("ItemElectronicParts")
 move qtty 2
-move dev AUTO
+move dev ELECTRO
 jal insert
 jal end
 #Wind large turbine 
@@ -75,6 +63,31 @@ move qtty 4
 move dev AUTO
 jal insert
 jal end
+#Silo
+move name STR("SILO")
+jal begin
+move hash HASH("KitSDBSilo")
+move qtty 1 
+move dev AUTO
+jal insert
+move hash HASH("KitSDBSilo")
+move qtty 1 
+move dev AUTO
+jal insert
+move hash HASH("ItemSteelSheets")
+move qtty 15 
+move dev AUTO
+jal insert
+move hash HASH("ItemPlasticSheets")
+move qtty 10 
+move dev AUTO
+jal insert
+move hash HASH("ItemCableCoil")
+move qtty 5 
+move dev AUTO
+jal insert
+jal end
+
 j finish
 
 begin:

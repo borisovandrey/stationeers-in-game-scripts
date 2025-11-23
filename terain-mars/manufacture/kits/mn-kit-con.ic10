@@ -81,7 +81,7 @@ updateDisplays:
         add r15 DISPLAY.START idx
         get Device MEM.PIN r15 #For each display
         beqz Device ra #Last display
-        s Device Color Color.White
+        s Device Color Color.Gray
         s Device Mode DisplayMode.String
         add r15 NAMES.CURRENT idx
         get Name MEM.PIN r15
