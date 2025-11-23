@@ -1,0 +1,45 @@
+define DEVICES.START 100
+alias  MEM.PIN        d0
+alias  CON.PIN        d1
+alias  idx            r0  
+alias  RCPS.REF       r1
+alias  Device         r3
+alias  Addr           r4
+alias  DeviceIdx      r5
+alias  Qtty           r6
+main:
+    yield
+    l RCPS.REF CON.PIN Setting
+    s CON.PIN Setting 0
+    bnezal RCPS.REF AllocateInstructions         
+j main
+AllocateInstructions:
+    move idx 0
+    put db idx 0
+        add idx idx 1
+    brle idx 6 -2 
+    l Qtty $6D569 Setting
+    allocateInstructionsCycle:
+        get r15 MEM.PIN RCPS.REF
+        beqz r15 ra #Last instruction
+        and idx r15 $FF #Device Number (1..N)
+        sub idx idx 1   #Index of device in mem
+        get Addr db idx #Address of device counter
+        add DeviceIdx idx DEVICES.START #Find device in mem
+        get Device MEM.PIN DeviceIdx
+        srl r14 r15 8
+        and r14 r14 $FF
+        mul r14 r14 Qtty
+        min r14 r14 255
+        sll r14 r14 8
+        and r15 r15 $FFFFFFFFFFFF0000
+        or r15 r15 r14
+        or r15 r15 PrinterInstruction.ExecuteRecipe
+        put Device Addr PrinterInstruction.WaitUntilNextValid
+        add Addr Addr 1
+        put Device Addr r15
+        add Addr Addr 1
+        add RCPS.REF RCPS.REF 1
+        put db idx Addr
+    j allocateInstructionsCycle 
+j ra

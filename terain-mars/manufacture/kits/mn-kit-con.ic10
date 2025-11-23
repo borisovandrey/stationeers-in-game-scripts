@@ -1,0 +1,127 @@
+define DEVICES.START 100
+define DISPLAY.START 110
+define BUTTON.START  120
+define REF.START     200
+alias  MEM.PIN        d0
+define POWERxOFFxSTATE 0
+define POWERxONxSTATE  1
+alias State         r0
+alias idx           r1
+alias Return        r2
+alias PWR.VAL       r3
+alias DEV.ACTIVE    r4
+alias RCPS.REF      r5
+alias BtnColor      r6
+alias Name          r7
+alias Device        r8
+alias NeedUpdate    r9
+alias NAMES.CURRENT r10  
+alias tmp           r11
+alias Selected      r12
+move State POWERxOFFxSTATE
+move RCPS.REF 0
+move NeedUpdate 0
+move NAMES.CURRENT 0
+move DEV.ACTIVE 0
+move sp DEVICES.START
+move Selected -1
+s $6D546 Color Color.Khaki
+s $6D547 Color Color.Khaki
+main:
+    yield
+    l PWR.VAL $6D56C On
+    beqal State POWERxOFFxSTATE inPowerOff
+    beqal State POWERxONxSTATE inPowerOn
+j main
+inPowerOff:
+    move Return ra
+    select State PWR.VAL POWERxONxSTATE State
+    beq State POWERxOFFxSTATE Return
+    jal power
+    move NeedUpdate 1
+j Return
+inPowerOn:
+    move Return ra
+    select State PWR.VAL State POWERxOFFxSTATE 
+    beqal State POWERxOFFxSTATE power
+    beq State POWERxOFFxSTATE Return
+    jal checkNext
+    jal checkActivity
+    select Selected DEV.ACTIVE Selected -1
+    breqz NeedUpdate 3 
+        jal updateDisplays
+        j Return
+    bnez DEV.ACTIVE Return 
+    jal startProduction 
+j Return 
+power:
+    s $6C014 On PWR.VAL
+    s MEM.PIN On PWR.VAL
+    s $6DE92 On PWR.VAL 
+j ra
+checkActivity:
+    move tmp DEV.ACTIVE 
+    move DEV.ACTIVE 0
+    move idx DEVICES.START
+    get Device MEM.PIN idx #For each device
+        breqz Device 7 #Exit on last 
+        get r15 Device 1 #If the device has active task
+        snez r15 r15
+        or DEV.ACTIVE r15 DEV.ACTIVE
+        brnez DEV.ACTIVE 3 
+        add idx idx 1
+    jr -7
+    sne tmp tmp DEV.ACTIVE
+    or NeedUpdate NeedUpdate tmp
+j ra
+updateDisplays:
+    move NeedUpdate 0
+    move idx 0
+    updateDspCycle:
+        add r15 DISPLAY.START idx
+        get Device MEM.PIN r15 #For each display
+        beqz Device ra #Last display
+        s Device Color Color.White
+        s Device Mode DisplayMode.String
+        add r15 NAMES.CURRENT idx
+        get Name MEM.PIN r15
+        s Device Setting Name
+        select BtnColor DEV.ACTIVE Color.Blue Color.Green
+        seqz r15 Name
+        select BtnColor r15 Color.Gray BtnColor
+        seq r15 Selected idx
+        select BtnColor r15 Color.Orange BtnColor
+        add r15 BUTTON.START idx
+        get Device MEM.PIN r15
+        s Device Color BtnColor         
+        add idx idx 1
+    j updateDspCycle 
+j ra
+checkNext:
+    l r15 $6D546 Activate
+    select r14 r15 -5 0
+    l r15 $6D547 Activate
+    select r14 r15 -5 r14
+    add NAMES.CURRENT NAMES.CURRENT r14
+    min NAMES.CURRENT NAMES.CURRENT 100
+    max NAMES.CURRENT NAMES.CURRENT 0
+    snez r14 r14
+    select NeedUpdate r14 1 NeedUpdate 
+j ra
+startProduction:
+    move idx 0
+    productionCylce:
+        add r15 BUTTON.START idx
+        get Device MEM.PIN r15
+        beqz Device Return
+        l r15 Device Activate
+        breqz r15 7
+            add r15 NAMES.CURRENT idx
+            add r15 r15 REF.START
+            get RCPS.REF MEM.PIN r15 
+            move Selected idx
+            s db Setting RCPS.REF
+            j ra
+        add idx idx 1
+    j productionCylce
+j ra

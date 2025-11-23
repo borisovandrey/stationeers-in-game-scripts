@@ -1,0 +1,136 @@
+alias MEM.PIN d0
+define AUTO     1
+define ATMO     2
+define ELECTRO  3
+define TOOLS    4
+alias name r0
+alias hash r1
+alias qtty r2
+alias dev  r3
+alias idx  r4 
+alias IDX.HDR r10
+alias IDX.REF r11
+alias IDX.RGN r12
+move IDX.HDR 0
+move IDX.REF 200
+move IDX.RGN 300
+define DEVICES.START 100
+define DISPLAY.START 110
+define BUTTON.START  120 
+clr MEM.PIN
+jal configConsole
+#Test
+move name STR("TEST") 
+jal begin
+move hash HASH("ItemCableCoil")
+move qtty 2 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemCableCoil")
+move qtty 2 
+move dev AUTO
+jal insert
+jal end
+#Large battery
+move name STR("BATTRL") 
+jal begin
+move hash HASH("ItemKitBatteryLarge")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemSteelSheets")
+move qtty 4 
+move dev AUTO
+jal insert
+move hash HASH("ItemElectronicParts")
+move qtty 2
+move dev AUTO
+jal insert
+jal end
+#Wind large turbine 
+move name STR("TURBIN") 
+jal begin
+move hash HASH("ItemKitWindTurbine")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemSteelSheets")
+move qtty 5 
+move dev AUTO
+jal insert
+move hash HASH("ItemCableCoil")
+move qtty 5 
+move dev AUTO
+jal insert
+jal end
+#Centrifuge
+move name STR("CNTRFG") 
+jal begin
+move hash HASH("ItemKitCentrifuge")
+move qtty 1 
+move dev AUTO
+jal insert
+move hash HASH("ItemSteelSheets")
+move qtty 4 
+move dev AUTO
+jal insert
+jal end
+j finish
+
+begin:
+    put MEM.PIN IDX.HDR name    #Store name
+    put MEM.PIN IDX.REF IDX.RGN #Store reference to reagents
+    add IDX.HDR IDX.HDR 1
+    add IDX.REF IDX.REF 1 
+j ra
+insert:
+    sll r15 hash 16
+    sll r14 qtty 8
+    or r15 r15 r14
+    or r15 r15 dev 
+    put MEM.PIN IDX.RGN r15
+    add IDX.RGN IDX.RGN 1 
+j ra
+end:
+    put MEM.PIN IDX.RGN 0
+    add IDX.RGN IDX.RGN 1
+j ra
+configConsole:
+    move idx DEVICES.START
+    put MEM.PIN idx $4B135 #Autolat
+    add idx idx 1
+    put MEM.PIN idx $4B3A8 #Atmo
+    add idx idx 1
+    put MEM.PIN idx $4B436 #Electro
+    add idx idx 1
+    put MEM.PIN idx $4B4A7 #Craft
+    add idx idx 1
+    put MEM.PIN idx 0
+
+    move idx DISPLAY.START
+    put MEM.PIN idx $6C01A
+    add idx idx 1
+    put MEM.PIN idx $6D542
+    add idx idx 1
+    put MEM.PIN idx $6D543
+    add idx idx 1
+    put MEM.PIN idx $6D544
+    add idx idx 1
+    put MEM.PIN idx $6D545
+    add idx idx 1
+    put MEM.PIN idx 0
+
+    move idx BUTTON.START
+    put MEM.PIN idx $6D563
+    add idx idx 1
+    put MEM.PIN idx $6D565
+    add idx idx 1
+    put MEM.PIN idx $6D566
+    add idx idx 1
+    put MEM.PIN idx $6D567
+    add idx idx 1
+    put MEM.PIN idx $6D568
+    add idx idx 1
+    put MEM.PIN idx 0
+j ra
+finish:
