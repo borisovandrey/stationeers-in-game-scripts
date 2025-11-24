@@ -64,13 +64,18 @@ checkActivity:
     move DEV.ACTIVE 0
     move idx DEVICES.START
     get Device MEM.PIN idx #For each device
-        breqz Device 7 #Exit on last 
-        get r15 Device 1 #If the device has active task
+        breqz Device 12    #Exit on last
+        get r15 Device 63  #Stack pointer
+        srl r15 r15 8      #Index
+        and r14 r15 1      #Check odd  
+        seqz r14 r14       #Define add
+        add r15 r15 r14    #We read odd position
+        get r15 Device r15 #If the device has active task
         snez r15 r15
         or DEV.ACTIVE r15 DEV.ACTIVE
         brnez DEV.ACTIVE 3 
         add idx idx 1
-    jr -7
+    jr -12
     sne tmp tmp DEV.ACTIVE
     or NeedUpdate NeedUpdate tmp
 j ra
