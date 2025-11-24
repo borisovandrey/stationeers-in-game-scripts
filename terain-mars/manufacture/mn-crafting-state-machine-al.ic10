@@ -129,7 +129,13 @@ doReset:
     move State IDLExSTATE 
 j ra
 isActive:
-    get r15 CRFT.RID 1
+    get r15 CRFT.RID 63  #Stack pointer
+    srl r15 r15 8        #Index
+    and r14 r15 1        #Check even  
+    seqz r14 r14         #Define add
+    add r15 r15 r14      #We read odd position
+    get r15 CRFT.RID r15 #If the device has active task
+    snez r15 r15
     l r14 CRFT.RID Activate
     or r15 r15 r14
 j ra
