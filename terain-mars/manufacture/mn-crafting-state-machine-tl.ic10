@@ -11,6 +11,7 @@ alias Hash      r2
 alias Led.Color r3
 alias CRFT.RID  r4 
 alias Return    r5
+alias ReqQtty   r6
 alias PWR.VAL     r10
 alias Numpad.Mode r11
 move CRFT.RID $4B4A7
@@ -112,9 +113,9 @@ inCraftingState:
     l r15 $6D44F Activate #Reset button
     select State r15 RESETxTRANSITION CRAFTINGxSTATE 
     bnez r15 Return
-    jal producedCount
     jal isActive
     select State r15 State IDLExSTATE #Check production is in progress
+    jal producedCount
     get r15 CRFT.RID 54 #Check the last ingot request
     brnez r15 3 #Ingot request is still active
         l Hash CRFT.RID RecipeHash #Take currently producing hash
@@ -129,20 +130,23 @@ doReset:
     move State IDLExSTATE 
 j ra
 isActive:
+    move ReqQtty 0
     get r15 CRFT.RID 63  #Stack pointer
     srl r15 r15 8        #Index
     and r14 r15 1        #Check even  
     seqz r14 r14         #Define add
     add r15 r15 r14      #We read odd position
     get r15 CRFT.RID r15 #If the device has active task
-    snez r15 r15
+    breqz r15 4
+        srl ReqQtty r15 8
+        and ReqQtty ReqQtty $FF
+        move r15 1
     l r14 CRFT.RID Activate
     or r15 r15 r14
 j ra
 producedCount:
     l r15 CRFT.RID ExportCount
-    sub r14 Qtty r15
-    sgez r13 r14 #If still have what to produce
-    select r15 r13 r14 r15 #Display setting
+    snez r14 ReqQtty
+    select r15 r14 ReqQtty r15
     s $6D445 Setting r15 #Dsp
 j ra
