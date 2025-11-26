@@ -87,7 +87,26 @@ move qtty 5
 move dev AUTO
 jal insert
 jal end
-
+#Deep miner
+move name STR("DEEPMN")
+jal begin
+move hash HASH("ItemKitDeepMiner")
+move qtty 1 
+move dev AUTO
+jal insert
+move hash HASH("ItemSteelSheets")
+move qtty 12
+move dev AUTO
+jal insert
+move hash HASH("ItemCableCoil")
+move qtty 5 
+move dev AUTO
+jal insert
+move hash HASH("ItemElectronicParts")
+move qtty 4
+move dev ELECTRO
+jal insert
+jal end
 j finish
 
 begin:
