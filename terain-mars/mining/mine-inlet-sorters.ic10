@@ -1,0 +1,33 @@
+#terain-mars\mining\mine-inlet-sorter-1.ic10
+#Program Logic Sorter to sort ores and reagent mix 
+#(side exit) form crafting removing ingots (di
+alias Hash r1
+alias Address r2
+alias Sorter1 r3
+alias Sorter2 r4
+lbn Sorter1 HASH("StructureLogicSorter") HASH("mine-inlet-sorter-1") ReferenceId Minimum
+lbn Sorter2 HASH("StructureLogicSorter") HASH("mine-inlet-sorter-2") ReferenceId Minimum
+
+clrd Sorter1
+clrd Sorter2
+
+s Sorter1 Mode 1 # Any
+sll r15 HASH("ItemReagentMix") 8
+or r15 r15 SorterInstruction.FilterPrefabHashEquals
+put Sorter1 0 r15
+sll r15 HASH("ItemDirtyOre") 8
+or r15 r15 SorterInstruction.FilterPrefabHashEquals
+put Sorter1 1 r15
+sll r15 SlotClass.Ore 16
+sll r14 NotEquals 8
+or r15 r15 r14
+or r15 r15 SorterInstruction.FilterSlotTypeCompare
+put Sorter1 2 r15
+
+s Sorter2 Mode 1 # Any
+sll r15 HASH("ItemReagentMix") 8
+or r15 r15 SorterInstruction.FilterPrefabHashEquals
+put Sorter2 0 r15
+sll r15 HASH("ItemDirtyOre") 8
+or r15 r15 SorterInstruction.FilterPrefabHashEquals
+put Sorter2 1 r15
