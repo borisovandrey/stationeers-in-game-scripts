@@ -1,0 +1,31 @@
+#terain-mars\furnance\arc\furn-ore-sorter.ic10
+#Program Logic Sorter to sort ores and reagent mix
+alias Sorter1 r1
+alias Sorter2 r2
+alias Sorter3 r3
+lbn Sorter1 HASH("StructureLogicSorter") HASH("frn-incoming-ore-sorter") ReferenceId Minimum
+lbn Sorter2 HASH("StructureLogicSorter") HASH("frn-arc-coal-sorter") ReferenceId Minimum
+lbn Sorter3 HASH("StructureLogicSorter") HASH("frn-arc-ingot-sorter") ReferenceId Minimum
+
+clrd Sorter1
+clrd Sorter2
+clrd Sorter3
+
+s Sorter1 Mode 1 # Any
+sll r15 SlotClass.Ore 16
+sll r14 Equals 8
+or r15 r15 r14
+or r15 r15 SorterInstruction.FilterSlotTypeCompare
+put Sorter1 0 r15
+
+s Sorter2 Mode 1 # Any
+sll r15 HASH("ItemCoalOre") 8
+or r15 r15 SorterInstruction.FilterPrefabHashEquals
+put Sorter2 0 r15
+
+s Sorter3 Mode 1 # Any
+sll r15 SlotClass.Ingot 16
+sll r14 NotEquals 8
+or r15 r15 r14
+or r15 r15 SorterInstruction.FilterSlotTypeCompare
+put Sorter3 0 r15

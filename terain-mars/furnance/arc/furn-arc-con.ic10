@@ -1,0 +1,70 @@
+#terain-mars\furnance\arc\furn-arc-con.ic10
+#Program Logic Conveyor to route items to furnance arc 
+alias Console r0
+alias Arc r1
+alias ExitRouter r2
+alias LED r3
+alias Sorter1 r4
+alias Sorter2 r5
+alias PowerSw r6
+alias PowerState r7
+alias QttyDsp r8
+alias Hash r9
+alias ExportDsp r10
+alias ExportSw r11
+alias ExportSetting r12
+lbn Console HASH("StructureConsoleTerminal2") HASH("frn-arc-console") ReferenceId Minimum
+lbn Arc HASH("StructureArcFurnace") HASH("frn-arc-furnance") ReferenceId Minimum
+lbn ExitRouter HASH("StructureChuteDigitalFlipFlopSplitterRight") HASH("frn-arc-exit") ReferenceId Minimum
+lbn LED HASH("StructureDiode") HASH("frn-arc-led") ReferenceId Minimum
+lbn Sorter1 HASH("StructureLogicSorter") HASH("frn-arc-coal-sorter") ReferenceId Minimum
+lbn Sorter2 HASH("StructureLogicSorter") HASH("frn-arc-ingot-sorter") ReferenceId Minimum
+lbn PowerSw HASH("ModularDeviceFlipCoverSwitch") HASH("frn-arc-power-sw") ReferenceId Minimum
+lbn QttyDsp HASH("ModularDeviceLEDdisplay2") HASH("frn-arc-qtty-dsp") ReferenceId Minimum
+lbn Hash HASH("StructureLogicMemory") HASH("frn-arc-hash") ReferenceId Minimum
+lbn ExportDsp HASH("ModularDeviceLEDdisplay2") HASH("frn-arc-export-dsp") ReferenceId Minimum
+lbn ExportSw HASH("ModularDeviceSwitch") HASH("frn-arc-export-sw") ReferenceId Minimum
+move PowerState -1
+move ExportSetting -1
+s ExitRouter Mode 0
+main:
+    sleep 1
+    l r15 PowerSw On
+    breq r15 PowerState 3
+        move PowerState r15
+        jal power
+    beqz PowerState main
+    jal arc 
+j main
+arc:
+    l r15 ExportSw On
+    breq ExportSetting r15 3
+        move ExportSetting r15
+        s ExitRouter Mode r15
+    l r15 Arc ExportCount
+    s ExportDsp Setting r15
+    ls r15 Arc 0 Quantity
+    s QttyDsp Setting r15
+    breqz r15 8
+        l r15 Arc Activate
+        breq r15 1 3
+            s Arc On 1
+            s Arc Activate 1
+        s LED Color Color.Orange
+        ls r15 Arc 0 OccupantHash
+        s Hash Setting r15
+    j ra
+        s LED Color Color.Yellow
+        s Hash Setting 0
+j ra
+power:
+    s Arc ClearMemory 1
+    s ExitRouter Setting 0
+    s ExitRouter SettingOutput 0
+    s Console On PowerState
+    s Arc On PowerState
+    s ExitRouter On PowerState
+    s LED On PowerState
+    s Sorter1 On PowerState
+    s Sorter2 On PowerState
+j ra
