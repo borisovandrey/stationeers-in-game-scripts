@@ -8,17 +8,15 @@ alias Bypass r3
 alias LargeFilter r4
 alias MediumFilter r5
 alias AutoSwitch r6
-alias ExternalSwitch r7
-alias Count r8
+alias Count r7
 get Count db COUNTxADDRESS
-alias idx r9
-alias dataAddres r10
-alias PWR r11
-alias BannerColor r12
-alias FilterState r13 #1 requested to start 0 requested to stop 
-define SWITCHxHASH HASH("ModularDeviceSwitch")
-lbn AutoSwitch SWITCHxHASH HASH("gw-auto-sw") ReferenceId Sum
-lbn ExternalSwitch SWITCHxHASH HASH("gw-extern-sw") ReferenceId Sum
+alias idx r8
+alias dataAddres r9
+alias PWR r10
+alias BannerColor r11
+alias FilterState r12 #1 - operable, 0 - failed
+alias AutoRequest r13 #0 - no request, -1 request to stop, 1 request to start
+lbn AutoSwitch HASH("ModularDeviceSwitch") HASH("gw-auto-sw") ReferenceId Sum
 s $62791 Mode DisplayMode.Pa #Auto display 
 s $62791 Color Color.Gray
 move sp 0
@@ -33,31 +31,36 @@ chekFilters:
     move dataAddres Count
     mul dataAddres dataAddres STRUCTURExSIZE
     add dataAddres dataAddres SHIFT #Shift
-    push ra
 cycleFilters:
     jal read
     bnezal PWR checkAuto
     bnezal PWR checkFiltersState
-    move r14 Color.Green
     jal selectSwitchState
-    s Filter On FilterState
-    seqz r15 FilterState
+    l r15 Switch On
+    s Filter On r15
+    seqz r15 r15
+    and r15 r15 PWR
     s Bypass On r15
     add idx idx 1
     blt idx Count cycleFilters
-    pop ra
-j ra
+j main
 checkAuto:
-    l r14 $62790 Setting  #Pressure limit
-    mul r15 r14 100000
-    mul r14 r14 100
+    move AutoRequest 0
+    l r15 $62790 Setting  #Pressure limit
+    mul r15 r15 100000
     s $62791 Setting r15  #Store limit for DSP 
     l r15 AutoSwitch On
     select r14 r15 Color.Blue Color.Red
     s AutoSwitch Color r14
     beqz r15 ra
+    l r15 $62790 Setting  #Pressure limit
+    mul r14 r15 100
     l r15 $5D68F Pressure #Mix tank pressure
-    sgt FilterState r15 r14
+    sgt AutoRequest r15 r14
+    l r14 Filter On
+    or AutoRequest AutoRequest r14
+    seqz r14 r15
+    select AutoRequest r14 -1 AutoRequest
 j ra
 read:
     move r15 sp
@@ -104,24 +107,30 @@ checkFalseFilter:
 goodFilter:
   move r15 1
 j ra
-selectSwitchState: 
-    breqz FilterState 3 
-        l FilterState Switch On
-        and FilterState FilterState PWR
-    s Switch On FilterState 
-    select r14 FilterState r14 Color.Red
-    s Switch Color r14  
+selectSwitchState:
+    move r15 0
+    breqz FilterState 6
+    breqz PWR 5
+    brnez AutoRequest 3
+        l r15 Switch On
+    jr 2
+        seq r15 AutoRequest 1 
+    s Switch On r15 
+    select r15 r15 Color.Green Color.Red
+    s Switch Color r15  
 j ra
 shutdown:
-    move r14 Count
-    mul r14 r14 STRUCTURExSIZE
-    add r14 r14 COUNTxADDRESS #Shift 10 - 9
     move idx 0
-cycleShutdown:
-    get r15 db r14
-    s r15 On 0
-    sub r14 r14 STRUCTURExSIZE
+    move dataAddres Count
+    mul dataAddres dataAddres STRUCTURExSIZE
+    add dataAddres dataAddres SHIFT #Shift
+    push ra
+shutdownCycle:
+    jal read
     add idx idx 1
-blt idx Count cycleShutdown
-    s db On 0 #Shutdown self
-j ra
+    s Filter On 0
+    s Bypass On 0
+blt idx Count shutdownCycle
+    l PWR $5F25B On #PWR
+    s db On PWR #Shutdown self
+j main
