@@ -34,7 +34,8 @@ main:
         move PowerState r15
         jal power
     beqz PowerState main
-    jal arc 
+    jal arc
+    jal pump 
 j main
 arc:
     l r15 ExportSw On
@@ -45,7 +46,7 @@ arc:
     s ExportDsp Setting r15
     ls r15 Arc 0 Quantity
     s QttyDsp Setting r15
-    breqz r15 8
+    breqz r15 9
         l r15 Arc Activate
         breq r15 1 3
             s Arc On 1
@@ -67,4 +68,9 @@ power:
     s LED On PowerState
     s Sorter1 On PowerState
     s Sorter2 On PowerState
+j ra
+pump:
+    lbn r15 HASH("StructureGasSensor") HASH("frn-arc-sns") Pressure Minimum
+    snez r15 r15
+    sbn HASH("StructureTurboVolumePump") HASH("frn-arc-pump") On r15  
 j ra
