@@ -1,0 +1,13 @@
+#terain-mars\manufacture\mn-input-ingots-sorter.ic10
+#Program Logic Sorter to sort ores and reagent mix
+alias Sorter1 r1
+lbn Sorter1 HASH("StructureLogicSorter") HASH("mn-input-ingots-sorter") ReferenceId Minimum
+
+clrd Sorter1
+
+s Sorter1 Mode 1 # Any
+sll r15 SlotClass.Ingot 16
+sll r14 Equals 8
+or r15 r15 r14
+or r15 r15 SorterInstruction.FilterSlotTypeCompare
+put Sorter1 0 r15
