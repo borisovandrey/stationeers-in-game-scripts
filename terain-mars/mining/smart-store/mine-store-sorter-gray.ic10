@@ -1,0 +1,126 @@
+define MODULExNAME HASH("st-stack-all")
+define STACKxSIZE 50
+alias Store d0
+alias Router d1
+alias Silo d2 #Silo
+alias StoreExitValve d3
+alias Stacker d4
+alias LED d5
+alias hashArraySize r1
+alias qtty r3
+alias hash r4
+alias slotsToStack r5
+alias allSlots r6
+move r0 0
+main:
+  sleep 120
+  l r15 Store ImportCount
+  beq r15 r0 main #If import count is not changed -- do nothing
+  s LED On 1
+  jal holdline
+  s Silo Open 0
+  s Stacker Mode 0
+  s Stacker Setting STACKxSIZE
+  move hashArraySize 0
+  jal collecthashes
+  bnezal hashArraySize handlehashes
+  l r0 Store ImportCount
+  sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting 0 #Free line
+  yield
+  s Silo Open 1
+  s LED Color Color.Gray
+  s LED On 0
+j main
+collecthashes:
+  s LED Color Color.Yellow
+  l r7 Store Quantity #Get amount of occupated slots
+  beqz r7 ra #r7 - slots to test If store is empty - return
+  move r2 2 #r2 - index Start slot for content
+  foreachslotfind:
+    ls r14 Store r2 Occupied
+    ls qtty Store r2 Quantity
+    ls hash Store r2 OccupantHash
+    add r2 r2 1
+    sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
+    beqz r14 foreachslotfind #Check the slot is occupied
+    sub r7 r7 1
+    j updatequantity
+    updated:
+  bnez r7 foreachslotfind
+j ra
+updatequantity:
+  move sp 0
+  add sp sp hashArraySize
+  sne r15 qtty STACKxSIZE
+  searchexistent:
+    ble sp 0 searchexistentend
+    pop r14 #allSlots
+    pop r13 #slotsToStack
+    pop r12 #hash
+    bne r12 hash searchexistent
+    push r12
+    add r13 r13 r15
+    push r13
+    add r14 r14 1
+    push r14
+  searchexistentend:
+  brne sp 0 6 #if found do nothing if not add
+    add sp sp hashArraySize
+    push hash #hash
+    push r15  #not full slots
+    push 1    #all slots
+    add hashArraySize hashArraySize 3
+j updated
+handlehashes:
+  move sp 0
+  add sp sp hashArraySize
+  forechhash:
+    pop allSlots #all slots
+    pop slotsToStack #slots to operate
+    pop hash #hash
+    sbn HASH("StructureLogicMemory") HASH("store-current-hash") Setting hash
+    brle slotsToStack 1 18 #Ignore cases when we have only one or zero slots to stack
+      s LED Color Color.Orange
+      move r10 ra
+      bgtzal allSlots stackhash
+      l r15 Silo Quantity
+      brge r15 600 2 #protect hold from overflow (600 section)
+      brgtz allSlots -3 #repeat for all slots
+      move ra r10
+      s Silo Open 1
+      s Stacker Mode 1
+      s Stacker Activate 1
+      sleep 4
+      ls r15 Stacker 2 Quantity
+      brnez r15 -2
+      ls r15 Silo 0 Occupied #Check until cl
+      brnez r15 -4
+      s Silo Open 0
+      s Stacker Mode 0
+      yield
+  bgt sp 0 forechhash
+j ra
+stackhash:
+   s StoreExitValve Open 0
+   s Store RequestHash hash
+   sleep 1
+   ls r15 StoreExitValve 0 Quantity
+   breqz r15 -2 #Wait qtty on the exit trap
+   sub allSlots allSlots 1
+   breq r15 STACKxSIZE 2 #Item is full put it on stack
+     s Router Setting 3 #Stack route
+   jr 2
+     s Router Setting 0 #Hold route
+   s StoreExitValve Open 1
+   sleep 3
+   ls r15 StoreExitValve 0 Occupied
+   brnez r15 -2 #Wait qtty off the exit trap
+j ra
+holdline:
+  s LED Color Color.Blue
+  lbn r15 HASH("StructureLogicMemory") HASH("store-mutex") Setting Minimum
+  beq r15 MODULExNAME ra
+  brnez r15 2
+  sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
+  sleep 1
+j holdline

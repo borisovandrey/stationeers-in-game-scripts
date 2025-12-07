@@ -1,0 +1,42 @@
+define MODULExNAME HASH("st-manual-op") #Subprogram for manual extarction ingots from smart-store
+alias Store.Router d0
+alias Store.ExitValve d1
+alias LED1 d2
+alias SwitchState r0
+move SwitchState -1 #Initial state is unknown
+main:
+    lbn r15 HASH("StructureLogicSwitch2") HASH("mine-store-extract-sw") Open Minimum
+    beq r15 SwitchState doSleep
+    move SwitchState r15
+    beqz SwitchState closeRoute
+    bnez SwitchState openRoute
+doSleep:
+    sleep 2
+j main
+holdline:
+  lbn r14 HASH("StructureLogicMemory") r15 Setting Minimum
+  beq r14 MODULExNAME ra
+  brnez r14 2
+  sbn HASH("StructureLogicMemory") r15 Setting MODULExNAME
+  sleep 1
+j holdline
+freeline:
+  sbn HASH("StructureLogicMemory") r15 Setting 0
+j ra
+openRoute:
+   yield
+   s LED1 On 1
+   s LED1 Color Color.Blue
+   move r15 HASH("store-mutex")
+   jal holdline
+   s Store.Router Setting 1 #Exit to manual extraction
+   s Store.ExitValve Open 1
+   sleep 2
+   s LED1 Color Color.Green
+j main
+closeRoute:
+    move r15 HASH("store-mutex")
+    jal freeline
+    s LED1 Color Color.Gray
+    s LED1 On 0
+j main
