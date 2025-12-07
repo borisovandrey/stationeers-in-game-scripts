@@ -35,24 +35,26 @@ move SelectedId -1
 jal resetOther
 
 main:
-yield
-l Route Router Setting
-bltz Route main #If route is low 0 continue
-beq Route OldRoute main #If route is not chnaged do nothing
-move OldRoute Route
-bgt Route MAXxROUTE main #In case of incorrect route pass through
-get SelectedId Router Route #Read exit hash from the memory
-s SelectedId Mode EXTRACT 
-jal resetOther
+    yield
+    l Route Router Setting
+    bltz Route main #If route is low 0 continue
+    beq Route OldRoute main #If route is not chnaged do nothing
+    move OldRoute Route
+    bgt Route MAXxROUTE main #In case of incorrect route pass through
+    get SelectedId Router Route #Read exit hash from the memory
+    breqz SelectedId 2
+        s SelectedId Mode EXTRACT 
+    j resetOther
 j main
 
 resetOther:
     move sp Address
-pop r15
+routesCycle:
+    pop r15
+    beqz r15 main
     breq r15 SelectedId 2 #Selected address has been already set
         s r15 Mode PASS
     s r15 Setting 0
     s r15 SettingOutput 0
     s r15 Quantity 0
-brne sp 1 -6
-j ra
+j routesCycle
