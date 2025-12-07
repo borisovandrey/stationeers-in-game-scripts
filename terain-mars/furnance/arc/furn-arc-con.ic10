@@ -72,5 +72,5 @@ j ra
 pump:
     lbn r15 HASH("StructureGasSensor") HASH("frn-arc-sns") Pressure Minimum
     snez r15 r15
-    sbn HASH("StructureTurboVolumePump") HASH("frn-arc-pump") On r15  
+    sbn HASH("StructurePoweredVentLarge") HASH("frn-arc-vent") On r15  
 j ra
