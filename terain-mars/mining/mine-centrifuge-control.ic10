@@ -1,0 +1,49 @@
+#terain-mars\mining\mine-centrifuge-control.ic10
+move sp 0
+lbn r15 HASH("StructureCentrifuge") HASH("mine-centrifuge-1") ReferenceId Minimum
+push r15
+lbn r15 HASH("StructureCentrifuge") HASH("mine-centrifuge-2") ReferenceId Minimum
+push r15
+lbn r15 HASH("StructureCentrifuge") HASH("mine-centrifuge-3") ReferenceId Minimum
+push r15
+lbn r15 HASH("StructureCentrifuge") HASH("mine-centrifuge-4") ReferenceId Minimum
+push r15
+alias CFGS.Size r0
+move CFGS.Size sp
+alias idx r1
+alias CFGS.RefId r2
+define MAXxQTTY 300
+alias LED r3
+lbn LED HASH("StructureDiode") HASH("mine-centrifuge-led") ReferenceId Minimum
+main:
+    s LED On 0
+    s LED Color Color.Gray
+    sleep 10
+    move idx 0
+    s LED Color Color.Yellow
+    s LED On 1
+    yield
+cycle:
+    bge idx CFGS.Size main
+    add idx idx 1
+    get CFGS.RefId db idx
+    beqz CFGS.RefId main
+    l r15 CFGS.RefId Reagents
+    bgeal r15 MAXxQTTY purge
+    l r15 CFGS.RefId Error
+    bnezal r15 purge
+    ls r15 CFGS.RefId 0 Quantity
+    snez r15 r15
+    s CFGS.RefId On r15
+    yield
+j cycle
+purge:
+    s LED Color Color.Orange
+    s CFGS.RefId Open 1
+    sleep 1
+        l r15 CFGS.RefId Reagents
+    brge r15 1 -2
+    s CFGS.RefId Open 0
+    sleep 1
+    s LED Color Color.Yellow
+j ra
