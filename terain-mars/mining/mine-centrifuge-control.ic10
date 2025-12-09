@@ -25,8 +25,8 @@ main:
     yield
 cycle:
     bge idx CFGS.Size main
-    add idx idx 1
     get CFGS.RefId db idx
+    add idx idx 1
     beqz CFGS.RefId main
     l r15 CFGS.RefId Reagents
     bgeal r15 MAXxQTTY purge
@@ -42,7 +42,7 @@ purge:
     s CFGS.RefId Open 1
     sleep 1
         l r15 CFGS.RefId Reagents
-    brge r15 1 -2
+    brge r15 15 -2
     s CFGS.RefId Open 0
     sleep 1
     s LED Color Color.Yellow
