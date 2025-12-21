@@ -1,0 +1,35 @@
+#terain-mars/mining/mine-control-console.ic10
+#Silver/Gold
+push $59E64 #WIFI-Input
+push $59EC5 #DSP
+push $84909 #Dial
+push $85345 #WIFI-Output
+push 0  #Index
+alias List r0
+move List sp
+alias WIFI.Input r1 
+alias WIFI.Output r2
+alias DSP r3
+alias Dial r4
+alias idx r5 
+alias OutBits r6
+main:
+    sleep 2
+    move sp List
+    move OutBits 0
+cycle:
+    pop idx
+    pop WIFI.Output
+    pop Dial
+    pop DSP
+    pop WIFI.Input
+    l r15 WIFI.Input Setting
+    s DSP Setting r15
+    l r15 Dial Setting
+    min r15 r15 16
+    mul r14 idx 4
+    srl r15 r15 r14
+    or OutBits OutBits r15
+bnez sp cycle
+    s WIFI.Output Setting OutBits
+j main
