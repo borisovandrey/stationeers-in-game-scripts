@@ -1,0 +1,109 @@
+#terain-mars\energy-control\console\reserved-balance-console.ic10
+#This script is reponsible for power output display the nerergy balance
+#From power sources, batteries and consumption
+#init display colors
+s $88BF7 Mode DisplayMode.Power #Input display
+s $88BF7 Color Color.Green
+s $88BF8 Mode DisplayMode.Power #Output display
+s $88BF8 Color Color.Yellow
+s $88BF9 Mode DisplayMode.Power #Capacity display
+s $88BF9 Color Color.Blue
+s $88BFF Mode DisplayMode.Power #Current balance
+s $88BFF Color Color.Gray
+s $88BFC Mode DisplayMode.Power #Balance full
+s $88BFC Color Color.Gray
+s $88BFB Mode DisplayMode.Power #Balance per tick
+s $88BFB Color Color.Gray
+s $88BFA Mode DisplayMode.Seconds #Cycle
+s $88C23 Color Color.Gray       #Gauge   
+#Init battaris data
+alias Balance r0
+alias WeatherStation r1
+alias TimeCounter r2
+alias BalanceCurrent r3
+alias BalanceStored r4
+alias LastStormState r5
+alias BalancePerTick r6
+alias Seconds r7
+define STORM 2
+move WeatherStation $1FCA3
+move TimeCounter $88E77
+move BalanceCurrent $88E79
+move BalanceStored $88E7A
+s TimeCounter Setting 0
+s BalanceCurrent Setting 0
+s BalanceStored Setting 0
+move LastStormState 0
+move Seconds 0
+define SMBxCONSUMPTION 50# Each battery takes  50
+main:
+    yield
+    jal timerTick
+    jal displayBattaries
+    s TimeCounter Setting Seconds
+j main
+timerTick:
+    l Seconds TimeCounter Setting
+    add Seconds Seconds 0.5
+j ra
+displayBattaries:
+    lbn r15 HASH("StructureBatteryLarge") HASH("bataries-pool-a") Charge Sum
+    move r14 $88BF9 #Store capacity display Ref id
+    s r14 Setting r15 #Set capacity display
+    lbn r15 HASH("StructureBatteryLarge") HASH("bataries-pool-a") Ratio Average
+    #Setup capacity display color
+    push ra
+    jal setColorbyRatio
+    pop ra
+    #Define self consumption
+    lbn r13 HASH("StructureBatteryLarge") HASH("bataries-pool-a") On Sum
+    mul r13 r13 SMBxCONSUMPTION
+    l r15 $78340 PowerPotential #Input power
+    s $88BF7 Setting r15 #Set input display
+    l r14 $7833F PowerActual #Output power
+    s $88BF8 Setting r14 #Set output display
+    #Calculate integral
+    l Balance BalanceCurrent Setting
+    add Balance Balance r15
+    sub Balance Balance r14
+    sub Balance Balance r13
+    l r15 WeatherStation Mode
+    beq r15 LastStormState sameCalulationPeriod
+    move LastStormState r15
+    bne LastStormState STORM sameCalulationPeriod
+        s BalanceStored Setting Balance
+        s $88BFC Setting Balance #Set stored integral display
+        s $88BFA Setting Seconds
+        div BalancePerTick Balance Seconds
+        s $88BFB Setting BalancePerTick #Set balance per tick
+        move Seconds 0
+        sgez r15 Balance
+        move Balance 0
+        select r15 r15 Color.Blue Color.Red
+        s $88C23 Color r15 #Set gauge collor
+        s $88BFF Color r15 #Set integral display color
+        s $88BFB Color r15 #Set balance per tick
+        add BalancePerTick BalancePerTick 1000
+        brle BalancePerTick 2000 2
+            move BalancePerTick 2000
+        brgez BalancePerTick 2
+            move BalancePerTick 0
+        div BalancePerTick BalancePerTick 2000
+        s $88BFB Setting BalancePerTick
+sameCalulationPeriod:
+    s $88BFF Setting Balance #Show current integral
+    s BalanceCurrent Setting Balance
+j ra
+#r15 - ratio, #r14 device id
+setColorbyRatio:
+    brle r15 0.9 3
+        s r14 Color Color.Blue #SMALLxCAPACITYxDISPLAY
+        j ra
+    brle r15 0.3 3
+        s r14 Color Color.Green #SMALLxCAPACITYxDISPLAY
+        j ra
+    breqz r15 3
+        s r14 Color Color.Yellow #SMALLxCAPACITYxDISPLAY
+        j ra
+    s r14 Color Color.Gray #SMALLxCAPACITYxDISPLAY
+j ra
