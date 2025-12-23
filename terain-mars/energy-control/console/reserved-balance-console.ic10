@@ -1,4 +1,4 @@
-#terain-mars\energy-control\console\power-input-displays.ic10
+#terain-mars\energy-control\console\reserved-balance-console.ic10
 #This script is reponsible for power output display the nerergy balance
 #From power sources, batteries and consumption
 define Solar HASH("StructureSolarPanelDual")
@@ -71,7 +71,7 @@ displayBattaries:
     #Define self consumption
     lbn r13 HASH("StructureBattery") HASH("bataries-pool-1") On Sum
     mul r13 r13 SMBxCONSUMPTION
-    l r15 $5134F PowerActual #Input power
+    l r15 $5134F PowerPotential #Input power
     s $5130E Setting r15 #Set input display
     l r14 $5163F PowerActual #Output power
     s $51325 Setting r14 #Set output display
