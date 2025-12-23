@@ -3,23 +3,30 @@
 push $59E64 #WIFI-Input
 push $59EC5 #DSP
 push $84909 #Dial
-push $85345 #WIFI-Output
 push 0  #Index
+#Iron
+push $85371 #WIFI-Input
+push $84928 #DSP
+push $84925 #Dial
+push 1  #Index
+#Coal
+push $8686D #WIFI-Input
+push $84929 #DSP
+push $84926 #Dial
+push 2  #Index
 alias List r0
 move List sp
 alias WIFI.Input r1 
-alias WIFI.Output r2
-alias DSP r3
-alias Dial r4
-alias idx r5 
-alias OutBits r6
+alias DSP r2
+alias Dial r3
+alias idx r4
+alias OutBits r5
 main:
     sleep 2
     move sp List
     move OutBits 0
 cycle:
     pop idx
-    pop WIFI.Output
     pop Dial
     pop DSP
     pop WIFI.Input
@@ -28,8 +35,8 @@ cycle:
     l r15 Dial Setting
     min r15 r15 16
     mul r14 idx 4
-    srl r15 r15 r14
+    sll r15 r15 r14
     or OutBits OutBits r15
 bnez sp cycle
-    s WIFI.Output Setting OutBits
+    s $85345 Setting OutBits
 j main

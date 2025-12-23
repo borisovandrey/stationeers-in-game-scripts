@@ -1,19 +1,13 @@
-#terain-mars/mining/mine-device-control.ic10
+#terain-mars\mining\mine-device-control-coal.ic10
 alias InputD d0
-define idx 0
+define idx 2
 define MAXxTIMExCONST $FFFFFFFF
 alias MiningRID r0
 alias ProductionTime r1
-alias SILORID r2
-alias OutputRID r3
-alias TimeCounter r4
-alias Timeout r5
-define LxTRANS HASH("StructureLogicTransmitter")
+alias TimeCounter r2
+alias Timeout r3
 define DMN HASH("StructureDeepMiner")
-define SILOxHASH HASH("StructureSDBSilo")
-lbn MiningRID DMN HASH("mine-silver-gold-dev") ReferenceId Minimum
-lbn SILORID SILOxHASH HASH("mine-silver-gold-silo") ReferenceId Minimum
-lbn OutputRID LxTRANS HASH("mine-silver-gold-wifi-out") ReferenceId Minimum
+lbn MiningRID DMN HASH("mine-coal-dev") ReferenceId Minimum
 move ProductionTime 0
 move TimeCounter 0
 move Timeout 0
@@ -24,7 +18,6 @@ main:
     add TimeCounter TimeCounter 1
     min TimeCounter TimeCounter MAXxTIMExCONST
     s db Setting TimeCounter
-    jal siloQuantity
     jal calculateTimeout
     beqzal Timeout switchOff
     beqzal Timeout setCounterToMax
@@ -52,10 +45,6 @@ calculateTimeout:
     srl r15 r15 r14
     and r15 r15 $F
     mul Timeout r15 ProductionTime
-j ra
-siloQuantity:
-    l r15 SILORID Quantity
-    s OutputRID Setting r15
 j ra
 claibrate:
     s MiningRID On 0
