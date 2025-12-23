@@ -14,7 +14,7 @@ s $88BFC Mode DisplayMode.Power #Balance full
 s $88BFC Color Color.Gray
 s $88BFB Mode DisplayMode.Power #Balance per tick
 s $88BFB Color Color.Gray
-s $88BFA Mode DisplayMode.Seconds #Cycle
+s $88BFA Mode DisplayMode.Minutes #Cycle
 s $88C23 Color Color.Gray       #Gauge   
 #Init battaris data
 alias Balance r0
@@ -73,7 +73,9 @@ displayBattaries:
     bne LastStormState STORM sameCalulationPeriod
         s BalanceStored Setting Balance
         s $88BFC Setting Balance #Set stored integral display
-        s $88BFA Setting Seconds
+        div r15 Seconds 60
+        ceil r15 r15 
+        s $88BFA Setting r15
         div BalancePerTick Balance Seconds
         s $88BFB Setting BalancePerTick #Set balance per tick
         move Seconds 0
@@ -81,7 +83,7 @@ displayBattaries:
         move Balance 0
         select r15 r15 Color.Blue Color.Red
         s $88C23 Color r15 #Set gauge collor
-        s $88BFF Color r15 #Set integral display color
+        s $88BFC Color r15 #Set integral display color
         s $88BFB Color r15 #Set balance per tick
         add BalancePerTick BalancePerTick 1000
         brle BalancePerTick 2000 2
@@ -89,7 +91,7 @@ displayBattaries:
         brgez BalancePerTick 2
             move BalancePerTick 0
         div BalancePerTick BalancePerTick 2000
-        s $88BFB Setting BalancePerTick
+        s $88C23 Setting BalancePerTick
 sameCalulationPeriod:
     s $88BFF Setting Balance #Show current integral
     s BalanceCurrent Setting Balance

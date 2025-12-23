@@ -3,7 +3,7 @@
 #From power sources, batteries and consumption
 define Solar HASH("StructureSolarPanelDual")
 define SOLARxGAUGExSETUPxTICKS 100 #Timeout for set gauge scale
-alias CounterSolar r1
+alias CounterSolar r10
 #init display colors
 s $51306 Mode DisplayMode.Power #SOLARxINCOMExDISPLAY
 s $5130E Mode DisplayMode.Power #SMALLxINPUTxDISPLAY
@@ -17,48 +17,40 @@ s $5AC75 Mode DisplayMode.Power #SMALLxITEGRALxxDISPLAY
 s $5AC74 Color Color.Gray
 s $5AC75 Color Color.Gray
 s $5AC76 Color Color.Gray
-s $5B2B2 Mode DisplayMode.Seconds #Cycle
+s $5B2B2 Mode DisplayMode.Minutes #Cycle
 s $5C63D Mode DisplayMode.Power #Balance per tick
 #Setup solar gauge
 move CounterSolar SOLARxGAUGExSETUPxTICKS #First time do gauge calibration
 #Init bataeis data
-alias LastIputState r2
-alias CurrentIntegral r3
-alias StoredIntegral r4
-alias Seconds r5
-alias BalancePerTicks r6
-move LastIputState 0
-move CurrentIntegral 0
-move StoredIntegral 0
+alias Balance r0
+alias LightSensor r1
+alias TimeCounter r2
+alias BalanceCurrent r3
+alias BalanceStored r4
+alias LastLightState r5
+alias BalancePerTick r6
+alias Seconds r7
+move LightSensor $27171
+move TimeCounter $88DB3
+move BalanceCurrent $88DB4
+move BalanceStored $88DB5
+s TimeCounter Setting 0
+s BalanceCurrent Setting 0
+s BalanceStored Setting 0
+move LastLightState 0
 move Seconds 0
 define SMBxCONSUMPTION 50# Each battery takes  50
-
 main:
+    yield
+    jal timerTick
     jal displaySolar
     jal displayBattaries
-    add Seconds Seconds 0.5
-    yield
+    s TimeCounter Setting Seconds
 j main
-
-displaySolar:
-    brlt CounterSolar SOLARxGAUGExSETUPxTICKS 4
-        lb r15 Solar Maximum Sum
-        s $51298 Mode r15 #SOLARxINPUTxGAUGE
-        move CounterSolar 0
-    add CounterSolar CounterSolar 1
-    lb r15 Solar Charge Sum
-    s $51306 Setting r15 #SOLARxINCOMExDISPLAY
-    s $51298 Setting r15 #SOLARxINPUTxGAUGE
-    lb r15 Solar Ratio Average
-    s $51305 Setting r15 #SOLARxRATIOxINDICATOR
-    push ra
-    move r14 $51298 #SOLARxINPUTxGAUGE
-    jal setColorbyRatio
-    move r14 $51305 #SOLARxRATIOxINDICATOR
-    jal setColorbyRatio
-    pop ra
+timerTick:
+    l Seconds TimeCounter Setting
+    add Seconds Seconds 0.5
 j ra
-
 displayBattaries:
     lbn r15 HASH("StructureBattery") HASH("bataries-pool-1") Charge Sum
     move r14 $519B9 #capacity display id
@@ -76,42 +68,39 @@ displayBattaries:
     l r14 $5163F PowerActual #Output power
     s $51325 Setting r14 #Set output display
     #Calculate integral
-    add CurrentIntegral CurrentIntegral r15 #Add input power
-    sub CurrentIntegral CurrentIntegral r14 #Subtract output power
-    sub CurrentIntegral CurrentIntegral r13 #Self consumption
-    bnez LastIputState nointegralperiodchange #Skip if previous input was On
-    beqz r15 nointegralperiodchange #Skip if previous input is Off and current also Off
-        move StoredIntegral CurrentIntegral #Reset integral if power just turned On
-        move CurrentIntegral 0 #Reset current integral
-        s $5AC75 Setting StoredIntegral #Set stored integral display
-        s $5B2B2 Setting Seconds
-        div BalancePerTicks StoredIntegral Seconds
-        div BalancePerTicks BalancePerTicks 2
-        s $5C63D Setting BalancePerTicks #Set balance per tick
+    l Balance BalanceCurrent Setting
+    add Balance Balance r15
+    sub Balance Balance r14
+    sub Balance Balance r13
+    l r15 LightSensor Activate
+    beq r15 LastLightState sameCalulationPeriod
+    move LastLightState r15
+    bne LastLightState 1 sameCalulationPeriod
+        s BalanceStored Setting Balance
+        s $5AC75 Setting Balance #Set stored integral display
+        div r15 Seconds 60
+        ceil r15 r15
+        s $5B2B2 Setting r15
+        div BalancePerTick Balance Seconds
+        s $5C63D Setting BalancePerTick #Set balance per tick
         move Seconds 0
-        move r10 Color.Green
-        brgtz StoredIntegral 6
-        breqz StoredIntegral 3
-            move r10 Color.Red
-            jr 4
-            move r10 Color.Green
-            jr 2
-            move r10 Color.Blue
-        s $5AC76 Color r10 #Set gauge collor
-        s $5AC75 Color r10 #Set integral display color
-        s $5C63D Color r10 #Set balance per tick
-        add BalancePerTicks BalancePerTicks 1000
-        brle BalancePerTicks 2000 2
-            move BalancePerTicks 2000
-        brgez BalancePerTicks 2
-            move BalancePerTicks 0
-        div BalancePerTicks BalancePerTicks 2000
-        s $5AC76 Setting BalancePerTicks
-nointegralperiodchange:
-    move LastIputState r15  #Store input state
-    s $5AC74 Setting CurrentIntegral #Show current integra
-j ra
-
+        sgez r15 Balance
+        move Balance 0
+        select r15 r15 Color.Blue Color.Red
+        s $5AC76 Color r15 #Set gauge collor
+        s $5AC75 Color r15 #Set integral display color
+        s $5C63D Color r15 #Set balance per tick
+        add BalancePerTick BalancePerTick 1000
+        brle BalancePerTick 2000 2
+            move BalancePerTick 2000
+        brgez BalancePerTick 2
+            move BalancePerTick 0
+        div BalancePerTick BalancePerTick 2000
+        s $5AC76 Setting BalancePerTick
+sameCalulationPeriod:
+    s $5AC74 Setting Balance #Show current integral
+    s BalanceCurrent Setting Balance
+j ra  
 #r15 - ratio, #r14 device id
 setColorbyRatio:
     brle r15 0.9 3
@@ -124,4 +113,22 @@ setColorbyRatio:
         s r14 Color Color.Yellow #SMALLxCAPACITYxDISPLAY
         j ra
     s r14 Color Color.Gray #SMALLxCAPACITYxDISPLAY
+j ra
+displaySolar:
+    brlt CounterSolar SOLARxGAUGExSETUPxTICKS 4
+        lb r15 Solar Maximum Sum
+        s $51298 Mode r15 #SOLARxINPUTxGAUGE
+        move CounterSolar 0
+    add CounterSolar CounterSolar 1
+    lb r15 Solar Charge Sum
+    s $51306 Setting r15 #SOLARxINCOMExDISPLAY
+    s $51298 Setting r15 #SOLARxINPUTxGAUGE
+    lb r15 Solar Ratio Average
+    s $51305 Setting r15 #SOLARxRATIOxINDICATOR
+    push ra
+    move r14 $51298 #SOLARxINPUTxGAUGE
+    jal setColorbyRatio
+    move r14 $51305 #SOLARxRATIOxINDICATOR
+    jal setColorbyRatio
+    pop ra
 j ra
