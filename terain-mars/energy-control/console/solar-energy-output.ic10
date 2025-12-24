@@ -1,0 +1,49 @@
+#terain-mars\energy-control\console\solar-energy-output.ic10
+#This script is reponsible for power output display for solar panels
+#From power sources, batteries and consumption
+define Solar HASH("StructureSolarPanelDual")
+define SOLARxGAUGExSETUPxTICKS 100 #Timeout for set gauge scale
+alias CounterSolar r10
+#init display colors
+s $51306 Mode DisplayMode.Power #SOLARxINCOMExDISPLAY
+#Setup solar gauge
+move CounterSolar SOLARxGAUGExSETUPxTICKS #First time do gauge calibration
+#Init bataeis data
+move r15 0
+move r14 0
+define SMBxCONSUMPTION 50# Each battery takes  50
+main:
+    yield
+    jal displaySolar
+j main
+#r15 - ratio, #r14 device id
+displaySolar:
+    brlt CounterSolar SOLARxGAUGExSETUPxTICKS 4
+        lb r15 Solar Maximum Sum
+        s $51298 Mode r15 #SOLARxINPUTxGAUGE
+        move CounterSolar 0
+    add CounterSolar CounterSolar 1
+    lb r15 Solar Charge Sum
+    s $51306 Setting r15 #SOLARxINCOMExDISPLAY
+    s $51298 Setting r15 #SOLARxINPUTxGAUGE
+    lb r15 Solar Ratio Average
+    s $51305 Setting r15 #SOLARxRATIOxINDICATOR
+    push ra
+    move r14 $51298 #SOLARxINPUTxGAUGE
+    jal setColorbyRatio
+    move r14 $51305 #SOLARxRATIOxINDICATOR
+    jal setColorbyRatio
+    pop ra
+j ra
+setColorbyRatio:
+    brle r15 0.9 3
+        s r14 Color Color.Blue #SMALLxCAPACITYxDISPLAY
+        j ra
+    brle r15 0.3 3
+        s r14 Color Color.Green #SMALLxCAPACITYxDISPLAY
+        j ra
+    breqz r15 3
+        s r14 Color Color.Yellow #SMALLxCAPACITYxDISPLAY
+        j ra
+    s r14 Color Color.Gray #SMALLxCAPACITYxDISPLAY
+j ra

@@ -1,11 +1,7 @@
 #terain-mars\energy-control\console\reserved-balance-console.ic10
 #This script is reponsible for power output display the nerergy balance
 #From power sources, batteries and consumption
-define Solar HASH("StructureSolarPanelDual")
-define SOLARxGAUGExSETUPxTICKS 100 #Timeout for set gauge scale
-alias CounterSolar r10
 #init display colors
-s $51306 Mode DisplayMode.Power #SOLARxINCOMExDISPLAY
 s $5130E Mode DisplayMode.Power #SMALLxINPUTxDISPLAY
 s $5130E Color Color.Green #SMALLxINPUTxDISPLAY
 s $51325 Mode DisplayMode.Power #SMALLxOUTPUTxDISPLAY
@@ -19,31 +15,25 @@ s $5AC75 Color Color.Gray
 s $5AC76 Color Color.Gray
 s $5B2B2 Mode DisplayMode.Minutes #Cycle
 s $5C63D Mode DisplayMode.Power #Balance per tick
-#Setup solar gauge
-move CounterSolar SOLARxGAUGExSETUPxTICKS #First time do gauge calibration
 #Init bataeis data
 alias Balance r0
 alias LightSensor r1
 alias TimeCounter r2
 alias BalanceCurrent r3
 alias BalanceStored r4
-alias LastLightState r5
+alias LastLightMemory r5
 alias BalancePerTick r6
 alias Seconds r7
 move LightSensor $27171
 move TimeCounter $88DB3
 move BalanceCurrent $88DB4
 move BalanceStored $88DB5
-s TimeCounter Setting 0
-s BalanceCurrent Setting 0
-s BalanceStored Setting 0
-move LastLightState 0
+move LastLightMemory $896C4
 move Seconds 0
 define SMBxCONSUMPTION 50# Each battery takes  50
 main:
     yield
     jal timerTick
-    jal displaySolar
     jal displayBattaries
     s TimeCounter Setting Seconds
 j main
@@ -72,10 +62,12 @@ displayBattaries:
     add Balance Balance r15
     sub Balance Balance r14
     sub Balance Balance r13
-    l r15 LightSensor Activate
-    beq r15 LastLightState sameCalulationPeriod
-    move LastLightState r15
-    bne LastLightState 1 sameCalulationPeriod
+    l r15 LightSensor Vertical
+    sle r15 r15 90
+    l r14 LastLightMemory Setting
+    beq r15 r14 sameCalulationPeriod
+    s LastLightMemory Setting r15
+    bne r15 1 sameCalulationPeriod
         s BalanceStored Setting Balance
         s $5AC75 Setting Balance #Set stored integral display
         div r15 Seconds 60
@@ -114,22 +106,4 @@ setColorbyRatio:
         s r14 Color Color.Yellow #SMALLxCAPACITYxDISPLAY
         j ra
     s r14 Color Color.Gray #SMALLxCAPACITYxDISPLAY
-j ra
-displaySolar:
-    brlt CounterSolar SOLARxGAUGExSETUPxTICKS 4
-        lb r15 Solar Maximum Sum
-        s $51298 Mode r15 #SOLARxINPUTxGAUGE
-        move CounterSolar 0
-    add CounterSolar CounterSolar 1
-    lb r15 Solar Charge Sum
-    s $51306 Setting r15 #SOLARxINCOMExDISPLAY
-    s $51298 Setting r15 #SOLARxINPUTxGAUGE
-    lb r15 Solar Ratio Average
-    s $51305 Setting r15 #SOLARxRATIOxINDICATOR
-    push ra
-    move r14 $51298 #SOLARxINPUTxGAUGE
-    jal setColorbyRatio
-    move r14 $51305 #SOLARxRATIOxINDICATOR
-    jal setColorbyRatio
-    pop ra
 j ra
