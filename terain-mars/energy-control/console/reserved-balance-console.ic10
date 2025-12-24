@@ -82,6 +82,7 @@ displayBattaries:
         ceil r15 r15
         s $5B2B2 Setting r15
         div BalancePerTick Balance Seconds
+        div BalancePerTick BalancePerTick 2
         s $5C63D Setting BalancePerTick #Set balance per tick
         move Seconds 0
         sgez r15 Balance
