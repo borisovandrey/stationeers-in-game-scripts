@@ -1,0 +1,143 @@
+define HOMExX -1197
+define HOMExY 218
+define HOMExZ 359
+put db 0 STR("silver") #home 1
+put db 1 HOMExX #x
+put db 2 HOMExY #y
+put db 3 HOMExZ #z
+put db 4 STR("silver") #common-1 5
+put db 5 -1203 #x
+put db 6 219   #y
+put db 7 359   #z
+put db 8 STR("silver") #silver-2 9
+put db 9 -1206 #x
+put db 10 212   #y
+put db 11 284   #z
+put db 12 STR("silver") #silver-3 13
+put db 13 -1276.262 #x
+put db 14 148.11   #y
+put db 15 203.168   #z
+put db 16 STR("silver") #silver-unload 15
+put db 17 -1276 #x
+put db 18 148   #y
+put db 19 204   #z
+put db 20 STR("silver") #silver-unload 15
+put db 21 -1276.434 #x
+put db 22 148.11   #y
+put db 23 205.266   #z
+define IDLE 0
+define PATH 6
+define LOAD 2
+define FULL 4
+define UNLOAD 3
+define EMPTY 5
+define CHARGExLIMIT 0.3
+alias Route r0
+alias Level1 r1
+alias Level2 r2
+alias Level3 r3
+alias Level4 r4
+alias DirectStart r5
+alias BackStart r6
+alias Start r7
+alias Expected r10
+main:
+    sleep 1
+    jal defineState
+    jal executeRoute
+j main
+defineState:
+    move Level1 ra
+    l r15 db Mode
+    beqal r15 FULL onFull
+    beqal r15 IDLE onIdle
+j Level1
+onIdle:
+    move Level2 ra
+    jal isAtHome
+    breq r15 1 3
+        s db Setting STR("lost")
+        j Level2
+    ls r15 db 0 ChargeRatio
+    brge r15 CHARGExLIMIT 3
+        s db Setting STR("charge")
+        j Level2
+    s db Setting STR("home")
+    yield
+j Level2
+onFull:
+    move Level2 ra
+    jal isAtHome
+    beqz r15 Level2 
+    jal unload
+j Level2
+isAtHome:
+    move Level3 ra
+    l r15 db PositionX
+    l r14 db PositionY
+    l r13 db PositionZ
+    sub r15 r15 HOMExX
+    sub r14 r14 HOMExY
+    sub r13 r13 HOMExZ
+    mul r15 r15 r15
+    mul r14 r14 r14
+    mul r13 r13 r13
+    add r15 r15 r14
+    add r15 r15 r13
+    sqrt r15 r15
+    sle r15 r15 1  
+j Level3
+executeRoute:
+    move Level1 ra
+    l r15 db Mode
+    bne r15 IDLE Level1
+    l Route db Setting
+    move DirectStart 0
+    move BackStart 0
+    beqal Route STR("silver") silverRoute
+    beqz DirectStart Level1 #No route 
+    move Start DirectStart
+    jal follow
+    jal load
+    move Start BackStart
+    jal follow
+    jal unload
+j Level1
+follow:
+    move Level2 ra
+    s db Setting Start
+    s db Mode PATH
+    sleep 1
+        l r15 db Mode
+        seq r14 r15 IDLE
+        seq r13 r15 FULL
+        or r15 r14 r13
+    breqz r15 -5  
+j Level2
+load:
+    move Level3 ra
+    move Expected FULL
+    s db Mode LOAD
+    jal waitFinish
+j Level3
+unload:
+    move Level3 ra
+    move Expected EMPTY
+    s db Mode UNLOAD
+    jal waitFinish
+    s db Mode IDLE
+j Level3
+waitFinish:
+    move Level4 ra
+    sleep 1
+        l r15 db Mode
+        seq r14 r15 Expected
+        seq r13 r15 IDLE
+        or r15 r13 r14
+    breqz r15 -5
+j Level4
+silverRoute:
+    move Level2 ra
+    move DirectStart 5
+    move BackStart -17    
+j Level2
