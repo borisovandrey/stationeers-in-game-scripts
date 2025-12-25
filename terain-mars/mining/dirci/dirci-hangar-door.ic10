@@ -1,0 +1,24 @@
+#terain-mars\mining\dirci\dirci-hangar-door.ic10
+alias Allarm d0
+define DOORS HASH("StructureAirlockGate")
+define DiRCI HASH("DiRCI")
+alias StormState r0
+main:
+    sleep 5
+    l StormState Allarm Setting
+    and StormState StormState 3
+    sge StormState StormState 2 #30 second allarm
+    beqzal StormState openDoors
+    beqal StormState 1 closeDoors
+j main
+openDoors:
+    lbn r15 DOORS DiRCI Open Maximum
+    beq r15 1 ra
+    sleep 2
+    sbn DOORS DiRCI Open 1
+j ra
+closeDoors:
+    lbn r15 DOORS DiRCI Open Minimum
+    beqz r15 ra
+    sbn DOORS DiRCI Open 0
+j ra
