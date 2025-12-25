@@ -40,7 +40,9 @@ alias Level4 r4
 alias DirectStart r5
 alias BackStart r6
 alias Start r7
+alias State r8
 alias Expected r10
+move State 0 
 main:
     sleep 1
     jal defineState
@@ -55,14 +57,18 @@ j Level1
 onIdle:
     move Level2 ra
     jal isAtHome
-    breq r15 1 3
-        s db Setting STR("lost")
+    breq r15 1 4
+        move State STR("lost")
+        s db Setting State
         j Level2
     ls r15 db 0 ChargeRatio
-    brge r15 CHARGExLIMIT 3
-        s db Setting STR("charge")
+    brge r15 CHARGExLIMIT 4
+        move State STR("charge")
+        s db Setting State
         j Level2
-    s db Setting STR("home")
+    breq State STR("home") 3 
+    move State STR("home")
+    s db Setting State
     yield
 j Level2
 onFull:
@@ -92,6 +98,7 @@ executeRoute:
     l r15 db Mode
     bne r15 IDLE Level1
     l Route db Setting
+    move State Route
     move DirectStart 0
     move BackStart 0
     beqal Route STR("silver") silverRoute
