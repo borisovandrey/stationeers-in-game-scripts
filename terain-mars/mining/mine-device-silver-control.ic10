@@ -1,0 +1,88 @@
+#terain-mars/mining/mine-device-control.ic10
+alias InputD d0
+define idx 0
+define MAXxTIMExCONST $FFFFFFFF
+alias MiningRID r0
+alias ProductionTime r1
+alias SILORID r2
+alias OutputRID r3
+alias TimeCounter r4
+alias Timeout r5
+alias VendingRID r6
+alias SNSRID r7
+define LxTRANS HASH("StructureLogicTransmitter")
+define DMN HASH("StructureDeepMiner")
+define SILOxHASH HASH("StructureSDBSilo")
+define VENDINGxHASH HASH("StructureVendingMachineSmall")
+define SNSxHASH HASH("StructureDaylightSensor")
+lbn MiningRID DMN HASH("mine-silver-gold-dev") ReferenceId Minimum
+lbn SILORID SILOxHASH HASH("mine-silver-gold-silo") ReferenceId Minimum
+lbn OutputRID LxTRANS HASH("mine-silver-gold-wifi-out") ReferenceId Minimum
+lbn VendingRID VENDINGxHASH HASH("mine-silver-gold-vending") ReferenceId Minimum
+lbn SNSRID SNSxHASH HASH("mine-silver-gold-sns") ReferenceId Minimum
+move ProductionTime 0
+move TimeCounter 0
+move Timeout 0
+jal calculateTimeout
+jal claibrate
+main:
+    sleep 1
+    add TimeCounter TimeCounter 1
+    min TimeCounter TimeCounter MAXxTIMExCONST
+    s db Setting TimeCounter
+    jal nightLight
+    jal siloQuantity
+    jal calculateTimeout
+    beqzal Timeout switchOff
+    beqzal Timeout setCounterToMax
+    beqz Timeout main 
+    l r15 MiningRID ExportCount
+    bnezal r15 switchOff
+    bgeal TimeCounter Timeout switchOn 
+j main
+setCounterToMax:
+    move TimeCounter MAXxTIMExCONST
+j ra
+switchOn:
+    s MiningRID On 1
+    move TimeCounter 0
+j ra
+switchOff:
+    s MiningRID On 0
+    s MiningRID ClearMemory 1
+    yield
+j ra
+calculateTimeout:
+    l r15 InputD Setting
+    move r14 idx
+    mul r14 r14 4
+    srl r15 r15 r14
+    and r15 r15 $F
+    mul Timeout r15 ProductionTime
+j ra
+siloQuantity:
+    l r15 SILORID Quantity
+    l r14 VendingRID Quantity
+    breqz r15 3
+    breqz r14 2
+        add r15 r15 1
+    add r15 r14 r15
+    s OutputRID Setting r15
+j ra
+claibrate:
+    s MiningRID On 0
+    s MiningRID ClearMemory 1
+    yield
+    s MiningRID On 1
+    claibrateCycle:
+        sleep 1
+        add ProductionTime ProductionTime 1
+        l r15 MiningRID ExportCount
+    beqz r15 claibrateCycle
+    s MiningRID ClearMemory 1
+j ra
+nightLight:
+    l r15 SNSRID Activate
+    seqz r15 r15
+    sbn HASH("StructureWallLight") HASH("mine-silver-gold-light") On r15
+j ra
