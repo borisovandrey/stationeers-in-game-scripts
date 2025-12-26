@@ -25,6 +25,36 @@ put db 20 STR("silver") #silver-unload 15
 put db 21 -1276.434 #x
 put db 22 148.11   #y
 put db 23 205.266   #z
+#Iron
+put db 24 STR("iron") #home 1
+put db 25 HOMExX #x
+put db 26 HOMExY #y
+put db 27 HOMExZ #z
+put db 28 STR("iron") #common-1 5
+put db 29 -1203 #x
+put db 30 219   #y
+put db 31 359   #z
+put db 32 STR("iron") #common-1 5
+put db 33 -1203 #x
+put db 34 219   #y
+put db 35 369   #z
+put db 36 STR("iron") #common-1 5
+put db 37 -1185 #x
+put db 38 219   #y
+put db 39 371   #z
+put db 40 STR("iron") #common-1 5
+put db 41 -1162 #x
+put db 42 215   #y
+put db 43 430   #z
+put db 44 STR("iron") #common-1 5
+put db 45 -1149 #x
+put db 46 165  #y
+put db 47 496   #z
+put db 48 STR("iron") #common-1 5
+put db 49 -1149.49 #x
+put db 50 164.11  #y
+put db 51 500.046   #z
+
 define IDLE 0
 define PATH 6
 define LOAD 2
@@ -67,8 +97,8 @@ onIdle:
         s db Setting State
         j Level2
     breq State STR("home") 3 
-    move State STR("home")
-    s db Setting State
+        move State STR("home")
+        s db Setting State
     yield
 j Level2
 onFull:
@@ -102,6 +132,7 @@ executeRoute:
     move DirectStart 0
     move BackStart 0
     beqal Route STR("silver") silverRoute
+    beqal Route STR("iron") ironRoute
     beqz DirectStart Level1 #No route 
     move Start DirectStart
     jal follow
@@ -147,4 +178,9 @@ silverRoute:
     move Level2 ra
     move DirectStart 5
     move BackStart -17    
+j Level2
+ironRoute:
+    move Level2 ra
+    move DirectStart 29
+    move BackStart -45   
 j Level2
