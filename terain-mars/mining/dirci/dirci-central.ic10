@@ -1,0 +1,111 @@
+#terain-mars/mining/dirci/dirci-central.ic10
+alias idx r0
+alias RoutesCount r1
+alias RoversCount r2
+alias RoutesStartIdx r3
+alias RovesrStartIdx r4
+alias Counter r5
+alias Rover r6
+alias ModeDsp r7
+alias SettingDsp r8
+alias CurrentRoute r9
+alias RouteName r10
+alias QttySrc r11
+alias Sw r12
+define ROUTExSTRUCTxSIZE 4
+define ROVESRxCOUNTxSTRUCTURE 3
+move sp 10
+move RoutesStartIdx sp
+push STR("silver") #Route
+push $59E64 #Silver QTTY
+push $8D29A #Silver Switch
+push 1      #Rover index
+push STR("iron") #Route
+push $85371 #Iron QTTY
+push $8D29B #Iron Switch
+push 1      #Rover index
+sub RoutesCount sp RoutesStartIdx
+div RoutesCount RoutesCount ROUTExSTRUCTxSIZE
+move RovesrStartIdx sp
+push $8A240 #Rover 1
+push $8DA9E #Rover 1 Mode DSP
+push $8DA9F #Rover 1 Settings DSP
+sub RoversCount sp RovesrStartIdx 
+div RoversCount RoversCount ROVESRxCOUNTxSTRUCTURE
+move sp 200
+push STR("idle")
+push STR("move")
+push STR("load")
+push STR("unload")
+push STR("full")
+push STR("empty")
+push STR("route")
+push STR("point")
+move sp 0
+move CurrentRoute 0
+main:
+    sleep 1
+    jal showRoverState
+    jal runRoute
+j main
+runRoute:
+    l r15 $8DD1B Setting #Check storm alarm
+    bnez r15 ra
+    brlt CurrentRoute RoutesCount 2
+         move CurrentRoute 0
+    mul idx CurrentRoute ROUTExSTRUCTxSIZE
+    add idx idx RoutesStartIdx
+    add idx idx ROUTExSTRUCTxSIZE
+    move sp idx
+    pop Rover
+    pop Sw
+    pop QttySrc
+    pop RouteName
+    l r15 QttySrc Setting
+    ble r15 10 runRouteEnd
+    l r15 Sw On
+    blez r15 runRouteEnd
+    sub Rover Rover 1
+    mul idx Rover ROVESRxCOUNTxSTRUCTURE
+    add idx idx RovesrStartIdx
+    add idx idx 1
+    move sp idx
+    pop Rover
+    l r15 Rover Setting
+    bne r15 STR("home") runRouteEnd
+    s Rover Setting RouteName
+    sleep 1 
+runRouteEnd:
+    add CurrentRoute CurrentRoute 1
+j ra
+showRoverState:
+    move Counter 0
+showRoverCycle:
+    beq Counter RoversCount ra
+        mul idx Counter ROVESRxCOUNTxSTRUCTURE
+        add idx idx RovesrStartIdx
+        add idx idx ROVESRxCOUNTxSTRUCTURE
+        move sp idx
+        pop SettingDsp
+        pop ModeDsp
+        pop Rover
+        l r15 Rover Mode
+        add r15 r15 201 #Get string representation of mode
+        move sp r15
+        pop r15
+        s ModeDsp Color Color.White
+        s ModeDsp Mode DisplayMode.String
+        s ModeDsp Setting r15
+        l r15 Rover Setting
+        abs r14 r15
+        sle r14 r14 1000
+        select r13 r14 DisplayMode.Default DisplayMode.String
+        select r12 r14 Color.Green Color.Gray
+        s SettingDsp Color r12
+        s SettingDsp Mode r13
+        s SettingDsp Setting r15  
+        add Counter Counter 1
+        yield
+    j showRoverCycle
+j ra
+
