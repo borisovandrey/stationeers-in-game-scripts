@@ -7,7 +7,8 @@ alias name r0
 alias hash r1
 alias qtty r2
 alias dev  r3
-alias idx  r4 
+alias idx  r4
+alias Sorter r5
 alias IDX.HDR r10
 alias IDX.REF r11
 alias IDX.RGN r12
@@ -107,7 +108,19 @@ move qtty 4
 move dev ELECTRO
 jal insert
 jal end
+jal configurePackageSorter
 j finish
+
+configurePackageSorter:
+    move Sorter $8FF88
+    s Sorter Mode 1 # Any
+    sll r15 HASH("CardboardBox") 8
+    or r15 r15 SorterInstruction.FilterPrefabHashEquals
+    putd Sorter 0 r15
+    sll r15 HASH("CardboardBoxLarge") 8
+    or r15 r15 SorterInstruction.FilterPrefabHashEquals
+    putd Sorter 1 r15
+j ra
 
 begin:
     put MEM.PIN IDX.HDR name    #Store name

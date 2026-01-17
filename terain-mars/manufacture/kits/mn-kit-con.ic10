@@ -27,6 +27,10 @@ move sp DEVICES.START
 move Selected -1
 s $6D546 Color Color.Khaki
 s $6D547 Color Color.Khaki
+move r15 $8FE95 #Setup package router
+s r15 Setting 0
+s r15 SettingOutput 0
+s r15 Mode 0 
 main:
     yield
     l PWR.VAL $6D56C On
@@ -45,6 +49,7 @@ inPowerOn:
     select State PWR.VAL State POWERxOFFxSTATE 
     beqal State POWERxOFFxSTATE power
     beq State POWERxOFFxSTATE Return
+    jal checkPackRoute
     jal checkNext
     jal checkActivity
     select Selected DEV.ACTIVE Selected -1
@@ -53,7 +58,13 @@ inPowerOn:
         j Return
     bnez DEV.ACTIVE Return 
     jal startProduction 
-j Return 
+j Return
+checkPackRoute:
+    move r15 $8FE95
+    l r14 $6D56F On
+    snez r14 r14
+    s r15 Mode r14
+j ra
 power:
     s $6C014 On PWR.VAL
     s MEM.PIN On PWR.VAL

@@ -1,3 +1,4 @@
+#terain-mars\manufacture\kits\mn-kit-craft.ic10
 define DEVICES.START 100
 alias  MEM.PIN        d0
 alias  CON.PIN        d1
