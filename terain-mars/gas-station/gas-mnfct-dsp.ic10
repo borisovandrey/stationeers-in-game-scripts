@@ -48,6 +48,7 @@ initcycle:
   move ra raStorage
   s Display Color DColor
   s Display Mode DMode
+  s Display On 1
   add idx idx 1
   blt idx CountDsp initcycle
 j ra

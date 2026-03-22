@@ -21,6 +21,7 @@ move State POWERxOFFxSTATE
 move Led.Color Color.Gray
 s $6D435 Color Color.Red #Reset button red
 s $6D434 Color Color.Orange
+s $6BFC4 On 1
 main:
   s $6BC74 Color Led.Color #Led
   yield

@@ -19,6 +19,7 @@ alias AutoRequest r13 #0 - no request, -1 request to stop, 1 request to start
 lbn AutoSwitch HASH("ModularDeviceSwitch") HASH("gw-auto-sw") ReferenceId Sum
 s $62791 Mode DisplayMode.Pa #Auto display 
 s $62791 Color Color.Gray
+s $62791 On 1 
 move sp 0
 main:
     yield
