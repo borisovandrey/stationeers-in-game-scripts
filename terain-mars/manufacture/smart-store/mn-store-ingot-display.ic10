@@ -1,0 +1,151 @@
+#terain-mars\manufacture\smart-store\mn-store-ingot-display.ic10
+define MODULExNAME HASH("st-ingot-display")
+put db 100 HASH("ItemCopperIngot")
+put db 101 HASH("ItemIronIngot")
+put db 102 HASH("ItemNickelIngot")
+put db 103 HASH("ItemSilverIngot")
+put db 104 HASH("ItemGoldIngot")
+put db 105 HASH("ItemLeadIngot")
+put db 106 HASH("ItemSiliconIngot")
+put db 107 HASH("ItemSteelIngot")
+put db 108 HASH("ItemInvarIngot")
+put db 109 HASH("ItemConstantanIngot")
+put db 110 HASH("ItemElectrumIngot")
+put db 111 HASH("ItemSolderIngot")
+put db 112 HASH("ItemAstroloyIngot")
+put db 113 HASH("ItemInconelIngot")
+put db 114 HASH("ItemWaspaloyIngot")
+put db 115 HASH("ItemHastelloyIngot")
+put db 116 HASH("ItemStelliteIngot")
+put db 200 HASH("ing-dsp-copper")
+put db 201 HASH("ing-dsp-iron")
+put db 202 HASH("ing-dsp-nickel")
+put db 203 HASH("ing-dsp-silver")
+put db 204 HASH("ing-dsp-gold")
+put db 205 HASH("ing-dsp-lead")
+put db 206 HASH("ing-dsp-silicon")
+put db 207 HASH("ing-dsp-steel")
+put db 208 HASH("ing-dsp-invar")
+put db 209 HASH("ing-dsp-constantan")
+put db 210 HASH("ing-dsp-electrum")
+put db 211 HASH("ing-dsp-solder")
+put db 212 HASH("ing-dsp-astroloy")
+put db 213 HASH("ing-dsp-inconel")
+put db 214 HASH("ing-dsp-waspaloy")
+put db 215 HASH("ing-dsp-hastelloy")
+put db 216 HASH("ing-dsp-stellite")
+define MDSPxHASH HASH("ModularDeviceLEDdisplay3")
+define REFRESHxTIME 30 #sec
+define INGOTSxCOUNT 17
+define HASHxADDR 100
+define NAMExADDR 200
+define TOTALxADDR 300
+alias Store d0
+alias LED d1
+alias idx r0
+alias slot r1
+alias qtty r2
+alias hash r3
+alias occupied r4
+alias total r5
+alias nameHash r6
+alias occupiedSlots r7
+alias addr r8
+alias dispalyId r9
+s LED On 0
+s LED Color Color.Gray
+main:
+    s LED On 1
+    jal holdline
+    s LED Color Color.Yellow
+    yield
+    jal clearTotals
+    jal collectTotals
+    sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting 0 #freeline
+    s LED Color Color.Orange
+    yield
+    jal updateDisplays
+    s LED On 0
+    s LED Color Color.Gray
+    sleep REFRESHxTIME
+j ra
+
+clearTotals:
+    move idx 0
+clearTotalsLoop:
+    beq idx INGOTSxCOUNT ra
+    move addr TOTALxADDR
+    add addr addr idx
+    put db addr 0
+    add idx idx 1
+j clearTotalsLoop
+
+collectTotals:
+    l occupiedSlots Store Quantity
+    move slot 2
+collectTotalsLoop:
+    beqz occupiedSlots ra
+    ls occupied Store slot Occupied
+    ls qtty Store slot Quantity
+    ls hash Store slot OccupantHash
+    add slot slot 1
+    beqz occupied collectTotalsLoop
+    sub occupiedSlots occupiedSlots 1
+    push ra
+    jal addQuantity
+    pop ra
+j collectTotalsLoop
+
+addQuantity:
+    move idx 0
+addQuantityLoop:
+    beq idx INGOTSxCOUNT ra
+    move addr HASHxADDR
+    add addr addr idx
+    get r15 db addr
+    breq r15 hash 3 #If hash matches - add quantity to total
+    add idx idx 1
+j addQuantityLoop
+    move addr TOTALxADDR
+    add addr addr idx
+    get total db addr
+    add total total qtty
+    put db addr total
+j ra
+
+updateDisplays:
+    move idx 0
+updateDisplaysLoop:
+    beq idx INGOTSxCOUNT ra
+    move addr TOTALxADDR
+    add addr addr idx
+    get total db addr
+    move addr NAMExADDR
+    add addr addr idx
+    get nameHash db addr
+    lbn dispalyId MDSPxHASH nameHash ReferenceId Minimum 
+    s dispalyId Setting total
+    jal setDisplayColor
+    add idx idx 1
+j updateDisplaysLoop
+
+setDisplayColor:
+    move r15 Color.Red
+    blt total 20 setDisplayColorEnd
+    move r15 Color.Yellow
+    blt total 100 setDisplayColorEnd
+    move r15 Color.Green
+    blt total 500 setDisplayColorEnd
+    move r15 Color.Blue
+setDisplayColorEnd:
+    s dispalyId Color r15
+j ra
+
+holdline:
+    s LED Color Color.Blue
+    lbn r15 HASH("StructureLogicMemory") HASH("store-mutex") Setting Minimum
+    beq r15 MODULExNAME ra
+    brnez r15 2
+    sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
+    sleep 1
+j holdline

@@ -1,0 +1,36 @@
+# Ingot dispaly 
+## Description
+- Write IC10 script that calculates and represents the amount of ingots in smart store
+- The script shall once in a period (30 sec) calculate all ingots (by type) in the smart store and setup the corresponding ModularDeviceLEDdisplay3 setting.
+- The ModularDeviceLEDdisplay3 for each ingot shall be found by the name "ing-dsp-<ingot>"
+- The script shall define lookup table between ingot hash and the display name
+- The script shall participate in `store-mutex` coordination in the same way as other smart-store scripts when it accesses the store
+- The script shall provide LED indication for its state using the color schema `None -> Blue -> Yellow -> Orange`
+  - `None`: idle, no active update
+  - `Blue`: waiting for or holding `store-mutex`
+  - `Yellow`: scanning the smart store and calculating totals
+  - `Orange`: updating the ingot displays
+- The script shall support the following ingots:
+  - ItemCopperIngot
+  - ItemIronIngot
+  - ItemNickelIngot
+  - ItemSilverIngot
+  - ItemGoldIngot
+  - ItemLeadIngot
+  - ItemSiliconIngot
+  - ItemSteelIngot
+  - ItemInvarIngot
+  - ItemConstantanIngot
+  - ItemElectrumIngot
+  - ItemSolderIngot
+  - ItemAstroloyIngot
+  - ItemInconelIngot
+  - ItemWaspaloyIngot
+  - ItemHastelloyIngot
+  - ItemStelliteIngot
+- The script shall select color for correponding amount
+  - If amount >= 500 use blue
+  - If amount < 500 but >= 100 use green
+  - If amount < 100 >= 20 use yellow
+  - If amount < 20 use red
+- Use scripts terain-mars\manufacture\smart-store\mn-store-sorter-gray.ic10 as an example of access the store and calculate the amount of ingots
