@@ -68,7 +68,7 @@ main:
     s LED On 0
     s LED Color Color.Gray
     sleep REFRESHxTIME
-j ra
+j main
 
 clearTotals:
     move idx 0
@@ -125,7 +125,9 @@ updateDisplaysLoop:
     get nameHash db addr
     lbn dispalyId MDSPxHASH nameHash ReferenceId Minimum 
     s dispalyId Setting total
+    push ra
     jal setDisplayColor
+    pop ra
     add idx idx 1
 j updateDisplaysLoop
 
