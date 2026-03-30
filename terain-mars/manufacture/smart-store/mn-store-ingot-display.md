@@ -4,6 +4,7 @@
 - The script shall once in a period (30 sec) calculate all ingots (by type) in the smart store and setup the corresponding ModularDeviceLEDdisplay3 setting.
 - The ModularDeviceLEDdisplay3 for each ingot shall be found by the name "ing-dsp-<ingot>"
 - The script shall define lookup table between ingot hash and the display name
+- The script shall use `abs(hash) % 100` for each lookup-table address calculation so negative hashes do not produce invalid memory offsets
 - The script shall participate in `store-mutex` coordination in the same way as other smart-store scripts when it accesses the store
 - The script shall provide LED indication for its state using the color schema `None -> Blue -> Yellow -> Orange`
   - `None`: idle, no active update

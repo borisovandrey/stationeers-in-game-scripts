@@ -1,57 +1,74 @@
 #terain-mars\manufacture\smart-store\mn-store-ingot-display.ic10
 define MODULExNAME HASH("st-ingot-display")
-put db 100 HASH("ItemCopperIngot")
-put db 101 HASH("ItemIronIngot")
-put db 102 HASH("ItemNickelIngot")
-put db 103 HASH("ItemSilverIngot")
-put db 104 HASH("ItemGoldIngot")
-put db 105 HASH("ItemLeadIngot")
-put db 106 HASH("ItemSiliconIngot")
-put db 107 HASH("ItemSteelIngot")
-put db 108 HASH("ItemInvarIngot")
-put db 109 HASH("ItemConstantanIngot")
-put db 110 HASH("ItemElectrumIngot")
-put db 111 HASH("ItemSolderIngot")
-put db 112 HASH("ItemAstroloyIngot")
-put db 113 HASH("ItemInconelIngot")
-put db 114 HASH("ItemWaspaloyIngot")
-put db 115 HASH("ItemHastelloyIngot")
-put db 116 HASH("ItemStelliteIngot")
-put db 200 HASH("ing-dsp-copper")
-put db 201 HASH("ing-dsp-iron")
-put db 202 HASH("ing-dsp-nickel")
-put db 203 HASH("ing-dsp-silver")
-put db 204 HASH("ing-dsp-gold")
-put db 205 HASH("ing-dsp-lead")
-put db 206 HASH("ing-dsp-silicon")
-put db 207 HASH("ing-dsp-steel")
-put db 208 HASH("ing-dsp-invar")
-put db 209 HASH("ing-dsp-constantan")
-put db 210 HASH("ing-dsp-electrum")
-put db 211 HASH("ing-dsp-solder")
-put db 212 HASH("ing-dsp-astroloy")
-put db 213 HASH("ing-dsp-inconel")
-put db 214 HASH("ing-dsp-waspaloy")
-put db 215 HASH("ing-dsp-hastelloy")
-put db 216 HASH("ing-dsp-stellite")
 define MDSPxHASH HASH("ModularDeviceLEDdisplay3")
 define REFRESHxTIME 30 #sec
-define INGOTSxCOUNT 17
+define IDXxADDR 50
 define HASHxADDR 100
-define NAMExADDR 200
-define TOTALxADDR 300
+define DSPxADDR 200
 alias Store d0
 alias LED d1
 alias idx r0
-alias slot r1
+alias hash r1
 alias qtty r2
-alias hash r3
-alias occupied r4
-alias total r5
-alias nameHash r6
+alias occupied r3
+alias count r4
+alias dspId r5
+alias addr r6
 alias occupiedSlots r7
-alias addr r8
-alias dispalyId r9
+alias slot r8
+alias total r9
+move count 0
+move hash HASH("ItemCopperIngot")
+move dspId HASH("ing-dsp-copper")
+jal initialize
+move hash HASH("ItemIronIngot")
+move dspId HASH("ing-dsp-iron")
+jal initialize
+move hash HASH("ItemNickelIngot")
+move dspId HASH("ing-dsp-nickel")
+jal initialize
+move hash HASH("ItemSilverIngot")
+move dspId HASH("ing-dsp-silver")
+jal initialize
+move hash HASH("ItemGoldIngot")
+move dspId HASH("ing-dsp-gold")
+jal initialize
+move hash HASH("ItemLeadIngot")
+move dspId HASH("ing-dsp-lead")
+jal initialize
+move hash HASH("ItemSiliconIngot")
+move dspId HASH("ing-dsp-silicon")
+jal initialize
+move hash HASH("ItemSteelIngot")
+move dspId HASH("ing-dsp-steel")
+jal initialize
+move hash HASH("ItemInvarIngot")
+move dspId HASH("ing-dsp-invar")
+jal initialize
+move hash HASH("ItemConstantanIngot")
+move dspId HASH("ing-dsp-constantan")
+jal initialize
+move hash HASH("ItemElectrumIngot")
+move dspId HASH("ing-dsp-electrum")
+jal initialize
+move hash HASH("ItemSolderIngot")
+move dspId HASH("ing-dsp-solder")
+jal initialize
+move hash HASH("ItemAstroloyIngot")
+move dspId HASH("ing-dsp-astroloy")
+jal initialize
+move hash HASH("ItemInconelIngot")
+move dspId HASH("ing-dsp-inconel")
+jal initialize
+move hash HASH("ItemWaspaloyIngot")
+move dspId HASH("ing-dsp-waspaloy")
+jal initialize
+move hash HASH("ItemHastelloyIngot")
+move dspId HASH("ing-dsp-hastelloy")
+jal initialize
+move hash HASH("ItemStelliteIngot")
+move dspId HASH("ing-dsp-stellite")
+jal initialize
 s LED On 0
 s LED Color Color.Gray
 main:
@@ -70,12 +87,27 @@ main:
     sleep REFRESHxTIME
 j main
 
+initialize:
+    abs r15 hash
+    mod r15 r15 100
+    move addr IDXxADDR
+    add addr addr count
+    put db addr r15
+    lbn dspId MDSPxHASH dspId ReferenceId Minimum   
+    move addr DSPxADDR
+    add addr addr r15
+    put db addr dspId 
+    add count count 1
+j ra
+
 clearTotals:
     move idx 0
 clearTotalsLoop:
-    beq idx INGOTSxCOUNT ra
-    move addr TOTALxADDR
+    beq idx count ra
+    move addr IDXxADDR
     add addr addr idx
+    get addr db addr
+    add addr addr HASHxADDR 
     put db addr 0
     add idx idx 1
 j clearTotalsLoop
@@ -91,47 +123,27 @@ collectTotalsLoop:
     add slot slot 1
     beqz occupied collectTotalsLoop
     sub occupiedSlots occupiedSlots 1
-    push ra
-    jal addQuantity
-    pop ra
-j collectTotalsLoop
-
-addQuantity:
-    move idx 0
-addQuantityLoop:
-    beq idx INGOTSxCOUNT ra
-    move addr HASHxADDR
-    add addr addr idx
-    get r15 db addr
-    breq r15 hash 3 #If hash matches - add quantity to total
-    add idx idx 1
-j addQuantityLoop
-    move addr TOTALxADDR
-    add addr addr idx
+    abs addr hash
+    mod addr addr 100
+    add addr addr HASHxADDR
     get total db addr
     add total total qtty
     put db addr total
-j ra
+j collectTotalsLoop
 
 updateDisplays:
     move idx 0
 updateDisplaysLoop:
-    beq idx INGOTSxCOUNT ra
-    move addr TOTALxADDR
+    beq idx count ra
+    move addr IDXxADDR
     add addr addr idx
+    get hash db addr
+    add addr hash HASHxADDR
     get total db addr
-    move addr NAMExADDR
-    add addr addr idx
-    get nameHash db addr
-    lbn dispalyId MDSPxHASH nameHash ReferenceId Minimum 
-    s dispalyId Setting total
-    push ra
-    jal setDisplayColor
-    pop ra
+    add addr hash DSPxADDR 
+    get dspId db addr
+    s dspId Setting total
     add idx idx 1
-j updateDisplaysLoop
-
-setDisplayColor:
     move r15 Color.Red
     blt total 20 setDisplayColorEnd
     move r15 Color.Yellow
@@ -140,8 +152,8 @@ setDisplayColor:
     blt total 500 setDisplayColorEnd
     move r15 Color.Blue
 setDisplayColorEnd:
-    s dispalyId Color r15
-j ra
+    s dspId Color r15
+j updateDisplaysLoop
 
 holdline:
     s LED Color Color.Blue
@@ -151,3 +163,4 @@ holdline:
     sbn HASH("StructureLogicMemory") HASH("store-mutex") Setting MODULExNAME
     sleep 1
 j holdline
+
