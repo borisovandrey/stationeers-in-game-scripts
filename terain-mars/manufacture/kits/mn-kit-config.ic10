@@ -1,4 +1,4 @@
-alias MEM.PIN d0
+alias MEM.PIN   d0
 define AUTO     1
 define ATMO     2
 define ELECTRO  3
@@ -113,7 +113,7 @@ j finish
 
 configurePackageSorter:
     move Sorter $8FF88
-    s Sorter Mode 1 # Any
+    s Sorter Mode 2 # None
     sll r15 HASH("CardboardBox") 8
     or r15 r15 SorterInstruction.FilterPrefabHashEquals
     putd Sorter 0 r15
@@ -151,6 +151,12 @@ configConsole:
     put MEM.PIN idx $4B4A7 #Craft
     add idx idx 1
     put MEM.PIN idx 0
+
+    s $6C01A On 1
+    s $6D542 On 1
+    s $6D543 On 1
+    s $6D544 On 1
+    s $6D545 On 1
 
     move idx DISPLAY.START
     put MEM.PIN idx $6C01A
