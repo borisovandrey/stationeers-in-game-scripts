@@ -123,10 +123,10 @@ inCraftingState:
         s $69A6C Setting Hash 
     select Led.Color r15 Color.Blue Color.Orange #LED
     beq State CRAFTINGxSTATE Return
-        sleep 2 #Free stacker
+        sleep 3 #Free stacker
         s $4B43A Mode 1
         s $4B43A Activate 1
-        sleep 2
+        sleep 3
         s $4B43A Mode 0
 j Return
 doReset:
