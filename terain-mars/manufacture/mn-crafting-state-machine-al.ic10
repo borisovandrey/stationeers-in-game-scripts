@@ -122,6 +122,12 @@ inCraftingState:
         l Hash CRFT.RID RecipeHash #Take currently producing hash
         s $68BD2 Setting Hash 
     select Led.Color r15 Color.Blue Color.Orange #LED
+    beq State CRAFTINGxSTATE Return
+        sleep 2 #Free stacker
+        s $4B137 Mode 1
+        s $4B137 Activate 1
+        sleep 2
+        s $4B137 Mode 0
 j Return
 doReset:
     clrd CRFT.RID
