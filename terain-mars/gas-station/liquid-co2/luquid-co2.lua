@@ -5,8 +5,8 @@ local LBM = ic.enums.LogicBatchMethod
 -- Definitions
 local EPSILON = 0.001
 local FULL_LIQUID_VOLUME = 5700
-local LOW_TEMPERATURE_LIMIT = util.temp(-50, "C", "K")
-local HIGH_TEMPERATURE_LIMIT = util.temp(-25, "C", "K")
+local LOW_TEMPERATURE_LIMIT = -50
+local HIGH_TEMPERATURE_LIMIT = -25
 local EMERGENCY_PRESSURE_THRESHOLD = 0.5
 local NORMAL_PRESSURE = 0.7
 local NORMAL_PRESSURE_DELTA = 0.2
@@ -184,7 +184,10 @@ function Device:collectData()
     local ratioCO2Gas        = ic.read_id(self.Sensors.Liquid, LT.RatioCarbonDioxide) or 0
     local ratioCO2Liq        = ic.read_id(self.Sensors.Liquid, LT.RatioLiquidCarbonDioxide) or 0
     local sum = ratioCO2Gas + ratioCO2Liq
-    self.Contaminated        =  math.abs(sum - 1.0) > EPSILON
+    local hasLiquidContent   = self.LiquidPressure > EPSILON
+                            or self.LiquidVolume > EPSILON
+                            or sum > EPSILON
+    self.Contaminated        = hasLiquidContent and math.abs(sum - 1.0) > EPSILON or false
 end
 
 function Device:isFull()
@@ -240,7 +243,7 @@ function Console.Lights.StateLEDs:init()
 end
 
 function Console.Lights:init()
-    self.StateLEDs.init()
+    self.StateLEDs:init()
     ic.write_id(self.Dirty, LT.Color, Color.Red)
 end
 
@@ -267,7 +270,7 @@ end
 
 function Console:init()
     self.Lights:init()
-    self.SensorDisplays.init()
+    self.SensorDisplays:init()
     ic.write_id(self.ClearSwitch, LT.Color, Color.Red)
 end
 
