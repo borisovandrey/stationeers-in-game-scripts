@@ -1,99 +1,108 @@
-# CO2 condesator
+# CO2 Condenser
 ## Scope
-This is a device and program description for CO2 condencer device in Stationeers game.
-The document describe the device, and the LUA script controlling it work
+This document describes the device and control logic for the CO2 Condenser system in Stationeers. It covers the physical setup, the operating principles, and the logic implemented in the Lua script.
+
 ## Principle
-The CO2 condemnced device is ientended for fast collecting of large volumes of liquid cold CO2 gas.
-It works on Mars setup.
-Under working tempereature [-25°C..-50°C] it pressurise atmoshere with help of large vent into insolated gas tank. For certain pressure and temprature (see CO2 description in the game help) the CO2 take phase shift to liquid sustain. This liquid is absorbed by passive licker vent into liquid tank.
-The pressure limits defined form the perspective that less than -55°C CO2 has solid state that corrup tubes.
-The temepreature high than -25°C the condesation point of CO2 is bigger than condesation point of Polutant and liquid is contaminated with liquid polutatnt.
-See CO2 and Pol tables in the code.
-## Device description
-Device consist:
-- Modular Console containing switches, indicators and siaplays
-  - Power On/Of switch
-  - Up switch - run or stop
-  - Clear switch - force to clear full system
-- Lua controller chip
-- Device
-  - External temperature sensor
-  - Insolated gas tank
-  - High pressure vent connecting to gas tank
-  - Gas sensor connected to gas tank
-  - Passive licker to remove liquid from gas tank to the liquid tank
-  - Liquid tank
-  - Liquid sensor connected to liquid tank
-  - Absorption pomp connected to liquid tank for clearing
-  - Absorption gas pupm conncted to liquid tank for clearing
-  - Active output drain after absoption pump for clearing
-## Device state mchine
+The CO2 Condenser is designed for the rapid collection of large volumes of liquid CO2. It is optimized for the Martian environment.
+
+Under ideal working temperatures (-25°C to -50°C), the system uses a high-pressure vent to pressurize the atmosphere into an insulated gas tank. When the specific pressure and temperature thresholds are met (refer to the CO2 phase diagram in the Stationeers help), the CO2 undergoes a phase shift into a liquid state. This liquid is then removed from the gas tank and transferred to a liquid storage tank via a passive liquid inlet (often called a "licker").
+
+### Safety and Purity Limits
+- **Pressure Limits:** If temperatures drop below -55°C, CO2 can transition into a solid state (dry ice), which will damage or destroy piping and tanks.
+- **Temperature Limits:** Above -25°C, the condensation point of CO2 becomes higher than that of pollutants. This leads to the liquid CO2 being contaminated with liquid pollutants.
+- Refer to the CO2 and Pollutant (Pol) tables in the control script for precise phase-change data.
+
+## Device Description
+The system consists of the following components:
+
+### Control Console
+A modular console containing:
+- **Power Switch:** Master power for the entire system.
+- **Operation Switch (Up):** Starts or stops the condensation process.
+- **Clear Switch:** Manually forces a system purge to empty all tanks.
+- **Indicators:** LED lights showing system status (Idle, Prepare, Operational, Full, Clearing, and Dirty/Contaminated).
+- **Displays:** Six LED displays showing external temperature, gas tank temperature/pressure, and liquid tank temperature/pressure/volume.
+
+### Hardware
+- **Lua Controller:** Runs the `luquid-co2.lua` script.
+- **Sensors:**
+  - External Gas Sensor (External temperature monitoring).
+  - Pipe/Tank Gas Sensor (Internal gas tank monitoring).
+  - Pipe/Tank Liquid Sensor (Internal liquid tank monitoring).
+- **Actuators:**
+  - High-Pressure Vent (Main intake).
+  - Liquid Absorption Pump & Drain (Liquid tank clearing).
+  - Gas Absorption Pump (Gas removal from liquid tank).
+  - Passive Liquid Inlet (Licker vent between gas and liquid tanks).
+
+## Device State Machine
 
 ```plantuml
 @startuml
 [*] --> PowerOff
-note right of PowerOff : Off is absolute
 
 legend top left
-  Signal priorities:
-  - Off
-  - Dirty
-  - Full
-  - Up
+  Signal Priorities:
+  1. Power Off (Absolute)
+  2. Dirty/Contaminated (Forces Clearing)
+  3. Full (Stop Intake)
+  4. Operation Switch (Up/Down)
 endlegend
 
-PowerOff -> Idle : On
-Idle -[#Blue]-> Prepare : [Up]
-Idle -[#Red]-> Clearing: [Dirty]
-Idle -[#Orange]-> Full : [Full]
+PowerOff -> Idle : Power On
+Idle -[#Blue]-> Prepare : [Operation Switch On]
+Idle -[#Red]-> Clearing : [Contaminated OR Clear Switch On]
+Idle -[#Orange]-> Full : [Liquid Tank Full]
 
-Prepare -> Idle : [!Up]
+Operational -[#Blue]-> Prepare : [Stop Signal]
 
-Prepare -[#Green]-> Operational : [Cond] 
-Prepare -[#Orange]-> Full : [Full]
+note right of Operational
+  **Stop Signal** includes:
+  * Operation Switch Off
+  * Temperature out of range
+  * Liquid Tank Full
+  * Gas Pressure too high (Need Clear)
+end note
 
-Operational -[#Blue]-> Prepare : [!Cond || !Up || Full]
+note right of Clearing : Triggered by Contamination or Manual Switch
+Prepare -[#Red]-> Clearing : [Contaminated OR Clear Switch On]
+Operational -[#Red]-> Clearing : [Contaminated OR Clear Switch On]
+Full -[#Red]-> Clearing : [Contaminated OR Clear Switch On]
 
-note right of Clearing : [Dirty] means also switch on and is absolute
-Prepare -[#Red]-> Clearing: [Dirty]
-Operational -[#Red]-> Clearing: [Dirty]
-Full -[#Red]-> Clearing: [Dirty]
+Full --> Idle : [Not Full]
+Clearing --> Idle : [System Empty]
 
-Full --> Idle : [!Full]
-Clearing --> Idle : [!Dirty]
-
-note right of Prepare : Can leave only when Ready
 state Prepare {
-    [*] -> Prepare_Ready
+    [*] -> CheckGas
     state "Ready" as Prepare_Ready
-    ClearGas -> Prepare_Ready : [GasEmpty]
-    Prepare_Ready -> ClearGas : [!GasEmpty]
-    Prepare_Ready --> [*] : [GasEmpty]
-    ClearGas : entry / reverse
-    ClearGas : exit / restore
+    CheckGas -> Prepare_Ready : [Gas Tank Empty]
+    Prepare_Ready -> CheckGas : [Gas Tank Not Empty]
+
+    Prepare_Ready -> [*] : [Ready to Exit]
+
+    CheckGas : entry / Reverse Vent (Purge)
+    CheckGas : exit / Stop Vent
 }
 
+Prepare -[#Green]-> Operational : [Temperature/Pressure Ready] 
+Prepare -[#Orange]-> Full : [Liquid Tank Full]
+Prepare -> Idle : [Operation Switch Off]
+
 state Operational {
+
   [*] -> Run
-  Run -> Pause : [high pressure] / stop vent
-  Pause -> Run : [normal pressure] / start vent
-  Run --> [*] : [!Up || Full || !Dirty]
-  Pause --> [*] : [!Up || Full || !Dirty]
+  Run -> Pause : [High Internal Pressure] / Stop Vent
+  Pause -> Run : [Low Internal Pressure] / Start Vent
+  Run --> [*] : [Stop Signal]
+  Pause --> [*] : [Stop Signal]
 } 
 
-Full : entry / stop went
-Clearing : entry / reverse vent, start all
-Clearing : exit / restore vent, stop all
-Operational : entry / start vent
-Operational : exit / stop vent
-PowerOff : entry / disable all
-PowerOff : exit / enable sensors only
-
-
-Idle -[#Gray]-> PowerOff : Off
-Prepare -[#Gray]-> PowerOff : Off
-Operational -[#Gray]-> PowerOff : Off
-Clearing -[#Gray]-> PowerOff : Off
-Full -[#Gray]-> PowerOff : Off
+Full : entry / Stop Vent
+Clearing : entry / Reverse Vent, Start Absorption Pumps
+Clearing : exit / Stop All Clearing Actuators
+Operational : entry / Start Vent
+Operational : exit / Stop Vent
+PowerOff : entry / Disable All Actuators & Sensors
+PowerOff : exit / Enable Sensors
 @enduml
 ```

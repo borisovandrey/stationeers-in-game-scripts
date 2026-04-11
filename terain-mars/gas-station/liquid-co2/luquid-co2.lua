@@ -28,7 +28,7 @@ local Color = {
     Purple = 11,
 }
 
-local DispalyMode = {
+local DisplayMode = {
     Default = 0,
     Power = 2,
     Persent = 1,
@@ -40,10 +40,10 @@ local DispalyMode = {
 }
 
 local State = {
-    PowerOff    = 1, -- Power swithc is off on console
-    Idle        = 2, -- Power switch is on but operation swithc is off
-    Prepare     = 3, -- Operation swithc is on, but there is a bad condition
-    Operational = 4, -- Performing conndensation
+    PowerOff    = 1, -- Power switch is off on console
+    Idle        = 2, -- Power switch is on but operation switch is off
+    Prepare     = 3, -- Operation switch is on, but there is a bad condition
+    Operational = 4, -- Performing condensation
     Full        = 5, -- Liquid tank is full
     Clearing    = 6, -- Clear tanks
 }
@@ -202,7 +202,7 @@ local Console = {
         StateLEDs = {
              [State.PowerOff]    = nil,
              [State.Idle]        = ic.find("co2-cond-light-idle"), -- Idle light 
-             [State.Prepare]     = ic.find("co2-cond-light-preapre"), -- Prepare light
+             [State.Prepare]     = ic.find("co2-cond-light-prepare"), -- Prepare light
              [State.Operational] = ic.find("co2-cond-light-op"),   -- Operational
              [State.Full]        = ic.find("co2-cond-light-full"), -- Tank is full
              [State.Clearing]    = ic.find("co2-cond-light-clr"),  -- Clear
@@ -246,22 +246,22 @@ end
 
 function Console.SensorDisplays:init()
     ic.write_id(self.EternalTemperature, LT.On, 1)
-    ic.write_id(self.EternalTemperature, LT.Mode, DispalyMode.Celsius)
+    ic.write_id(self.EternalTemperature, LT.Mode, DisplayMode.Celsius)
     ic.write_id(self.EternalTemperature, LT.Color, Color.White)
     ic.write_id(self.GasTemperature, LT.On, 1)
-    ic.write_id(self.GasTemperature, LT.Mode, DispalyMode.Celsius)
+    ic.write_id(self.GasTemperature, LT.Mode, DisplayMode.Celsius)
     ic.write_id(self.GasTemperature, LT.Color, Color.Yellow)
     ic.write_id(self.GasPressure, LT.On, 1)
-    ic.write_id(self.GasPressure, LT.Mode, DispalyMode.Pa)
+    ic.write_id(self.GasPressure, LT.Mode, DisplayMode.Pa)
     ic.write_id(self.GasPressure, LT.Color, Color.Orange)
     ic.write_id(self.LiqTemperature, LT.On, 1)
-    ic.write_id(self.LiqTemperature, LT.Mode, DispalyMode.Celsius)
+    ic.write_id(self.LiqTemperature, LT.Mode, DisplayMode.Celsius)
     ic.write_id(self.LiqTemperature, LT.Color, Color.Blue)
     ic.write_id(self.LiqPressure, LT.On, 1)
-    ic.write_id(self.LiqPressure, LT.Mode, DispalyMode.Pa)
+    ic.write_id(self.LiqPressure, LT.Mode, DisplayMode.Pa)
     ic.write_id(self.LiqPressure, LT.Color, Color.Blue)
     ic.write_id(self.LiqVolume, LT.On, 1)
-    ic.write_id(self.LiqVolume, LT.Mode, DispalyMode.Litres)
+    ic.write_id(self.LiqVolume, LT.Mode, DisplayMode.Litres)
     ic.write_id(self.LiqVolume, LT.Color, Color.Blue)
 end
 
@@ -318,7 +318,7 @@ function Console:update(newState)
         self:changeState(newState)
     end
     if self.ConsoleState ~= State.PowerOff then
-        self:setDisplaysData()
+        self:updateDisplays()
     end
 end
 
@@ -333,12 +333,12 @@ local Controller = {
     ControllerState = State.PowerOff,
 
     StateMachine = {
-        [State.PowerOff] =    { enter = {}, exit = {}, next = {} },
-        [State.Idle] =        { enter = {}, exit = {}, next = {} },
-        [State.Prepare] =     { enter = {}, exit = {}, next = {}, substate = ControllerSubstates.PrepareSubstate.ClearGas },
-        [State.Operational] = { enter = {}, exit = {}, next = {}, substate = ControllerSubstates.OperationalSubstate.Run },
-        [State.Full] =        { enter = {}, exit = {}, next = {} },
-        [State.Clearing] =    { enter = {}, exit = {}, next = {} },
+        [State.PowerOff] =    { enter = nil, exit = nil, next = nil },
+        [State.Idle] =        { enter = nil, exit = nil, next = nil },
+        [State.Prepare] =     { enter = nil, exit = nil, next = nil, substate = ControllerSubstates.PrepareSubstate.ClearGas },
+        [State.Operational] = { enter = nil, exit = nil, next = nil, substate = ControllerSubstates.OperationalSubstate.Run },
+        [State.Full] =        { enter = nil, exit = nil, next = nil },
+        [State.Clearing] =    { enter = nil, exit = nil, next = nil },
     },
     init = {},
     defineNewState = {},
@@ -370,17 +370,17 @@ function Controller:definePressureConditions()
     if Device.GasPressure < EPSILON then return self.Conditions.NormalPressure end
 
     local co2PressureLimit = interp(CO2, Device.GasTemperature)
-    local polPressureLimit = interp(CO2, Device.GasTemperature)
+    local polPressureLimit = interp(Pol, Device.GasTemperature)
     
     if co2PressureLimit >= polPressureLimit then return self.Conditions.NeedClear end
     
     local diff = polPressureLimit -  co2PressureLimit
-    local normapPressure = NORMAL_PRESSURE * diff + co2PressureLimit;
-    local emergenyPressureThresshold = polPressureLimit - (polPressureLimit * EMERGENCY_PRESSURE_THRESHOLD)
-    local highPressure = normapPressure + NORMAL_PRESSURE_DELTA * diff;
-    local lowPressure = normapPressure + NORMAL_PRESSURE_DELTA * diff;
+    local normalPressure = NORMAL_PRESSURE * diff + co2PressureLimit;
+    local emergencyPressureThreshold = polPressureLimit - (polPressureLimit * EMERGENCY_PRESSURE_THRESHOLD)
+    local highPressure = normalPressure + NORMAL_PRESSURE_DELTA * diff;
+    local lowPressure = normalPressure - NORMAL_PRESSURE_DELTA * diff;
 
-    if Device.GasPressure >= emergenyPressureThresshold then return self.Conditions.NeedClear end
+    if Device.GasPressure >= emergencyPressureThreshold then return self.Conditions.NeedClear end
     if Device.GasPressure >= highPressure then return self.Conditions.HighPressure end
     if Device.GasPressure <= lowPressure then return self.Conditions.LowPressure end
 
@@ -399,28 +399,28 @@ local function commonNext()
 end
 
 -- State PowerOff
-Controller.Statemachine[State.PowerOff].enter = function(self)
+Controller.StateMachine[State.PowerOff].enter = function(self)
     Device:powerOff()
     Console:setPower(false)
 end
-Controller.Statemachine[State.PowerOff].exit = function(self)
+Controller.StateMachine[State.PowerOff].exit = function(self)
     Device:powerOn()
     Console:setPower(true)
 end
-Controller.Statemachine[State.PowerOff].next = function(self)
+Controller.StateMachine[State.PowerOff].next = function(self)
     if Console:isPowerOn() then
         return State.Idle
     end
     return State.PowerOff
 end
 -- State Idle
-Controller.Statemachine[State.Idle].enter = function(self)
+Controller.StateMachine[State.Idle].enter = function(self)
     Device:stopVent()
 end
-Controller.Statemachine[State.Idle].exit = function(self)
+Controller.StateMachine[State.Idle].exit = function(self)
     -- Nothing
 end
-Controller.Statemachine[State.Idle].next = function(self)
+Controller.StateMachine[State.Idle].next = function(self)
     local next = commonNext()
     if next then return next end
     if Device:isFull() then return State.Full end
@@ -428,24 +428,24 @@ Controller.Statemachine[State.Idle].next = function(self)
     return State.Idle
 end
 -- State Prepare
-Controller.Statemachine[State.Prepare].enter = function(self)
+Controller.StateMachine[State.Prepare].enter = function(self)
     if Device.GasPressure > EPSILON then
-        Controller.Statemachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.ClearGas
+        self.StateMachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.ClearGas
         Device:runVentReverse()
     else
-        Controller.Statemachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.Ready
+        self.StateMachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.Ready
         Device:stopVent()
     end
 end
-Controller.Statemachine[State.Prepare].exit = function(self)
+Controller.StateMachine[State.Prepare].exit = function(self)
     Device:stopVent()
 end
-Controller.Statemachine[State.Prepare].next = function(self)
+Controller.StateMachine[State.Prepare].next = function(self)
     local next = commonNext()
     if next then return next end
-    if Controller.Statemachine[State.Prepare].substate == ControllerSubstates.PrepareSubstate.Ready then
+    if self.StateMachine[State.Prepare].substate == ControllerSubstates.PrepareSubstate.Ready then
         if Device.GasPressure > EPSILON then
-            Controller.Statemachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.ClearGas
+            self.StateMachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.ClearGas
             Device:runVentReverse()
             return State.Prepare
         end
@@ -456,21 +456,21 @@ Controller.Statemachine[State.Prepare].next = function(self)
         and Controller:isTemperatureInRange() then return State.Operational end
     else
         if Device.GasPressure <= EPSILON then
-            Controller.Statemachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.Ready
+            self.StateMachine[State.Prepare].substate = ControllerSubstates.PrepareSubstate.Ready
             Device:stopVent()
         end
     end
     return State.Prepare
 end
 -- State Operational
-Controller.Statemachine[State.Operational].enter = function(self)
-    self.substate = ControllerSubstates.OperationalSubstate.Run
+Controller.StateMachine[State.Operational].enter = function(self)
+    self.StateMachine[State.Operational].substate = ControllerSubstates.OperationalSubstate.Run
     Device:runVent()
 end
-Controller.Statemachine[State.Operational].exit = function(self)
+Controller.StateMachine[State.Operational].exit = function(self)
     Device:stopVent()
 end
-Controller.Statemachine[State.Operational].next = function(self)
+Controller.StateMachine[State.Operational].next = function(self)
     local next = commonNext()
     if next then return next end
     if Device:isFull() then return State.Prepare end
@@ -478,44 +478,44 @@ Controller.Statemachine[State.Operational].next = function(self)
     if not Controller:isTemperatureInRange() then return State.Prepare end
     local conditions = Controller:definePressureConditions()
     if conditions == Controller.Conditions.NeedClear then return State.Prepare end
-    if self.substate == ControllerSubstates.OperationalSubstate.Run then
+    if self.StateMachine[State.Operational].substate == ControllerSubstates.OperationalSubstate.Run then
         if conditions == Controller.Conditions.HighPressure then 
-            self.substate = ControllerSubstates.OperationalSubstate.Pause
+            self.StateMachine[State.Operational].substate = ControllerSubstates.OperationalSubstate.Pause
             Device:stopVent()
         end
-        -- In case we have a pressure but there are no condesation: need to clear gas
+        -- In case we have a pressure but there are no condensation: need to clear gas
         if conditions == Controller.Conditions.NormalPressure 
         and Device.GasTubeLiquidVolume < EPSILON then return State.Clearing end
     end
-    if self.substate == ControllerSubstates.OperationalSubstate.Pause then
+    if self.StateMachine[State.Operational].substate == ControllerSubstates.OperationalSubstate.Pause then
         if conditions == Controller.Conditions.LowPressure then
-            self.substate = ControllerSubstates.OperationalSubstate.Run
+            self.StateMachine[State.Operational].substate = ControllerSubstates.OperationalSubstate.Run
             Device:runVent()
         end
     end
     return State.Operational
 end
 -- State Full
-Controller.Statemachine[State.Full].enter = function(self)
+Controller.StateMachine[State.Full].enter = function(self)
 end
-Controller.Statemachine[State.Full].exit = function(self)
+Controller.StateMachine[State.Full].exit = function(self)
 end
-Controller.Statemachine[State.Full].next = function(self)
+Controller.StateMachine[State.Full].next = function(self)
     local next = commonNext()
     if next then return next end
     if Device:isFull() then return State.Full end
     return State.Idle
 end
 -- State Clearing
-Controller.Statemachine[State.Clearing].enter = function(self)
+Controller.StateMachine[State.Clearing].enter = function(self)
     Console:setClearing(true)
     Device:startCleraing()
 end
-Controller.Statemachine[State.Clearing].exit = function(self)
+Controller.StateMachine[State.Clearing].exit = function(self)
     Console:setClearing(false)
     Device:stopCleraing()
 end
-Controller.Statemachine[State.Clearing].next = function(self)
+Controller.StateMachine[State.Clearing].next = function(self)
     if Device.GasPressure < EPSILON
     and Device.GasTubeLiquidVolume < EPSILON
     and Device.LiquidPressure < EPSILON
@@ -541,7 +541,7 @@ function Controller:run()
     local newState = Controller:defineNewState()
     if self.ControllerState ~= newState then
         local old = Controller.StateMachine[self.ControllerState]
-        local new = Controller.StateMachine[self.newState]
+        local new = Controller.StateMachine[newState]
         old.exit(self)
         new.enter(self)
         self.ControllerState = newState
