@@ -473,7 +473,7 @@ end
 Controller.StateMachine[State.Operational].next = function(self)
     local next = commonNext()
     if next then return next end
-    if Device:isFull() then return State.Prepare end
+    if Device:isFull() then return State.Prepare end -- We need to clear gas tank, then it will get to full state
     if not Console:isUp() then return State.Prepare end
     if not Controller:isTemperatureInRange() then return State.Prepare end
     local conditions = Controller:definePressureConditions()
@@ -542,8 +542,8 @@ function Controller:run()
     if self.ControllerState ~= newState then
         local old = Controller.StateMachine[self.ControllerState]
         local new = Controller.StateMachine[newState]
-        old.exit(self)
-        new.enter(self)
+        if old and old.exit then old.exit(self) end
+        if new and new.enter then new.enter(self) end
         self.ControllerState = newState
     end
     if self.ControllerState ~= State.PowerOff then 
