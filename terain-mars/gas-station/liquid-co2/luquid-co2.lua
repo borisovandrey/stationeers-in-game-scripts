@@ -397,10 +397,9 @@ function Controller:definePressureConditions()
     
     local diff = polPressureLimit -  co2PressureLimit
     local normalPressure = NORMAL_PRESSURE * diff + co2PressureLimit;
-    local emergencyPressureThreshold = polPressureLimit - (polPressureLimit * EMERGENCY_PRESSURE_THRESHOLD)
+    local emergencyPressureThreshold = polPressureLimit - (diff * EMERGENCY_PRESSURE_THRESHOLD)
     local highPressure = normalPressure + NORMAL_PRESSURE_DELTA * diff;
     local lowPressure = normalPressure - NORMAL_PRESSURE_DELTA * diff;
-
     if Device.GasPressure >= emergencyPressureThreshold then return self.Conditions.CriticalPressure end
     if Device.GasPressure >= highPressure then return self.Conditions.HighPressure end
     if Device.GasPressure <= lowPressure then return self.Conditions.LowPressure end
