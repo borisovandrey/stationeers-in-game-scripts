@@ -5,13 +5,14 @@ local LBM = ic.enums.LogicBatchMethod
 -- Definitions
 local EPSILON = 0.001
 local FULL_LIQUID_VOLUME = 5700
-local LOW_TEMPERATURE_LIMIT = -50
+local LOW_TEMPERATURE_LIMIT = -52
 local HIGH_TEMPERATURE_LIMIT = -25
-local EMERGENCY_PRESSURE_THRESHOLD = 0.5
-local NORMAL_PRESSURE = 0.7
-local NORMAL_PRESSURE_DELTA = 0.2
-local VENT_DIRECT_MODE = 0
-local VENT_REVERSE_MODE = 1
+local EMERGENCY_PRESSURE_THRESHOLD = 0.1
+local NORMAL_PRESSURE = 0.5
+local NORMAL_PRESSURE_DELTA = 0.3
+local VENT_DIRECT_MODE = 1
+local VENT_REVERSE_MODE = 0
+local CO2_RATIO_THREASHOLD = 0.3
 
 local Color = {
     Blue   = 0,
@@ -98,6 +99,7 @@ local Device = {
     GasTemperature      = 0,
     GasPressure         = 0,
     GasTubeLiquidVolume = 0,
+    CO2Ratio            = 0,
     LiquidTemperature   = 0,
     LiquidPressure      = 0,
     LiquidVolume        = 0,
@@ -130,13 +132,11 @@ function Device:init()
 end
 
 function Device:powerOn()
-    ic.write_id(self.Sensors.External, LT.On, 1)
     ic.write_id(self.Sensors.Gas, LT.On, 1)
     ic.write_id(self.Sensors.Liquid, LT.On, 1)
 end
 
 function Device:powerOff()
-    ic.write_id(self.Sensors.External, LT.On, 0)
     ic.write_id(self.Sensors.Gas, LT.On, 0)
     ic.write_id(self.Sensors.Liquid, LT.On, 0)
     ic.write_id(self.Actuators.MainVent, LT.On, 0)
@@ -178,6 +178,9 @@ function Device:collectData()
     self.GasTemperature      = util.temp(ic.read_id(self.Sensors.Gas, LT.Temperature) or 0, "K", "C")
     self.GasPressure         = ic.read_id(self.Sensors.Gas, LT.Pressure) or 0
     self.GasTubeLiquidVolume = ic.read_id(self.Sensors.Gas, LT.VolumeOfLiquid) or 0
+    local ratioCO2Gas        = ic.read_id(self.Sensors.Gas, LT.RatioCarbonDioxide) or 0
+    local ratioCO2Liq        = ic.read_id(self.Sensors.Gas, LT.RatioLiquidCarbonDioxide) or 0
+    self.CO2Ratio = ratioCO2Gas + ratioCO2Liq
     self.LiquidTemperature   = util.temp(ic.read_id(self.Sensors.Liquid, LT.Temperature) or 0, "K", "C")
     self.LiquidPressure      = ic.read_id(self.Sensors.Liquid, LT.Pressure) or 0
     self.LiquidVolume        = ic.read_id(self.Sensors.Liquid, LT.VolumeOfLiquid) or 0
@@ -211,6 +214,13 @@ local Console = {
              [State.Clearing]    = ic.find("co2-cond-light-clr"),  -- Clear
              init = {}
         },
+        Colors = {
+             [State.Idle]        = Color.Green,
+             [State.Prepare]     = Color.Blue,
+             [State.Operational] = Color.Orange,
+             [State.Full]        = Color.Blue,
+             [State.Clearing]    = Color.Yellow,
+        },
         Dirty= ic.find("co2-cond-light-dirty"), -- Dirty
         init = {}
    },
@@ -235,16 +245,16 @@ local Console = {
 }
 
 function Console.Lights.StateLEDs:init()
-    ic.write_id(self[State.Idle], LT.Color, Color.Green)
-    ic.write_id(self[State.Prepare], LT.Color, Color.Blue)
-    ic.write_id(self[State.Full], LT.Color, Color.Blue)
-    ic.write_id(self[State.Operational], LT.Color, Color.Orange)
-    ic.write_id(self[State.Clearing],   LT.Color, Color.Yellow)
+    ic.write_id(self[State.Idle], LT.Color, Color.Gray)
+    ic.write_id(self[State.Prepare], LT.Color, Color.Gray)
+    ic.write_id(self[State.Full], LT.Color, Color.Gray)
+    ic.write_id(self[State.Operational], LT.Color, Color.Gray)
+    ic.write_id(self[State.Clearing],   LT.Color, Color.Gray)
 end
 
 function Console.Lights:init()
     self.StateLEDs:init()
-    ic.write_id(self.Dirty, LT.Color, Color.Red)
+    ic.write_id(self.Dirty, LT.Color, Color.Gray)
 end
 
 function Console.SensorDisplays:init()
@@ -301,16 +311,24 @@ function Console:updateDisplays()
     ic.write_id(self.SensorDisplays.LiqTemperature, LT.Setting, Device.LiquidTemperature)
     ic.write_id(self.SensorDisplays.LiqPressure, LT.Setting, Device.LiquidPressure)
     ic.write_id(self.SensorDisplays.LiqVolume, LT.Setting, Device.LiquidVolume)
-    ic.write_id(self.Lights.Dirty, LT.On, Device.Contaminated and 1 or 0)
+    if Device.Contaminated then
+        ic.write_id(self.Lights.Dirty, LT.Color, Color.Red)
+        ic.write_id(self.Lights.Dirty, LT.On, 1)
+    else
+        ic.write_id(self.Lights.Dirty, LT.Color, Color.Gray)
+        ic.write_id(self.Lights.Dirty, LT.On, 0)
+    end
 end
 
 function Console:changeState(newState)
     local oldLed = self.Lights.StateLEDs[self.ConsoleState]
     local newLed = self.Lights.StateLEDs[newState]
     if oldLed then
+        ic.write_id(oldLed, LT.Color, Color.Gray)
         ic.write_id(oldLed, LT.On, 0)
     end
     if newLed then
+        ic.write_id(newLed, LT.Color, self.Lights.Colors[newState])
         ic.write_id(newLed, LT.On, 1)
     end
     self.ConsoleState = newState
@@ -346,7 +364,7 @@ local Controller = {
     init = {},
     defineNewState = {},
     Conditions = {
-        NeedClear = 1,      -- Wrong temperature or pressure bigger than Polutant condensation
+        CriticalPressure = 1,      -- Wrong temperature or pressure bigger than Polutant condensation
         HighPressure = 2,   -- Pressure is higher than Median + 20%
         NormalPressure = 3, -- Pressure is -20%..20% range of Median (70% from HighPressure)
         LowPressure = 4     -- Pressure is low than Median - 20%
@@ -370,12 +388,12 @@ function Controller:isTemperatureInRange()
     return true
 end
 function Controller:definePressureConditions()
-    if Device.GasPressure < EPSILON then return self.Conditions.NormalPressure end
+    if Device.GasPressure < EPSILON then return self.Conditions.LowPressure end
 
     local co2PressureLimit = interp(CO2, Device.GasTemperature)
     local polPressureLimit = interp(Pol, Device.GasTemperature)
     
-    if co2PressureLimit >= polPressureLimit then return self.Conditions.NeedClear end
+    if co2PressureLimit >= polPressureLimit then return self.Conditions.CriticalPressure end
     
     local diff = polPressureLimit -  co2PressureLimit
     local normalPressure = NORMAL_PRESSURE * diff + co2PressureLimit;
@@ -383,7 +401,7 @@ function Controller:definePressureConditions()
     local highPressure = normalPressure + NORMAL_PRESSURE_DELTA * diff;
     local lowPressure = normalPressure - NORMAL_PRESSURE_DELTA * diff;
 
-    if Device.GasPressure >= emergencyPressureThreshold then return self.Conditions.NeedClear end
+    if Device.GasPressure >= emergencyPressureThreshold then return self.Conditions.CriticalPressure end
     if Device.GasPressure >= highPressure then return self.Conditions.HighPressure end
     if Device.GasPressure <= lowPressure then return self.Conditions.LowPressure end
 
@@ -455,7 +473,7 @@ Controller.StateMachine[State.Prepare].next = function(self)
         if Device:isFull() then return State.Full end
         if not Console:isUp() then return State.Idle end
         local conditions = Controller:definePressureConditions()
-        if conditions ~= Controller.Conditions.NeedClear 
+        if conditions ~= Controller.Conditions.CriticalPressure 
         and Controller:isTemperatureInRange() then return State.Operational end
     else
         if Device.GasPressure <= EPSILON then
@@ -480,7 +498,7 @@ Controller.StateMachine[State.Operational].next = function(self)
     if not Console:isUp() then return State.Prepare end
     if not Controller:isTemperatureInRange() then return State.Prepare end
     local conditions = Controller:definePressureConditions()
-    if conditions == Controller.Conditions.NeedClear then return State.Prepare end
+    if conditions == Controller.Conditions.CriticalPressure then return State.Prepare end
     if self.StateMachine[State.Operational].substate == ControllerSubstates.OperationalSubstate.Run then
         if conditions == Controller.Conditions.HighPressure then 
             self.StateMachine[State.Operational].substate = ControllerSubstates.OperationalSubstate.Pause
@@ -488,7 +506,7 @@ Controller.StateMachine[State.Operational].next = function(self)
         end
         -- In case we have a pressure but there are no condensation: need to clear gas
         if conditions == Controller.Conditions.NormalPressure 
-        and Device.GasTubeLiquidVolume < EPSILON then return State.Clearing end
+        and Device.CO2Ratio < CO2_RATIO_THREASHOLD then return State.Prepare end  
     end
     if self.StateMachine[State.Operational].substate == ControllerSubstates.OperationalSubstate.Pause then
         if conditions == Controller.Conditions.LowPressure then
