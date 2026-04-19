@@ -1,0 +1,157 @@
+alias POWER.RID r0
+alias POWER.STATE r1
+alias CO2.SNS.RID r2
+alias CO2.PRESSURE r3
+alias CO2.TEMPERATURE r4
+alias LIQ.SNS.RID r5
+alias LIQ.PRESSURE r6
+alias LIQ.TEMPERATURE r7
+alias LIQ.VOLUME r8
+alias CO2.TEMP.TARGET r9
+alias CO2.TARGET.STATE r10
+alias LIQ.AUTOFILL.STATE r11
+
+define CELCIUS.ZERRO 273.15
+define LIQ.LIMIT 50000
+define LIQ.TARGET 47000
+define LIQ.PRESSURE.LIMIT 6080
+define PRESSURE.LIMIT 60795
+define CO2.PRESSURE.DSP $A139A
+define CO2.TEMPERATURE.DSP $A1399
+define CO2.PRESSURE.GAUGE $A139E
+define CO2.TEMPERATURE.GAUGE $A139D
+define LIQ.VOLUME.DSP $A1387
+define LIQ.TEMPERATURE.DSP $A1388
+define LIQ.PRESSURE.DSP $A56FC
+define LIQ.VOLUME.GAUGE $A137C
+define LIQ.TEMPERATURE.GAUGE $A137F
+define LIQ.PRESSURE.GAUGE $A56FE
+
+define CO2.TARGET.DSP $A5774
+define CO2.TARGET.SELECTOR $A5603
+define CO2.TARGET.LED $A5606
+define CO2.TARGET.HEATER $A5090 
+
+define LIQ.AUTOFILL.SW $A5600
+define LIQ.AUTOFILL.PUMP $9CB74
+
+lbn POWER.RID HASH("ModularDeviceFlipCoverSwitch") HASH("liqco2-console-sw") ReferenceId Minimum 
+lbn CO2.SNS.RID HASH("StructurePipeAnalysizer") HASH("co2-sns") ReferenceId Minimum 
+lbn LIQ.SNS.RID HASH("StructureLiquidPipeAnalyzer") HASH("liqco2-tank-sns") ReferenceId Minimum 
+
+s $A139A Color Color.Yellow #CO2.PRESSURE.DSP
+s $A139A Mode DisplayMode.Pa #CO2.PRESSURE.DSP
+s $A1399 Color Color.Yellow #CO2.TEMPERATURE.DSP
+s $A1399 Mode DisplayMode.Celsius #CO2.TEMPERATURE.DSP
+
+s $A1387 Color Color.Blue #LIQ.VOLUME.DSP
+s $A1387 Mode DisplayMode.Litres  #LIQ.VOLUME.DSP
+s $A1388 Color Color.Blue #LIQ.TEMPERATURE.DSP
+s $A1388 Mode DisplayMode.Celsius #LIQ.TEMPERATURE.DSP
+s $A56FC Color Color.Blue #LIQ.PRESSURE.DSP
+s $A56FC Mode DisplayMode.Pa #LIQ.PRESSURE.DSP
+
+s $A139E Color Color.Yellow #PRESSURE.GAUGE
+s $A139D Color Color.Yellow #CO2.TEMPERATURE.GAUGE
+s $A137C Color Color.Blue #LIQ.VOLUME.GAUGE
+s $A137F Color Color.Blue #LIQ.TEMPERATURE.GAUGE
+s $A56FE Color Color.Blue #LIQ.PRESSURE.GAUGE
+
+s $A5774 Color Color.Gray #CO2.TARGET.DSP
+s $A5774 Mode DisplayMode.Celsius #CO2.TARGET.DSP
+
+s $A5606 Color Color.Gray #CO2.TARGET.LED
+s $A5606 On 0 #CO2.TARGET.LED
+
+s $A5090 On 0 #CO2.TARGET.HEATER
+
+s $A5600 On 0 #LIQ.AUTOFILL.SW
+s $A5600 Color Color.Red #LIQ.AUTOFILL.SW
+s $9CB74 On 0 #LIQ.AUTOFILL.PUMP
+
+move POWER.STATE 0
+move CO2.TEMP.TARGET -5.0
+move CO2.TARGET.STATE 0
+move LIQ.AUTOFILL.STATE 0
+
+main:
+  sleep 1
+  l r15 POWER.RID On
+  bneal POWER.STATE r15 powerSwithc
+  beqz POWER.STATE main
+  jal requestData  
+  jal controlTemperature
+  jal updateDisplay
+  jal controlAutoFill
+j main
+
+powerSwithc:
+  move POWER.STATE r15
+  sbn HASH("StructureConsoleBase5") HASH("co2-console-device1") On POWER.STATE
+  s CO2.SNS.RID On POWER.STATE
+  s LIQ.SNS.RID On POWER.STATE
+j ra
+
+requestData:
+  l CO2.PRESSURE CO2.SNS.RID Pressure
+  l CO2.TEMPERATURE CO2.SNS.RID Temperature
+  sub CO2.TEMPERATURE CO2.TEMPERATURE CELCIUS.ZERRO
+  l LIQ.PRESSURE LIQ.SNS.RID Pressure
+  l LIQ.TEMPERATURE LIQ.SNS.RID Temperature
+  sub LIQ.TEMPERATURE LIQ.TEMPERATURE CELCIUS.ZERRO
+  l LIQ.VOLUME LIQ.SNS.RID VolumeOfLiquid 
+j ra
+
+controlTemperature:
+  l r15 $A5603 Ratio
+  l r14 $A5603 Mode
+  sub r15 r15 0.5
+  mul r15 r15 r14
+  add CO2.TEMP.TARGET r15 -5.0
+  s $A5774 Setting CO2.TEMP.TARGET
+  blt CO2.TEMPERATURE CO2.TEMP.TARGET heaton
+    beqz CO2.TARGET.STATE ra
+    move CO2.TARGET.STATE 0
+    s $A5606 Color Color.Gray 
+    s $A5606 On 0
+    s $A5090 On 0
+    j ra
+heaton:  
+    bnez CO2.TARGET.STATE ra
+    move CO2.TARGET.STATE 1
+    s $A5606 Color Color.Red 
+    s $A5606 On 1
+    s $A5090 On 1
+j ra
+
+updateDisplay:
+  s $A139A Setting CO2.PRESSURE
+  s $A1399 Setting CO2.TEMPERATURE
+  s $A1387 Setting LIQ.VOLUME
+  s $A1388 Setting LIQ.TEMPERATURE
+  s $A56FC Setting LIQ.PRESSURE
+  div r15 CO2.PRESSURE PRESSURE.LIMIT
+  s $A139E Setting r15
+  sub r15 CO2.TEMPERATURE CO2.TEMP.TARGET
+  div r15 r15 40
+  add r15 r15 0.5
+  s $A139D Setting r15
+  div r15 LIQ.VOLUME LIQ.LIMIT
+  s $A137C Setting r15
+  div r15 LIQ.TEMPERATURE 100
+  add r15 r15 0.5
+  s $A137F Setting r15
+  div r15 LIQ.PRESSURE LIQ.PRESSURE.LIMIT
+  s $A56FE Setting r15
+j ra
+
+controlAutoFill:
+   l r15 $A5600 Setting
+   select r14 r15 Color.Green Color.Red
+   s $A5600 Color r14
+   sgt r14 LIQ.TARGET LIQ.VOLUME   
+   and r15 r14 r15  
+   beq r15 LIQ.AUTOFILL.STATE ra
+   move LIQ.AUTOFILL.STATE r15
+   s $9CB74 On LIQ.AUTOFILL.STATE      
+j ra
