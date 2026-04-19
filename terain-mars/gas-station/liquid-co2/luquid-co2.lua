@@ -6,7 +6,8 @@ local LBM = ic.enums.LogicBatchMethod
 local EPSILON = 0.001
 local FULL_LIQUID_VOLUME = 5700
 local LOW_TEMPERATURE_LIMIT = -52
-local HIGH_TEMPERATURE_LIMIT = -25
+local HIGH_TEMPERATURE_LIMIT = -30
+local HIGH_TEMP_INTANKE_LIMIT = -30
 local EMERGENCY_PRESSURE_THRESHOLD = 0.1
 local NORMAL_PRESSURE = 0.5
 local NORMAL_PRESSURE_DELTA = 0.3
@@ -382,7 +383,7 @@ function Controller:isTemperatureInRange()
     end
     if Device.GasPressure > EPSILON and
        (Device.GasTemperature < LOW_TEMPERATURE_LIMIT 
-     or Device.GasTemperature > HIGH_TEMPERATURE_LIMIT) then
+     or Device.GasTemperature > HIGH_TEMP_INTANKE_LIMIT) then
         return false    
     end
     return true
