@@ -182,6 +182,24 @@ push HASH("gm-nitro-pa-dsp")
 push Color.Khaki
 push DisplayMode.Pa
 push LogicType.Setting
+#18 H2-pa
+push GASxANALISER_HASH 
+push HASH("gm-h2-sns")
+push LogicType.Pressure
+push DISPLAYxHASH 
+push HASH("gm-h2-pa-dsp") 
+push Color.Purple
+push DisplayMode.Pa
+push LogicType.Setting
+#19 H2-tmp
+push GASxANALISER_HASH 
+push HASH("gm-h2-sns")
+push LogicType.Temperature
+push DISPLAYxHASH 
+push HASH("gm-h2-tmp-dsp")
+push Color.Purple
+push DisplayMode.Celsius
+push LogicType.Setting
 
 sub FullSize sp FullSize
 div Count FullSize StructureSize
@@ -289,10 +307,20 @@ push Bypass
 push HASH("ItemGasFilterCarbonDioxideL")
 push HASH("ItemGasFilterCarbonDioxideM")
 push Filter
+#2 H2
+lbn Switch SWITCHxHASH HASH("gw-h2-sw") ReferenceId Sum
+lbn Filter FILTERxHASH HASH("gm-h2-filter") ReferenceId Sum
+lbn Banner BANNERxHASH HASH("H2 Filters") ReferenceId Sum
+lbn Bypass VALVExHASH HASH("gm-h2-bypass") ReferenceId Sum
+push Switch
+push Banner
+push Bypass
+push HASH("ItemGasFilterHydrogenL")
+push HASH("ItemGasFilterHydrogenM")
+push Filter
 
 sub FullSize sp FullSize
 div Count FullSize StructureSize
-
 clr DeviceFilters
 move Addrress 10
 put DeviceFilters 9 Count
