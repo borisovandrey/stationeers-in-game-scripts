@@ -1,3 +1,4 @@
+#terain-mars\furnance\arc\auto-furnance\fn-mixer-dial-temperature.ic10
 #andreas.peters.de@proton.me 01.05.2026
 #This script allows to combine two CO2 sources with different temperature to get the desired result
 #This script assumes cold gas is connected to mixer input 1 and hot gas to input 2
