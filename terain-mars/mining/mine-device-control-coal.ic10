@@ -6,11 +6,15 @@ alias MiningRID r0
 alias ProductionTime r1
 alias TimeCounter r2
 alias Timeout r3
+alias NoTimeout r4
+alias PowerOn r5
 define DMN HASH("StructureDeepMiner")
 lbn MiningRID DMN HASH("mine-coal-dev") ReferenceId Minimum
 move ProductionTime 0
 move TimeCounter 0
 move Timeout 0
+move NoTimeout 0
+move PowerOn 0 
 jal calculateTimeout
 jal claibrate
 main:
@@ -19,6 +23,8 @@ main:
     min TimeCounter TimeCounter MAXxTIMExCONST
     s db Setting TimeCounter
     jal calculateTimeout
+    bnezal NoTimeout switchOn
+    bnez NoTimeout main
     beqzal Timeout switchOff
     beqzal Timeout setCounterToMax
     beqz Timeout main 
@@ -30,11 +36,14 @@ setCounterToMax:
     move TimeCounter MAXxTIMExCONST
 j ra
 switchOn:
+    brnez PowerOn 3
     s MiningRID On 1
+    move PowerOn 1
     move TimeCounter 0
 j ra
 switchOff:
     s MiningRID On 0
+    move PowerOn 0
     s MiningRID ClearMemory 1
     yield
 j ra
@@ -44,6 +53,7 @@ calculateTimeout:
     mul r14 r14 4
     srl r15 r15 r14
     and r15 r15 $F
+    seq NoTimeout r15 1
     mul Timeout r15 ProductionTime
 j ra
 claibrate:
@@ -51,6 +61,7 @@ claibrate:
     s MiningRID ClearMemory 1
     yield
     s MiningRID On 1
+    move PowerOn 1
     claibrateCycle:
         sleep 1
         add ProductionTime ProductionTime 1
