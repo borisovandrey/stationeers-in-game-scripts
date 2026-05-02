@@ -535,12 +535,12 @@ end
 
 -- Writes the requested state to a physical switch.
 function Console:switch(sw, on)
-    ic.write_id(sw.id, LT.Setting, on and 1 or 0)
+    ic.write_id(sw.id, LT.On, on and 1 or 0)
 end
 
 -- Returns the requested state of a physical switch.
 function Console:isSwitched(sw)
-    return ic.read_id(sw.id, LT.Setting) == 1
+    return ic.read_id(sw.id, LT.On) == 1
 end
 
 -- Switches a mode by resolving its backing switch through the lookup table.
