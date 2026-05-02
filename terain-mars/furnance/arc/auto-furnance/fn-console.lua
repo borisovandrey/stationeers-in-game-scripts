@@ -371,7 +371,7 @@ ClearFeedChamberMode = {
 
 function ClearFeedChamberMode:enter()
     if not generalEnter(self) then return end 
-    DirectFeedChamberMode:enter()
+    Device:setGasGate(Device.Actuators.FeedChamberDirectValve, true)
     Device:runFurnaceInputPump(100)
 end
 
@@ -426,7 +426,7 @@ ExhaustGasToRecuperationMode = {
 function ExhaustGasToRecuperationMode:enter()
     if not generalEnter(self) then return end 
     if not isModeOwnedExternally(self) then
-        Device:runExhaustGasToRecuperationPump(10)
+        Device:runExhaustGasToRecuperationPump(50)
     end
 end
 
