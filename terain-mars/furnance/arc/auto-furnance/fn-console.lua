@@ -5,8 +5,11 @@ local LBM = ic.enums.LogicBatchMethod
 
 -- Definitions
 local EPSILON = 0.001
-local PRESSURE_LIMIT_KPA = 47000
+local PRESSURE_MAX_KPA = 60000
+local PRESSURE_LIMIT_KPA = 53000
 local PRESSURE_LIMIT_CANISTER_KPA = 18000
+local TEMPERATURE_MAX_C = 3000
+local MPA = 1000
 
 local Color = {
     Blue   = 0,
@@ -38,8 +41,76 @@ local function clamp(x, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, x))
 end
 
+-- Ingots
+local Ingots = {
+    Steel = {
+        id = hash("ItemSteelIngot"),
+        temperature = { 627, TEMPERATURE_MAX_C },
+        pressure = { 1 * MPA, PRESSURE_MAX_KPA }
+    },
+    Invar = {
+        id = hash("ItemInvarIngot"),
+        temperature = { 927, 1227 },
+        pressure = { 18 * MPA, 20 * MPA }
+    },
+    Solder = {
+        id = hash("ItemSolderIngot"),
+        temperature = { 76.8, 277 },
+        pressure = { 1 * MPA, PRESSURE_MAX_KPA }
+    },
+    Constantan = {
+        id = hash("ItemConstantanIngot"),
+        temperature = { 727, TEMPERATURE_MAX_C },
+        pressure = { 20 * MPA, PRESSURE_MAX_KPA }
+    },
+    Electrum = {
+        id = hash("ItemElectrumIngot"),
+        temperature = { 327, TEMPERATURE_MAX_C },
+        pressure = { 800, 2.4 * MPA }
+    },
+    Waspaloy = {
+        id = hash("ItemWaspaloyIngot"),
+        temperature = { 127, 527 },
+        pressure = { 50 * MPA, PRESSURE_MAX_KPA }
+    },
+    Stellite = {
+        id = hash("ItemStelliteIngot"),
+        temperature = { 1527, TEMPERATURE_MAX_C },
+        pressure = { 10 * MPA, 20 * MPA }
+    },
+    Inconel = {
+        id = hash("ItemInconelIngot"),
+        temperature = { 327, TEMPERATURE_MAX_C },
+        pressure = { 23.5 * MPA, 24 * MPA }
+    },
+    Hastelloy = {
+        id = hash("ItemHastelloyIngot"),
+        temperature = { 677, 727 },
+        pressure = { 25 * MPA, 30 * MPA }
+    },
+    Astraloy = {
+        id = hash("ItemAstroloyIngot"),
+        temperature = { 727, TEMPERATURE_MAX_C },
+        pressure = { 30 * MPA, 40 * MPA }
+    },
+}
+
+local IngotList = {
+    [1] = Ingots.Steel,
+    [2] = Ingots.Invar,
+    [3] = Ingots.Solder,
+    [4] = Ingots.Constantan,
+    [5] = Ingots.Electrum,
+    [6] = Ingots.Waspaloy,
+    [7] = Ingots.Stellite,
+    [8] = Ingots.Inconel,
+    [9] = Ingots.Hastelloy,
+    [10] = Ingots.Astraloy,
+}
+
 -- Static device references used by the controller and mode handlers.
 local Device = {
+    Console = ic.find("fn-main-console"),
     Sensors = {
         FeedChamberSns = ic.find("fn-prepare-sns"),
         HotGasSns = ic.find("fn-hot-sns"),
@@ -86,6 +157,12 @@ local ModeState = {
     ActiveInternal = 1,
     RequestedExternal = 2,
     ActiveExternal = 3,
+    Suppressed = 4,
+}
+
+local ExitReason = {
+    Normal = 0,
+    Suppressed = 1,
 }
 
 local function isModeActive(mode)
@@ -98,6 +175,14 @@ end
 
 local function isModeOwnedExternally(mode)
     return mode.state == ModeState.ActiveExternal
+end
+
+local function isSuppressed(mode)
+    return mode.state == ModeState.Suppressed
+end
+
+local function setInactive(mode)
+    mode.state = ModeState.Inactive
 end
 
 -- Shared helper for configurable directional pumps.
@@ -143,11 +228,13 @@ local HotGasPressureMode
 local MixerMode
 local CH4Mode
 local DirectHotGasMode
+local AutomaticMode
 local DirectFeedChamberMode
 local ClearFurnaceMode
 local ClearFeedChamberMode
 local ClearExhaustGasMode
 local ExhaustGasToRecuperationMode
+
 
 -- Common enter path that also stops mutually exclusive modes.
 local function generalEnter(base)
@@ -160,9 +247,10 @@ local function generalEnter(base)
 end
 
 -- Common exit path for all mode tables.
-local function generalExit(base)
+local function generalExit(base, reason)
     if not isModeActive(base) then return false end
-    base.state = ModeState.Inactive
+    reason = reason or ExitReason.Normal
+    base.state = reason == ExitReason.Suppressed and ModeState.Suppressed or ModeState.Inactive
     return true
 end
 
@@ -179,8 +267,8 @@ function RecuperationToFeedMode:enter()
     end
 end
 
-function RecuperationToFeedMode:exit()
-    if not generalExit(self) then return end
+function RecuperationToFeedMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:runRecuperationToFeedPump(0)
 end
 
@@ -207,8 +295,8 @@ function HotGasPressureMode:enter()
     end
 end
 
-function HotGasPressureMode:exit()
-    if not generalExit(self) then return end
+function HotGasPressureMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:setGasGate(Device.Actuators.HotGasPressureRegulator, false)
 end
 
@@ -242,8 +330,8 @@ function MixerMode:enter()
     end
 end
 
-function MixerMode:exit()
-    if not generalExit(self) then return end
+function MixerMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:setGasGate(Device.Actuators.Mixer, false)
 end
 
@@ -273,8 +361,8 @@ function CH4Mode:enter()
     end
 end
 
-function CH4Mode:exit()
-    if not generalExit(self) then return end
+function CH4Mode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:setGasGate(Device.Actuators.CH4PressureRegulator, false)
 end
 
@@ -297,8 +385,8 @@ function DirectHotGasMode:enter()
     Device:setGasGate(Device.Actuators.HotGasDirectValve, true)
 end
 
-function DirectHotGasMode:exit()
-    if not generalExit(self) then return end
+function DirectHotGasMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:setGasGate(Device.Actuators.HotGasDirectValve, false)
 end
 
@@ -308,6 +396,28 @@ end
 
 function DirectHotGasMode:isFunctionalityExecuted()
     return Device:isOn(Device.Actuators.HotGasDirectValve)
+end
+
+-- Tracks automatic furnace control state without directly driving devices.
+AutomaticMode = {
+    state = ModeState.Inactive,
+    StopModes = {},
+}
+
+function AutomaticMode:enter()
+    if not generalEnter(self) then return end
+end
+
+function AutomaticMode:exit(reason)
+    if not generalExit(self, reason) then return end
+end
+
+function AutomaticMode:perform()
+    return true
+end
+
+function AutomaticMode:isFunctionalityExecuted()
+    return false
 end
 
 -- Opens the feed chamber direct valve.
@@ -323,8 +433,8 @@ function DirectFeedChamberMode:enter()
     end
 end
 
-function DirectFeedChamberMode:exit()
-    if not generalExit(self) then return end
+function DirectFeedChamberMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:setGasGate(Device.Actuators.FeedChamberDirectValve, false)
 end
 
@@ -349,8 +459,8 @@ function ClearFurnaceMode:enter()
     end
 end
 
-function ClearFurnaceMode:exit()
-    if not generalExit(self) then return end
+function ClearFurnaceMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:runFurnaceOutputPump(0)
 end
 
@@ -375,9 +485,9 @@ function ClearFeedChamberMode:enter()
     Device:runFurnaceInputPump(100)
 end
 
-function ClearFeedChamberMode:exit()
-    if not generalExit(self) then return end
-    DirectFeedChamberMode:exit()
+function ClearFeedChamberMode:exit(reason)
+    if not generalExit(self, reason) then return end
+    DirectFeedChamberMode:exit(reason)
     Device:runFurnaceInputPump(0)
 end
 
@@ -403,8 +513,8 @@ function ClearExhaustGasMode:enter()
     end
 end
 
-function ClearExhaustGasMode:exit()
-    if not generalExit(self) then return end
+function ClearExhaustGasMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:runExhaustGasPump(0)
 end
 
@@ -430,8 +540,8 @@ function ExhaustGasToRecuperationMode:enter()
     end
 end
 
-function ExhaustGasToRecuperationMode:exit()
-    if not generalExit(self) then return end
+function ExhaustGasToRecuperationMode:exit(reason)
+    if not generalExit(self, reason) then return end
     Device:runExhaustGasToRecuperationPump(0)
 end
 
@@ -450,12 +560,20 @@ HotGasPressureMode.StopModes = {RecuperationToFeedMode, MixerMode, CH4Mode, Dire
 MixerMode.StopModes = {RecuperationToFeedMode, HotGasPressureMode, CH4Mode, DirectHotGasMode}
 CH4Mode.StopModes = {RecuperationToFeedMode, HotGasPressureMode, MixerMode, DirectHotGasMode}
 DirectHotGasMode.StopModes = {RecuperationToFeedMode, HotGasPressureMode, MixerMode, CH4Mode}
-ClearFeedChamberMode.StopModes = {DirectHotGasMode, CH4Mode, MixerMode, HotGasPressureMode, RecuperationToFeedMode}
+AutomaticMode.StopModes = {DirectFeedChamberMode, ClearFurnaceMode, ClearFeedChamberMode}
+DirectFeedChamberMode.StopModes = {AutomaticMode}
+ClearFurnaceMode.StopModes = {AutomaticMode}
+ClearFeedChamberMode.StopModes = {AutomaticMode, DirectHotGasMode, CH4Mode, MixerMode, HotGasPressureMode, RecuperationToFeedMode}
 ExhaustGasToRecuperationMode.StopModes = {ClearExhaustGasMode}
 
 -- Console switch definitions plus fast lookup from mode to switch device.
 local Console = {
     Switches = {
+        {
+            id = ic.find("fn-automatic-sw"),
+            color = Color.Green,
+            mode = AutomaticMode
+        },
         { 
             id = ic.find("fn-dir-feed-chamber-sw"),
             color = Color.Purple,
@@ -508,8 +626,45 @@ local Console = {
             mode = ClearExhaustGasMode
         },
     },
-    SwitchByMode = {}
+    SwitchByMode = {},
+    AutomaticPannel = {
+        active = false,
+        IngotSelector = ic.find("fn-auto-dial"),
+        TemperatureSlider = ic.find("fn-auto-temp-sld"),
+        PressureSlider = ic.find("fn-auto-press-sld"),
+        TemperatureMinDsp = ic.find("fn-auto-temp-min-dsp"),
+        TemperatureToDsp = ic.find("fn-auto-temp-target-dsp"),
+        TemperatureMaxDsp = ic.find("fn-auto-temp-max-dsp"),
+        PressureMinDsp = ic.find("fn-auto-press-min-dsp"),
+        PressureToDsp = ic.find("fn-auto-press-target-dsp"),
+        PressureMaxDsp = ic.find("fn-auto-press-max-dsp"),
+        SelectedIngotHashMem = ic.find("fn-auto-sel-ing-mem"),
+        SelectedIngotHashDsp = ic.find("fn-auto-sel-ing-dsp"),
+        SelectedIngotHash = 0,
+        TempreatureTarget = 0,
+        PressureTarget = 0,
+        TemeperatureSliderPos = 0,
+        PressureSliderPos = 0,
+    },
 }
+
+function Console.AutomaticPannel:init()
+    ic.write_id(self.TemperatureMinDsp, LT.Mode, DisplayMode.Celsius)
+    ic.write_id(self.TemperatureToDsp, LT.Mode, DisplayMode.Celsius) 
+    ic.write_id(self.TemperatureMaxDsp, LT.Mode, DisplayMode.Celsius) 
+    ic.write_id(self.TemperatureMinDsp, LT.Color, Color.Pink)
+    ic.write_id(self.TemperatureToDsp, LT.Color, Color.Red) 
+    ic.write_id(self.TemperatureMaxDsp, LT.Color, Color.Purple) 
+
+    ic.write_id(self.PressureMinDsp, LT.Mode, DisplayMode.Pa)
+    ic.write_id(self.PressureToDsp, LT.Mode, DisplayMode.Pa) 
+    ic.write_id(self.PressureMaxDsp, LT.Mode, DisplayMode.Pa) 
+    ic.write_id(self.PressureMinDsp, LT.Color, Color.Yellow)
+    ic.write_id(self.PressureToDsp, LT.Color, Color.Orange) 
+    ic.write_id(self.PressureMaxDsp, LT.Color, Color.Brown) 
+
+    ic.write_id(self.SelectedIngotHashMem, LT.Setting, 0)
+end
 
 -- Builds the mode-to-switch map used by the controller.
 function Console:init()
@@ -517,6 +672,7 @@ function Console:init()
     for _, sw in ipairs(self.Switches) do
         self.SwitchByMode[sw.mode] = sw
     end
+    self.AutomaticPannel:init()
 end
 
 -- Reads the mixer pressure target dial in kPa.
@@ -551,6 +707,54 @@ function Console:switchMode(mode, on)
     end
 end
 
+function Console.AutomaticPannel:activate(on)
+    if self.active == on then return end
+    self.active = on
+    ic.write_id(self.TemperatureMinDsp, LT.On, on and 1 or 0)
+    ic.write_id(self.TemperatureToDsp, LT.On, on and 1 or 0) 
+    ic.write_id(self.TemperatureMaxDsp, LT.On, on and 1 or 0) 
+    ic.write_id(self.PressureMinDsp, LT.On, on and 1 or 0)
+    ic.write_id(self.PressureToDsp, LT.On, on and 1 or 0) 
+    ic.write_id(self.PressureMaxDsp, LT.On, on and 1 or 0)   
+    ic.write_id(self.SelectedIngotHashDsp, LT.On, on and 1 or 0)
+end
+
+function Console.AutomaticPannel:update()
+    local dial = clamp(ic.read_id(self.IngotSelector, LT.Setting) + 1, 1, #IngotList)
+    local ingot = IngotList[dial]
+    if ingot.id ~= self.SelectedIngotHash then
+        self.SelectedIngotHash = ingot.id
+        self.TemeperatureSliderPos = 0
+        self.PressureSliderPos = 0
+        ic.write_id(self.SelectedIngotHashMem, LT.Setting, self.SelectedIngotHash)
+        ic.write_id(self.TemperatureMinDsp, LT.Setting, ingot.temperature[1])
+        ic.write_id(self.TemperatureMaxDsp, LT.Setting, ingot.temperature[2]) 
+        ic.write_id(self.PressureMinDsp, LT.Setting, ingot.pressure[1] * 1000)
+        ic.write_id(self.PressureMaxDsp, LT.Setting, ingot.pressure[2] * 1000)   
+    end
+
+    local temperatureSlider = ic.read_id(self.TemperatureSlider, LT.Setting)
+    local pressureSlider = ic.read_id(self.PressureSlider, LT.Setting)
+
+    if self.TemeperatureSliderPos ~= temperatureSlider then
+        self.TemeperatureSliderPos = temperatureSlider
+        self.TempreatureTarget = ingot.temperature[1] + self.TemeperatureSliderPos * (ingot.temperature[2] - ingot.temperature[1])
+        ic.write_id(self.TemperatureToDsp, LT.Setting, self.TempreatureTarget)
+    end
+    if self.PressureSliderPos ~= pressureSlider then
+        self.PressureSliderPos = pressureSlider
+        self.PressureTarget = ingot.pressure[1] + self.PressureSliderPos * (ingot.pressure[2] - ingot.pressure[1])
+        ic.write_id(self.PressureToDsp, LT.Setting, self.PressureTarget * 1000)
+    end
+end
+
+function Console:updateAutomatic(on)
+    self.AutomaticPannel:activate(on)
+    if on then 
+        self.AutomaticPannel:update()
+    end
+end
+
 -- Orchestrates console requests, conflict resolution, and mode execution.
 local Controller = {
 }
@@ -569,7 +773,7 @@ end
 function Controller:enterMode(mode)
     for _, stopMode in ipairs(mode.StopModes) do
         Console:switchMode(stopMode, false)
-        stopMode:exit()
+        stopMode:exit(ExitReason.Suppressed)
     end
     mode:enter()
 end
@@ -579,7 +783,12 @@ function Controller:updateModes()
     for _, sw in ipairs(Console.Switches) do
         if Console:isSwitched(sw) then  
             if not isModeActive(sw.mode) then
-                self:enterMode(sw.mode)
+                if isSuppressed(sw.mode) then
+                    Console:switch(sw, false)
+                    setInactive (sw.mode)
+                else
+                    self:enterMode(sw.mode)
+                end
             else
                 local continue = sw.mode:perform()
                 if not continue then
@@ -588,19 +797,23 @@ function Controller:updateModes()
                 end
             end
         else 
-            if isModeActive(sw.mode) then
-                sw.mode:exit()
-            end  
-        end 
+            if isSuppressed(sw.mode) then 
+                setInactive(sw.mode)
+            elseif isModeActive(sw.mode) 
+                then sw.mode:exit()
+            end 
+        end
     end
 end
 
 -- One controller cycle: refresh inputs, update modes, then refresh switch colors.
 function Controller:run()
+    if not Device:isOn(Device.Console) then return end
     MixerMode.mixerLimitkPa = Console:getMixerLimitkPa()
     self:checkModesExternalInitiated()
     self:updateModes()
     Console:updateSwitches()
+    Console:updateAutomatic(isModeActive(AutomaticMode))
 end
 
 -- Build console lookup tables before the main tick loop starts.
