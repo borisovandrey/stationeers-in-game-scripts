@@ -81,6 +81,25 @@ local Direction = {
     Back = 1
 }
 
+local ModeState = {
+    Inactive = 0,
+    ActiveInternal = 1,
+    RequestedExternal = 2,
+    ActiveExternal = 3,
+}
+
+local function isModeActive(mode)
+    return mode.state == ModeState.ActiveInternal or mode.state == ModeState.ActiveExternal
+end
+
+local function isModeRequestedExternally(mode)
+    return mode.state == ModeState.RequestedExternal
+end
+
+local function isModeOwnedExternally(mode)
+    return mode.state == ModeState.ActiveExternal
+end
+
 -- Shared helper for configurable directional pumps.
 function Device:runFastPump(pump, percentage, direction)
     local safe = clamp(percentage, 0, 100);
@@ -132,8 +151,8 @@ local ExhaustGasToRecuperationMode
 
 -- Common enter path that also stops mutually exclusive modes.
 local function generalEnter(base)
-    if base.is_active then return false end 
-    base.is_active = true
+    if isModeActive(base) then return false end
+    base.state = isModeRequestedExternally(base) and ModeState.ActiveExternal or ModeState.ActiveInternal
     for _, mode in ipairs(base.StopModes) do
         mode:exit()
     end
@@ -142,28 +161,26 @@ end
 
 -- Common exit path for all mode tables.
 local function generalExit(base)
-    if not base.is_active then return false end
-    base.is_active = false
+    if not isModeActive(base) then return false end
+    base.state = ModeState.Inactive
     return true
 end
 
 -- Pumps recuperated gas back into the preparation chamber.
 RecuperationToFeedMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function RecuperationToFeedMode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then 
+    if not isModeOwnedExternally(self) then
         Device:runRecuperationToFeedPump(50)
     end
-    self.externaly_activated = false
 end
 
 function RecuperationToFeedMode:exit()
-    if not generalExit(self) then return end 
+    if not generalExit(self) then return end
     Device:runRecuperationToFeedPump(0)
 end
 
@@ -179,17 +196,15 @@ end
 
 -- Keeps the hot gas pressure regulator open while enabled.
 HotGasPressureMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function HotGasPressureMode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then 
+    if not isModeOwnedExternally(self) then
         Device:setGasGate(Device.Actuators.HotGasPressureRegulator, true)
     end
-    self.externaly_activated = false
 end
 
 function HotGasPressureMode:exit()
@@ -207,10 +222,9 @@ end
 
 -- Lets the mixer fill the feed chamber up to the dial pressure target.
 MixerMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
     mixerLimitkPa = 0,
-    externaly_activated = false
 }
 
 function MixerMode:allowGasIn()
@@ -223,10 +237,9 @@ function MixerMode:enter()
     if not generalEnter(self) then return end 
     if self:allowGasIn() then
         Device:setGasGate(Device.Actuators.Mixer, true)
-    elseif self.externaly_activated then
+    elseif isModeOwnedExternally(self) then
         Device:setGasGate(Device.Actuators.Mixer, false)
     end
-    self.externaly_activated = false
 end
 
 function MixerMode:exit()
@@ -249,17 +262,15 @@ end
 
 -- Opens the CH4 feed regulator.
 CH4Mode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function CH4Mode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then 
+    if not isModeOwnedExternally(self) then
         Device:setGasGate(Device.Actuators.CH4PressureRegulator, true)
     end
-    self.externaly_activated = false
 end
 
 function CH4Mode:exit()
@@ -277,9 +288,8 @@ end
 
 -- Opens the direct hot gas path to the furnace input.
 DirectHotGasMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function DirectHotGasMode:enter()
@@ -289,10 +299,7 @@ end
 
 function DirectHotGasMode:exit()
     if not generalExit(self) then return end
-    if not self.externaly_activated then
-        Device:setGasGate(Device.Actuators.HotGasDirectValve, false)
-    end
-    self.externaly_activated = false
+    Device:setGasGate(Device.Actuators.HotGasDirectValve, false)
 end
 
 function DirectHotGasMode:perform()
@@ -305,17 +312,15 @@ end
 
 -- Opens the feed chamber direct valve.
 DirectFeedChamberMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function DirectFeedChamberMode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then
+    if not isModeOwnedExternally(self) then
         Device:setGasGate(Device.Actuators.FeedChamberDirectValve, true)
     end
-    self.externaly_activated = false
 end
 
 function DirectFeedChamberMode:exit()
@@ -333,17 +338,15 @@ end
 
 -- Purges furnace contents through the furnace output pump.
 ClearFurnaceMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function ClearFurnaceMode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then
+    if not isModeOwnedExternally(self) then
         Device:runFurnaceOutputPump(100)
     end
-    self.externaly_activated = false
 end
 
 function ClearFurnaceMode:exit()
@@ -362,16 +365,14 @@ end
 
 -- Pushes feed chamber contents directly into the furnace.
 ClearFeedChamberMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function ClearFeedChamberMode:enter()
     if not generalEnter(self) then return end 
     DirectFeedChamberMode:enter()
     Device:runFurnaceInputPump(100)
-    self.externaly_activated = false
 end
 
 function ClearFeedChamberMode:exit()
@@ -391,17 +392,15 @@ end
 
 -- Purges waste gas into the exhaust extraction line.
 ClearExhaustGasMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function ClearExhaustGasMode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then
+    if not isModeOwnedExternally(self) then
         Device:runExhaustGasPump(100)
     end
-    self.externaly_activated = false
 end
 
 function ClearExhaustGasMode:exit()
@@ -420,17 +419,15 @@ end
 
 -- Moves waste gas from exhaust storage into recuperation storage.
 ExhaustGasToRecuperationMode = {
-    is_active = false,
+    state = ModeState.Inactive,
     StopModes = {},
-    externaly_activated = false
 }
 
 function ExhaustGasToRecuperationMode:enter()
     if not generalEnter(self) then return end 
-    if not self.externaly_activated then
+    if not isModeOwnedExternally(self) then
         Device:runExhaustGasToRecuperationPump(10)
     end
-    self.externaly_activated = false
 end
 
 function ExhaustGasToRecuperationMode:exit()
@@ -561,8 +558,8 @@ local Controller = {
 -- Detects devices that were enabled outside the console and mirrors them into UI state.
 function Controller:checkModesExternalInitiated()
     for _, sw in ipairs(Console.Switches) do
-        if sw.mode:isFunctionalityExecuted() and not sw.mode.is_active then
-            sw.mode.externaly_activated = true  
+        if sw.mode:isFunctionalityExecuted() and sw.mode.state == ModeState.Inactive then
+            sw.mode.state = ModeState.RequestedExternal
             Console:switch(sw, true)
         end
     end
@@ -581,7 +578,7 @@ end
 function Controller:updateModes()
     for _, sw in ipairs(Console.Switches) do
         if Console:isSwitched(sw) then  
-            if not sw.mode.is_active then
+            if not isModeActive(sw.mode) then
                 self:enterMode(sw.mode)
             else
                 local continue = sw.mode:perform()
@@ -591,7 +588,7 @@ function Controller:updateModes()
                 end
             end
         else 
-            if sw.mode.is_active then
+            if isModeActive(sw.mode) then
                 sw.mode:exit()
             end  
         end 
