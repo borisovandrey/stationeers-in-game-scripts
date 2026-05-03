@@ -1,5 +1,5 @@
 -- Furnace console controller for manual routing, purge actions, and UI sync.
---terain-mars\furnance\arc\auto-furnance\fn-console.lua
+--terain-mars\furnance\auto-furnance\fn-console.lua
 local LT  = ic.enums.LogicType
 local LBM = ic.enums.LogicBatchMethod
 

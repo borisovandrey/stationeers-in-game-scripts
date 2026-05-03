@@ -1,0 +1,208 @@
+#terain-mars\furnace\auto-furnace\fn-pid.ic10
+#Inspired by #From https://www.reddit.com/r/Stationeers/comments/yz28ce/furnace_thermal_mechanics_help/
+#Algorithm of PID regulqtor is taken from https://en.wikipedia.org/wiki/PID_controller and changed to work with normalized deviation
+#Target point is set as pair (T,P) T in celsius
+#Algorithm works with preapred working body (CO2 cobusted in saved in insulated tank).
+#For fast reach of the SP preapre a big supply of hot gas.
+define DT 0.5   
+define PRESSURExMAX 55000
+define Kp 1.5          #deviation coeffecient
+define Ki 0.5          #Integral deviation coeffecient
+define Kd 0.2          #Differencial deviation coeffecient
+define dt 0.5          #Delta time
+define Klvn 273.15     #Kelvin value for 0C
+#Decoy coeffecients of integral data - step out from classic algorithm to reduce oscilation  
+define AGINGxERRORxTHRESHOLD 0.15
+define AGINGxLOWxERROR       0.5
+define AGINGxHIGHxERROR      0.8
+#Coeffecient for low-pass filter
+#A larger alpha smooths the derivative more, 
+#while a smaller alpha makes it more responsive but potentially noisier.
+define LOWxPATHxFILTERxALPHA 0.2
+define LOWxPATHxFILTERxOPOSITExALPHA 0.8
+
+# States
+define STATExIDLE 0     #Furnance is inactive
+define STATExACTIVE 1   #Furnance is active
+
+#If deviation is less then 0.035 we consider the furnance is on target
+define CONTROLLERxTOLLERANCE 0.35 
+
+# Addresses
+move previousdeviation 0
+move integral 0
+define REQUESTEDxHASHxADDR      10 #Hash to be melted
+
+define TEMPERATURExTARGETxADDR  20 #Temperature target
+define TEMPERATURExPDIVxADDR    21 #Stack offset for calculated temperature previous deviation values 
+define TEMPERATURExINTGxADDR    22 #Stack offset for calculated temperature integral values 
+define PRESSURExTARGETxADDR     30 #Pressure for target
+define PRESSURExPDIVxADDR       31 #Stack offset for calculated pressure previous deviation values 
+define PRESSURExINTGxADDR       32 #Stack offset for calculated pressure integral values 
+
+alias state         r0          #State of furnance
+alias tgtval        r1          #Active target value for pressure or temperature
+alias previousdeviation r2      #The value of the normalized previous deviation in %
+alias integral      r3          #Integral value of deviation in %
+alias currentVal    r4          #Actual value of temperature or pressure
+alias FURNACE.RID   r5          #Furnace ReferenceId
+alias STARTxSW.RID  r6          #Start switch ReferenceId
+alias HOTxPUMP.RID  r7          #Hot pump ReferenceId
+alias COLDxPUMP.RID r8          #Cold pump ReferenceId
+alias output        r9          #Calculated output
+alias deviation     r10         #Normalized deviation value
+alias outputTemp    r11         #Normalised control signal for temperature
+alias outputPress   r12         #Normalised control signal for pressure
+alias newState      r13         #New state
+ 
+#Discovery devices and initilise it
+lbn HOTxPUMP.RID HASH("StructureVolumePump") HASH("fn-hot-pump") ReferenceId Minimum
+lbn COLDxPUMP.RID HASH("StructureVolumePump") HASH("fn-cold-pump") ReferenceId Minimum
+lbn STARTxSW.RID HASH("ModularDeviceFlipSwitch") HASH("fn-cauto-start") ReferenceId Minimum
+lbn FURNACE.RID HASH("StructureAdvancedFurnace") HASH("fn-device") ReferenceId Minimum
+
+#Init stack and variables
+s COLDxPUMP.RID Setting 0
+s COLDxPUMP.RID On 0
+s HOTxPUMP.RID Setting 0
+s HOTxPUMP.RID On 0
+move state STATExIDLE
+move previousdeviation 0
+move integral 0
+move tgtval 0
+jal storeLocalPressure
+jal storeLocalTemeprature
+
+main:
+    sleep DT
+    l r15 FURNACE.RID RecipeHash   #Read furnace hash
+    get r14 db REQUESTEDxHASHxADDR #Read required hash
+    seq r15 r14 r15                #Check we already have this hash done
+    l r14 STARTxSW.RID Setting     #Check auto switch is on
+    xor r15 r15 1                  #Not hash ready
+    and r15 r15 r14                #Active state is sw=On && !HashReady
+    select newState r15 STATExACTIVE STATExIDLE
+    bneal newState state changeState      #State is changed set everthing up
+beq state STATExIDLE main          #Current state is IDLE - do nothing
+
+    #Calculate Temperature
+    move output 0 #Calculate temperature deviation
+    jal loadLocalTemperature #Load data
+    l currentVal FURNACE.RID Temperature
+    sub r15 tgtval currentVal
+    div deviation r15 tgtval #Calculate normilized deviation [-1..1]
+    jal pidController #Apply calculation for temperature
+    move outputTemp output  #Temperature controller output [-10.0..10.0]
+    jal storeLocalTemeprature 
+
+    #Calculate Pressure
+    jal loadLocalPressure
+    l currentVal FURNACE.RID Pressure
+    brle currentVal PRESSURExMAX 4 #Protect the pressure
+        move newState STATExIDLE
+        jal changeState
+        j main
+    sub r15 tgtval currentVal
+    div deviation r15 tgtval
+    jal pidController
+    move outputPress output
+    jal storeLocalPressure
+
+    #Apply controllers
+    jal applyActuators 
+j main
+
+changeState:
+    move r15 ra
+    jal clearLocals
+    move state newState
+    beq state STATExIDLE if_idle: 
+        #In case of state is not IDLE
+        s FURNACE.RID SettingInput 100
+        s HOTxPUMP.RID Setting 0  #Hot input
+        s COLDxPUMP.RID Setting 0 #Cool input
+        s HOTxPUMP.RID On 1 #Hot input
+        s COLDxPUMP.RID On 1 #Cool input
+        j ra 
+    if_idle:
+        #State is IDLE
+        s FURNACE.RID SettingInput 0
+        s FURNACE.RID SettingOutput 0
+        s HOTxPUMP.RID Setting 0  #Hot input
+        s COLDxPUMP.RID Setting 0  #Cool input
+        s HOTxPUMP.RID On 0
+        s COLDxPUMP.RID On 0
+j ra
+
+storeLocalTemeprature:
+    #Target temeprature is set externally
+    put db TEMPERATURExPDIVxADDR previousdeviation
+    put db TEMPERATURExINTGxADDR integral
+j ra
+loadLocalTemperature:
+    get integral db TEMPERATURExINTGxADDR
+    get previousdeviation db TEMPERATURExPDIVxADDR 
+    get tgtval db TEMPERATURExTARGETxADDR
+j ra
+storeLocalPressure:
+    #Target pressure is set externally
+    put db PRESSURExPDIVxADDR previousdeviation
+    put db PRESSURExINTGxADDR integral
+j ra
+loadLocalPressure:
+    get integral db PRESSURExINTGxADDR
+    get previousdeviation db PRESSURExPDIVxADDR 
+    get tgtval db PRESSURExTARGETxADDR
+j ra
+clearLocals:
+    #Don't clear target values as it is set externaly
+    put db PRESSURExPDIVxADDR 0
+    put db TEMPERATURExINTGxADDR 0
+    put db PRESSURExPDIVxADDR 0
+    put db PRESSURExINTGxADDR 0
+j r15
+pidController:
+    #Anti windup integral calculation with adaptive decoy
+    abs currentVal deviation
+    sge currentVal currentVal AGINGxERRORxTHRESHOLD
+    select currentVal currentVal AGINGxHIGHxERROR AGINGxLOWxERROR
+    mul r15 integral currentVal
+    mul r14 deviation DT
+    add integral r15 r14
+    min integral integral 1
+    max integral integral -1
+    #Low-Path filter for deviation
+    mul r15 deviation LOWxPATHxFILTERxALPHA
+    mul r14 LOWxPATHxFILTERxOPOSITExALPHA previousdeviation
+    add previousdeviation r15 r14
+    #PID formula application
+    mul r15 Kp deviation
+    mul r14 Ki integral
+    add r15 r15 r14
+    sub r14 deviation previousdeviation
+    div r14 r14 DT
+    mul r14 LOWxPATHxFILTERxALPHA r14
+    add output r15 r14
+    move previousdeviation deviation
+    #Output is normalized in the [-1:1]
+    min output output 1
+    max output output -1
+    mul output output 10
+j ra
+applyActuators:
+    abs output outputPress #Pressure
+    brgez outputPress 5 #In case of negative deviation by pressure open the furnance output
+        mul output output 10 #Furnance output control has range [0..100]
+        s FURNACE.RID SettingOutput output
+        move outputPress 0
+    jr 2
+        sb HASH("StructureAdvancedFurnace") SettingOutput 0
+    abs output outputTemp
+    max output output outputPress
+    brltz outputTemp 3
+      s HOTxPUMP.RID Setting output
+      s COLDxPUMP.RID Setting 0
+    jr 3
+      s HOTxPUMP.RID Setting 0
+      s COLDxPUMP.RID Setting output
+j ra
