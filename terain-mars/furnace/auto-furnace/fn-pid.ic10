@@ -28,14 +28,15 @@ define STATExACTIVE 1   #Furnance is active
 # Addresses
 move previousdeviation 0
 move integral 0
-define REQUESTEDxHASHxADDR      10 #Hash to be melted
 
-define TEMPERATURExTARGETxADDR  20 #Temperature target
-define TEMPERATURExPDIVxADDR    21 #Stack offset for calculated temperature previous deviation values 
-define TEMPERATURExINTGxADDR    22 #Stack offset for calculated temperature integral values 
-define PRESSURExTARGETxADDR     30 #Pressure for target
-define PRESSURExPDIVxADDR       31 #Stack offset for calculated pressure previous deviation values 
-define PRESSURExINTGxADDR       32 #Stack offset for calculated pressure integral values 
+define REQUESTEDxHASHxADDR      10 #Hash to be melted
+define TEMPERATURExTARGETxADDR  11 #Temperature target
+define PRESSURExTARGETxADDR     12 #Pressure for target
+
+define TEMPERATURExPDIVxADDR    20 #Stack offset for calculated temperature previous deviation values 
+define TEMPERATURExINTGxADDR    21 #Stack offset for calculated temperature integral values 
+define PRESSURExPDIVxADDR       30 #Stack offset for calculated pressure previous deviation values 
+define PRESSURExINTGxADDR       31 #Stack offset for calculated pressure integral values 
 
 alias state         r0          #State of furnance
 alias tgtval        r1          #Active target value for pressure or temperature
@@ -57,6 +58,12 @@ lbn HOTxPUMP.RID HASH("StructureVolumePump") HASH("fn-hot-pump") ReferenceId Min
 lbn COLDxPUMP.RID HASH("StructureVolumePump") HASH("fn-cold-pump") ReferenceId Minimum
 lbn STARTxSW.RID HASH("ModularDeviceSwitch") HASH("fn-auto-start") ReferenceId Minimum
 lbn FURNACE.RID HASH("StructureAdvancedFurnace") HASH("fn-device") ReferenceId Minimum
+lbn r15 HASH("StructureLogicMemory") HASH("fn-auto-sel-ing-mem") ReferenceId Minimum 
+put db REQUESTEDxHASHxADDR r15
+lbn r15 HASH("StructureLogicMemory") HASH("fn-auto-temperature-mem") ReferenceId Minimum 
+put db TEMPERATURExTARGETxADDR r15
+lbn r15 HASH("StructureLogicMemory") HASH("fn-auto-pressure-mem") ReferenceId Minimum 
+put db PRESSURExTARGETxADDR r15
 
 #Init stack and variables
 s COLDxPUMP.RID Setting 0
@@ -73,7 +80,8 @@ jal storeLocalTemeprature
 main:
     sleep DT
     l r15 FURNACE.RID RecipeHash   #Read furnace hash
-    get r14 db REQUESTEDxHASHxADDR #Read required hash
+    get r14 db REQUESTEDxHASHxADDR #Read required hash RID
+    l r14 r14 Setting              #Read required hash by RID
     seq r15 r14 r15                #Check we already have this hash done
     l r14 STARTxSW.RID On          #Check auto switch is on
     xor r15 r15 1                  #Not hash ready
@@ -122,7 +130,7 @@ changeState:
     jal clearLocals
     pop ra
     move state newState
-    beq state STATExIDLE if_idle: 
+    beq state STATExIDLE if_idle
         #In case of state is not IDLE
         s FURNACE.RID SettingInput 100
         s HOTxPUMP.RID Setting 0  #Hot input
@@ -148,7 +156,8 @@ j ra
 loadLocalTemperature:
     get integral db TEMPERATURExINTGxADDR
     get previousdeviation db TEMPERATURExPDIVxADDR 
-    get tgtval db TEMPERATURExTARGETxADDR
+    get r15 db TEMPERATURExTARGETxADDR
+    l tgtval r15 Setting 
 j ra
 storeLocalPressure:
     #Target pressure is set externally
@@ -158,7 +167,8 @@ j ra
 loadLocalPressure:
     get integral db PRESSURExINTGxADDR
     get previousdeviation db PRESSURExPDIVxADDR 
-    get tgtval db PRESSURExTARGETxADDR
+    get r15 db PRESSURExTARGETxADDR
+    l tgtval r15 Setting
 j ra
 clearLocals:
     #Don't clear target values as it is set externaly
