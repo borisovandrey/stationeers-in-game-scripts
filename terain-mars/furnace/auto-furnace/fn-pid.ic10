@@ -209,10 +209,10 @@ applyActuators:
         s FURNACE.RID SettingOutput output
         move outputPress 0
     jr 2
-        sb HASH("StructureAdvancedFurnace") SettingOutput 0
+        s FURNACE.RID SettingOutput 0
     abs output outputTemp
     max output output outputPress
-    brltz outputTemp 3
+    brltz outputTemp 4
       s HOTxPUMP.RID Setting output
       s COLDxPUMP.RID Setting 0
     jr 3
