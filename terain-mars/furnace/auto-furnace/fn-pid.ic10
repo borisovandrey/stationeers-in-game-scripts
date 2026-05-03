@@ -25,10 +25,6 @@ define LOWxPATHxFILTERxOPOSITExALPHA 0.8
 define STATExIDLE 0     #Furnance is inactive
 define STATExACTIVE 1   #Furnance is active
 
-# Addresses
-move previousdeviation 0
-move integral 0
-
 define REQUESTEDxHASHxADDR      10 #Hash to be melted
 define TEMPERATURExTARGETxADDR  11 #Temperature target
 define PRESSURExTARGETxADDR     12 #Pressure for target
@@ -157,7 +153,8 @@ loadLocalTemperature:
     get integral db TEMPERATURExINTGxADDR
     get previousdeviation db TEMPERATURExPDIVxADDR 
     get r15 db TEMPERATURExTARGETxADDR
-    l tgtval r15 Setting 
+    l tgtval r15 Setting
+    add tgtval tgtval Klvn
 j ra
 storeLocalPressure:
     #Target pressure is set externally

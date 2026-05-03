@@ -10,6 +10,7 @@ local PRESSURE_LIMIT_KPA = 53000
 local PRESSURE_LIMIT_CANISTER_KPA = 18000
 local TEMPERATURE_MAX_C = 3000
 local MPA = 1000
+local ERROR_TOLLERANCE = 0.035
 
 local Color = {
     Blue   = 0,
@@ -145,6 +146,18 @@ end
 function Device:runFurnaceOutputPump(percentage)
     local safe = clamp(percentage, 0, 100);
     ic.write_id(self.Actuators.Furnace, LT.SettingOutput, safe)
+end
+
+function Device:getFurnaceRecipe()
+    return ic.read_id(self.Sensors.FurnaceSns, LT.RecipeHash)
+end
+
+function Device:isHotPumpOn()
+    return (ic.read_id(self.Actuators.AutomaticHotPump, LT.Setting) or 0) > 0
+end
+
+function Device:isColdPumpOn()
+    return (ic.read_id(self.Actuators.AutomaticColdPump, LT.Setting) or 0) > 0
 end
 
 local Direction = {
@@ -654,8 +667,13 @@ local Console = {
         TemperatureErrorDsp = ic.find("fn-auto-temp-err-dsp"),
         PressureErrorDsp = ic.find("fn-auto-press-err-dsp"),
         AutoStartSwitch = ic.find("fn-auto-start"),
-        isAutoActive = false
+        isAutoActive = false,
+        SmallLed = ic.find("fn-auto-small-led"),
+        BigLed = ic.find("fn-auto-big-led"),
     },
+    General = {
+        InFurnaceHashReadyMem = ic.find("fn-infurnace-hash-mem")
+    }
 }
 
 function Console.AutomaticPannel:init()
@@ -731,6 +749,10 @@ function Console.AutomaticPannel:clearAutoStart()
     ic.write_id(self.PressureErrorDsp, LT.Setting, 0)
     ic.write_id(self.FurnaceTemperatureMem, LT.Setting, 0)
     ic.write_id(self.FurnacePressureMem, LT.Setting, 0)
+    ic.write_id(self.SmallLed, LT.Color, Color.Gray)
+    ic.write_id(self.BigLed, LT.Color, Color.Gray)
+    ic.write_id(self.SmallLed, LT.On, 0)
+    ic.write_id(self.BigLed, LT.On, 0)
 end
 
 function Console.AutomaticPannel:checkAutoStarted()
@@ -745,6 +767,8 @@ function Console.AutomaticPannel:checkAutoStarted()
             ic.write_id(self.PressureErrorDsp, LT.Setting, 0)
             ic.write_id(self.FurnaceTemperatureMem, LT.Setting, 0)
             ic.write_id(self.FurnacePressureMem, LT.Setting, 0)
+            ic.write_id(self.SmallLed, LT.On, 1)
+            ic.write_id(self.BigLed, LT.On, 1)
         end
     end
 end
@@ -771,6 +795,20 @@ end
 function Console.AutomaticPannel:isAutoStarted()
     return self.isAutoActive 
 end 
+
+function Console.AutomaticPannel:lightsUpdate(error)
+    local hot = Device:isHotPumpOn()
+    local cool = Device:isColdPumpOn()
+    local hash = Device:getFurnaceRecipe() or 0
+    local color = Color.Gray
+    if hash == self.SelectedIngotHash then color = Color.Green
+    elseif error < ERROR_TOLLERANCE then color = Color.Orange
+    elseif hot then color = Color.Red
+    elseif cool then color = Color.Blue
+    end
+    ic.write_id(self.SmallLed, LT.Color, color)
+    ic.write_id(self.BigLed, LT.Color, color)
+end
 
 function Console.AutomaticPannel:update()
     local dial = clamp(ic.read_id(self.IngotSelector, LT.Setting) + 1, 1, #IngotList)
@@ -808,10 +846,13 @@ function Console.AutomaticPannel:update()
         local temp, press = Device:getGasState(Device.Sensors.FurnaceSns)
         local deltaTemp = temp - self.TemperatureTarget
         local deltaPressure = press - self.PressureTarget
+        local relativeTemp = math.abs(deltaTemp) / (self.TemperatureTarget or 1)
+        local relativePressure = math.abs(deltaPressure) / (self.PressureTarget or 1)
         ic.write_id(self.TemperatureErrorDsp, LT.Setting, deltaTemp)
         ic.write_id(self.PressureErrorDsp, LT.Setting, deltaPressure * 1000)
         ic.write_id(self.FurnaceTemperatureMem, LT.Setting, temp)
         ic.write_id(self.FurnacePressureMem, LT.Setting, press)
+        self:lightsUpdate( relativeTemp > relativePressure and relativeTemp or relativePressure )
     end
 end
 
@@ -820,6 +861,11 @@ function Console:updateAutomatic(on)
     if on then 
         self.AutomaticPannel:update()
     end
+end
+
+function Console:updateInFurnaceHash()
+    local hsh = Device:getFurnaceRecipe() or 0
+    ic.write_id(self.General.InFurnaceHashReadyMem, LT.Setting, hsh)
 end
 
 -- Orchestrates console requests, conflict resolution, and mode execution.
@@ -881,6 +927,7 @@ function Controller:run()
     self:updateModes()
     Console:updateSwitches()
     Console:updateAutomatic(isModeActive(AutomaticMode))
+    Console:updateInFurnaceHash()
 end
 
 -- Build console lookup tables before the main tick loop starts.
