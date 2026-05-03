@@ -641,10 +641,20 @@ local Console = {
         SelectedIngotHashMem = ic.find("fn-auto-sel-ing-mem"),
         SelectedIngotHashDsp = ic.find("fn-auto-sel-ing-dsp"),
         SelectedIngotHash = 0,
-        TempreatureTarget = 0,
+        TemperatureTarget = 0,
         PressureTarget = 0,
         TemeperatureSliderPos = 0,
         PressureSliderPos = 0,
+        SelectedTemperatureMem = ic.find("fn-auto-temperature-mem"),
+        SelectedPressureMem = ic.find("fn-auto-pressure-mem"),
+        FurnaceTemperatureDsp = ic.find("fn-auto-furnace-temp-dsp"),
+        FurnacePressureDsp = ic.find("fn-auto-furnace-press-dsp"),
+        FurnaceTemperatureMem = ic.find("fn-auto-furnace-temp-mem"),
+        FurnacePressureMem = ic.find("fn-auto-furnace-press-mem"),
+        TemperatureErrorDsp = ic.find("fn-auto-temp-err-dsp"),
+        PressureErrorDsp = ic.find("fn-auto-press-err-dsp"),
+        AutoStartSwitch = ic.find("fn-auto-start"),
+        isAutoActive = false
     },
 }
 
@@ -662,8 +672,14 @@ function Console.AutomaticPannel:init()
     ic.write_id(self.PressureMinDsp, LT.Color, Color.Yellow)
     ic.write_id(self.PressureToDsp, LT.Color, Color.Orange) 
     ic.write_id(self.PressureMaxDsp, LT.Color, Color.Brown) 
-
     ic.write_id(self.SelectedIngotHashMem, LT.Setting, 0)
+    ic.write_id(self.TemperatureErrorDsp, LT.Mode, DisplayMode.Celsius)
+    ic.write_id(self.PressureErrorDsp, LT.Mode, DisplayMode.Pa)
+    ic.write_id(self.TemperatureErrorDsp, LT.Color, Color.Red)
+    ic.write_id(self.PressureErrorDsp, LT.Color, Color.Yellow)
+
+    ic.write_id(self.AutoStartSwitch, LT.On, 0)
+    ic.write_id(self.AutoStartSwitch, LT.Color, Color.Gray)
 end
 
 -- Builds the mode-to-switch map used by the controller.
@@ -717,7 +733,31 @@ function Console.AutomaticPannel:activate(on)
     ic.write_id(self.PressureToDsp, LT.On, on and 1 or 0) 
     ic.write_id(self.PressureMaxDsp, LT.On, on and 1 or 0)   
     ic.write_id(self.SelectedIngotHashDsp, LT.On, on and 1 or 0)
+    
+    ic.write_id(self.FurnacePressureDsp, LT.On, on and 1 or 0)
+    ic.write_id(self.FurnaceTemperatureDsp, LT.On, on and 1 or 0)
+    ic.write_id(self.TemperatureErrorDsp, LT.On, on and 1 or 0)
+    ic.write_id(self.PressureErrorDsp, LT.On, on and 1 or 0)
+
+    ic.write_id(self.AutoStartSwitch, LT.On, 0) -- Reset auto-start request when panel mode toggles
+    self:checkAutoStarted()
 end
+
+function Console.AutomaticPannel:checkAutoStarted()
+    local sw = ic.read_id(self.AutoStartSwitch, LT.On) == 1
+    if sw ~= self.isAutoActive then
+        self.isAutoActive = sw
+        ic.write_id(self.AutoStartSwitch, LT.Color, self.isAutoActive and Color.Blue or Color.Gray)
+        ic.write_id(self.TemperatureErrorDsp, LT.Setting, 0)
+        ic.write_id(self.PressureErrorDsp, LT.Setting, 0)
+        ic.write_id(self.FurnaceTemperatureMem, LT.Setting, 0)
+        ic.write_id(self.FurnacePressureMem, LT.Setting, 0)
+    end
+end
+
+function Console.AutomaticPannel:isAutoStarted()
+    return self.isAutoActive 
+end 
 
 function Console.AutomaticPannel:update()
     local dial = clamp(ic.read_id(self.IngotSelector, LT.Setting) + 1, 1, #IngotList)
@@ -738,13 +778,27 @@ function Console.AutomaticPannel:update()
 
     if self.TemeperatureSliderPos ~= temperatureSlider then
         self.TemeperatureSliderPos = temperatureSlider
-        self.TempreatureTarget = ingot.temperature[1] + self.TemeperatureSliderPos * (ingot.temperature[2] - ingot.temperature[1])
-        ic.write_id(self.TemperatureToDsp, LT.Setting, self.TempreatureTarget)
+        self.TemperatureTarget = ingot.temperature[1] + self.TemeperatureSliderPos * (ingot.temperature[2] - ingot.temperature[1])
+        ic.write_id(self.TemperatureToDsp, LT.Setting, self.TemperatureTarget)
+        ic.write_id(self.SelectedTemperatureMem, LT.Setting, self.TemperatureTarget)
     end
     if self.PressureSliderPos ~= pressureSlider then
         self.PressureSliderPos = pressureSlider
         self.PressureTarget = ingot.pressure[1] + self.PressureSliderPos * (ingot.pressure[2] - ingot.pressure[1])
         ic.write_id(self.PressureToDsp, LT.Setting, self.PressureTarget * 1000)
+        ic.write_id(self.SelectedPressureMem, LT.Setting, self.PressureTarget)
+    end
+
+    self:checkAutoStarted()
+    -- Update tempearture and error
+    if self:isAutoStarted() then
+        local temp, press = Device:getGasState(Device.Sensors.FurnaceSns)
+        local deltaTemp = self.TemperatureTarget - temp
+        local deltaPressure = self.PressureTarget - press
+        ic.write_id(self.TemperatureErrorDsp, LT.Setting, deltaTemp)
+        ic.write_id(self.PressureErrorDsp, LT.Setting, deltaPressure * 1000)
+        ic.write_id(self.FurnaceTemperatureMem, LT.Setting, temp)
+        ic.write_id(self.FurnacePressureMem, LT.Setting, press)
     end
 end
 

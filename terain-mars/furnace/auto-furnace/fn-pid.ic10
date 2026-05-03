@@ -55,7 +55,7 @@ alias newState      r13         #New state
 #Discovery devices and initilise it
 lbn HOTxPUMP.RID HASH("StructureVolumePump") HASH("fn-hot-pump") ReferenceId Minimum
 lbn COLDxPUMP.RID HASH("StructureVolumePump") HASH("fn-cold-pump") ReferenceId Minimum
-lbn STARTxSW.RID HASH("ModularDeviceFlipSwitch") HASH("fn-cauto-start") ReferenceId Minimum
+lbn STARTxSW.RID HASH("ModularDeviceSwitch") HASH("fn-auto-start") ReferenceId Minimum
 lbn FURNACE.RID HASH("StructureAdvancedFurnace") HASH("fn-device") ReferenceId Minimum
 
 #Init stack and variables
@@ -75,7 +75,7 @@ main:
     l r15 FURNACE.RID RecipeHash   #Read furnace hash
     get r14 db REQUESTEDxHASHxADDR #Read required hash
     seq r15 r14 r15                #Check we already have this hash done
-    l r14 STARTxSW.RID Setting     #Check auto switch is on
+    l r14 STARTxSW.RID On          #Check auto switch is on
     xor r15 r15 1                  #Not hash ready
     and r15 r15 r14                #Active state is sw=On && !HashReady
     select newState r15 STATExACTIVE STATExIDLE
