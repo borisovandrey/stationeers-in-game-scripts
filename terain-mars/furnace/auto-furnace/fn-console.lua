@@ -4,7 +4,7 @@ local LT  = ic.enums.LogicType
 local LBM = ic.enums.LogicBatchMethod
 
 -- Definitions
-local EPSILON = 0.001
+local EPSILON = 0.0001
 local PRESSURE_MAX_KPA = 60000
 local PRESSURE_LIMIT_KPA = 53000
 local PRESSURE_LIMIT_CANISTER_KPA = 18000
