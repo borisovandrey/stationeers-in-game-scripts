@@ -25,9 +25,6 @@ define LOWxPATHxFILTERxOPOSITExALPHA 0.8
 define STATExIDLE 0     #Furnance is inactive
 define STATExACTIVE 1   #Furnance is active
 
-#If deviation is less then 0.035 we consider the furnance is on target
-define CONTROLLERxTOLLERANCE 0.35 
-
 # Addresses
 move previousdeviation 0
 move integral 0
@@ -88,6 +85,10 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
     #Calculate Temperature
     move output 0 #Calculate temperature deviation
     jal loadLocalTemperature #Load data
+    brgtz tgtval 4
+        move newState STATExIDLE
+        jal changeState
+        j main   
     l currentVal FURNACE.RID Temperature
     sub r15 tgtval currentVal
     div deviation r15 tgtval #Calculate normilized deviation [-1..1]
@@ -97,6 +98,10 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
 
     #Calculate Pressure
     jal loadLocalPressure
+    brgtz tgtval 4
+        move newState STATExIDLE
+        jal changeState
+        j main 
     l currentVal FURNACE.RID Pressure
     brle currentVal PRESSURExMAX 4 #Protect the pressure
         move newState STATExIDLE
@@ -113,8 +118,9 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
 j main
 
 changeState:
-    move r15 ra
+    push ra
     jal clearLocals
+    pop ra
     move state newState
     beq state STATExIDLE if_idle: 
         #In case of state is not IDLE
@@ -156,11 +162,11 @@ loadLocalPressure:
 j ra
 clearLocals:
     #Don't clear target values as it is set externaly
-    put db PRESSURExPDIVxADDR 0
+    put db TEMPERATURExPDIVxADDR 0
     put db TEMPERATURExINTGxADDR 0
     put db PRESSURExPDIVxADDR 0
     put db PRESSURExINTGxADDR 0
-j r15
+j ra
 pidController:
     #Anti windup integral calculation with adaptive decoy
     abs currentVal deviation
@@ -181,7 +187,7 @@ pidController:
     add r15 r15 r14
     sub r14 deviation previousdeviation
     div r14 r14 DT
-    mul r14 LOWxPATHxFILTERxALPHA r14
+    mul r14 Kd r14
     add output r15 r14
     move previousdeviation deviation
     #Output is normalized in the [-1:1]
