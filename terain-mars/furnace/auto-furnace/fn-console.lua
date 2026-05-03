@@ -679,7 +679,7 @@ function Console.AutomaticPannel:init()
     ic.write_id(self.PressureErrorDsp, LT.Color, Color.Yellow)
 
     ic.write_id(self.AutoStartSwitch, LT.On, 0)
-    ic.write_id(self.AutoStartSwitch, LT.Color, Color.Gray)
+    self:clearAutoStart()
 end
 
 -- Builds the mode-to-switch map used by the controller.
@@ -723,6 +723,32 @@ function Console:switchMode(mode, on)
     end
 end
 
+function Console.AutomaticPannel:clearAutoStart()
+    ic.write_id(self.AutoStartSwitch, LT.On, 0) 
+    self.isAutoActive = false
+    ic.write_id(self.AutoStartSwitch, LT.Color, Color.Gray)
+    ic.write_id(self.TemperatureErrorDsp, LT.Setting, 0)
+    ic.write_id(self.PressureErrorDsp, LT.Setting, 0)
+    ic.write_id(self.FurnaceTemperatureMem, LT.Setting, 0)
+    ic.write_id(self.FurnacePressureMem, LT.Setting, 0)
+end
+
+function Console.AutomaticPannel:checkAutoStarted()
+    local sw = ic.read_id(self.AutoStartSwitch, LT.On) == 1
+    if sw ~= self.isAutoActive then
+        if(not sw) then 
+            self:clearAutoStart()
+        else
+            self.isAutoActive = true
+            ic.write_id(self.AutoStartSwitch, LT.Color, Color.Blue)
+            ic.write_id(self.TemperatureErrorDsp, LT.Setting, 0)
+            ic.write_id(self.PressureErrorDsp, LT.Setting, 0)
+            ic.write_id(self.FurnaceTemperatureMem, LT.Setting, 0)
+            ic.write_id(self.FurnacePressureMem, LT.Setting, 0)
+        end
+    end
+end
+
 function Console.AutomaticPannel:activate(on)
     if self.active == on then return end
     self.active = on
@@ -739,20 +765,7 @@ function Console.AutomaticPannel:activate(on)
     ic.write_id(self.TemperatureErrorDsp, LT.On, on and 1 or 0)
     ic.write_id(self.PressureErrorDsp, LT.On, on and 1 or 0)
 
-    ic.write_id(self.AutoStartSwitch, LT.On, 0) -- Reset auto-start request when panel mode toggles
-    self:checkAutoStarted()
-end
-
-function Console.AutomaticPannel:checkAutoStarted()
-    local sw = ic.read_id(self.AutoStartSwitch, LT.On) == 1
-    if sw ~= self.isAutoActive then
-        self.isAutoActive = sw
-        ic.write_id(self.AutoStartSwitch, LT.Color, self.isAutoActive and Color.Blue or Color.Gray)
-        ic.write_id(self.TemperatureErrorDsp, LT.Setting, 0)
-        ic.write_id(self.PressureErrorDsp, LT.Setting, 0)
-        ic.write_id(self.FurnaceTemperatureMem, LT.Setting, 0)
-        ic.write_id(self.FurnacePressureMem, LT.Setting, 0)
-    end
+    self:clearAutoStart() -- Reset auto-start request when panel mode toggles
 end
 
 function Console.AutomaticPannel:isAutoStarted()
@@ -793,8 +806,8 @@ function Console.AutomaticPannel:update()
     -- Update tempearture and error
     if self:isAutoStarted() then
         local temp, press = Device:getGasState(Device.Sensors.FurnaceSns)
-        local deltaTemp = self.TemperatureTarget - temp
-        local deltaPressure = self.PressureTarget - press
+        local deltaTemp = temp - self.TemperatureTarget
+        local deltaPressure = press - self.PressureTarget
         ic.write_id(self.TemperatureErrorDsp, LT.Setting, deltaTemp)
         ic.write_id(self.PressureErrorDsp, LT.Setting, deltaPressure * 1000)
         ic.write_id(self.FurnaceTemperatureMem, LT.Setting, temp)
