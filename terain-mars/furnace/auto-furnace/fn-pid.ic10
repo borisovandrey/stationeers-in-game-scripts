@@ -21,6 +21,9 @@ define AGINGxHIGHxERROR      0.8
 define LOWxPATHxFILTERxALPHA 0.2
 define LOWxPATHxFILTERxOPOSITExALPHA 0.8
 
+define TEMPERATURE_COMPLETNESS_DIV 30
+define PRESSURE_COMPLETNESS_DIV 200
+
 # States
 define STATExIDLE 0     #Furnance is inactive
 define STATExACTIVE 1   #Furnance is active
@@ -28,6 +31,8 @@ define STATExACTIVE 1   #Furnance is active
 define REQUESTEDxHASHxADDR      10 #Hash to be melted
 define TEMPERATURExTARGETxADDR  11 #Temperature target
 define PRESSURExTARGETxADDR     12 #Pressure for target
+define TEMPERATURExDIFFxADDR    13 #Temperature target
+define PRESSURExDIFFxADDR       14 #Pressure for target
 
 define TEMPERATURExPDIVxADDR    20 #Stack offset for calculated temperature previous deviation values 
 define TEMPERATURExINTGxADDR    21 #Stack offset for calculated temperature integral values 
@@ -75,15 +80,9 @@ jal storeLocalTemeprature
 
 main:
     sleep DT
-    l r15 FURNACE.RID RecipeHash   #Read furnace hash
-    get r14 db REQUESTEDxHASHxADDR #Read required hash RID
-    l r14 r14 Setting              #Read required hash by RID
-    seq r15 r14 r15                #Check we already have this hash done
-    l r14 STARTxSW.RID On          #Check auto switch is on
-    xor r15 r15 1                  #Not hash ready
-    and r15 r15 r14                #Active state is sw=On && !HashReady
+    l r15 STARTxSW.RID On          #Check auto switch is on
     select newState r15 STATExACTIVE STATExIDLE
-    bneal newState state changeState      #State is changed set everthing up
+    bneal newState state changeState #State is changed set everthing up
 beq state STATExIDLE main          #Current state is IDLE - do nothing
 
     #Calculate Temperature
@@ -95,6 +94,7 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
         j main   
     l currentVal FURNACE.RID Temperature
     sub r15 tgtval currentVal
+    put db TEMPERATURExDIFFxADDR r15
     div deviation r15 tgtval #Calculate normilized deviation [-1..1]
     jal pidController #Apply calculation for temperature
     move outputTemp output  #Temperature controller output [-10.0..10.0]
@@ -112,12 +112,31 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
         jal changeState
         j main
     sub r15 tgtval currentVal
+    put db PRESSURExDIFFxADDR r15
     div deviation r15 tgtval
     jal pidController
     move outputPress output
     jal storeLocalPressure
 
+    #Check completeness - the requested hash in the furnace and errors are small
+    #Check deviation for completness
+    get r15 db TEMPERATURExDIFFxADDR
+    abs r15 r15
+    bge r15 TEMPERATURE_COMPLETNESS_DIV apply
+    get r15 db PRESSURExDIFFxADDR 
+    abs r15 r15
+    bge r15 PRESSURE_COMPLETNESS_DIV apply
+    #Hash Completeness test
+    l r15 FURNACE.RID RecipeHash   #Read furnace hash
+    get r14 db REQUESTEDxHASHxADDR #Read required hash RID
+    l r14 r14 Setting              #Read required hash by RID
+    bne r15 r14 apply              #Hash is not complete continue control
+    move newState STATExIDLE 
+    bneal newState state changeState #State is changed set everthing down
+    j main                         #Current state is IDLE - do nothing
+
     #Apply controllers
+apply:
     jal applyActuators 
 j main
 
@@ -126,11 +145,11 @@ changeState:
     jal clearLocals
     pop ra
     move state newState
+    s HOTxPUMP.RID Setting 0  #Hot input
+    s COLDxPUMP.RID Setting 0 #Cool input
     beq state STATExIDLE if_idle
         #In case of state is not IDLE
         s FURNACE.RID SettingInput 100
-        s HOTxPUMP.RID Setting 0  #Hot input
-        s COLDxPUMP.RID Setting 0 #Cool input
         s HOTxPUMP.RID On 1 #Hot input
         s COLDxPUMP.RID On 1 #Cool input
         j ra 
@@ -138,8 +157,6 @@ changeState:
         #State is IDLE
         s FURNACE.RID SettingInput 0
         s FURNACE.RID SettingOutput 0
-        s HOTxPUMP.RID Setting 0  #Hot input
-        s COLDxPUMP.RID Setting 0  #Cool input
         s HOTxPUMP.RID On 0
         s COLDxPUMP.RID On 0
 j ra
