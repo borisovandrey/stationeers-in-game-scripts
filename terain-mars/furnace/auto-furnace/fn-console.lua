@@ -12,6 +12,8 @@ local TEMPERATURE_MAX_C = 3000
 local MPA = 1000
 local TEMPERATURE_COMPLETNESS_DIV_C = 30
 local PRESSURE_COMPLETNESS_DIV_KPA = 200
+local TEMPERATURE_DEFAULT_OFFSET_C = 35
+local PRESSURE_DEFAULT_OFFSET_KPA = 250
 
 local Color = {
     Blue   = 0,
@@ -41,6 +43,12 @@ local DisplayMode = {
 
 local function clamp(x, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, x))
+end
+
+local function sliderPositionForTarget(minValue, maxValue, targetValue)
+    local span = maxValue - minValue
+    if math.abs(span) < EPSILON then return 0 end
+    return clamp((targetValue - minValue) / span, 0, 1)
 end
 
 -- Ingots
@@ -820,13 +828,33 @@ function Console.AutomaticPannel:update()
     local ingot = IngotList[dial]
     if ingot.id ~= self.SelectedIngotHash then
         self.SelectedIngotHash = ingot.id
-        self.TemeperatureSliderPos = 0
-        self.PressureSliderPos = 0
+        local defaultTempTarget = clamp(
+            ingot.temperature[1] + TEMPERATURE_DEFAULT_OFFSET_C,
+            ingot.temperature[1],
+            ingot.temperature[2]
+        )
+        local defaultPressureTarget = clamp(
+            ingot.pressure[1] + PRESSURE_DEFAULT_OFFSET_KPA,
+            ingot.pressure[1],
+            ingot.pressure[2]
+        )
+        self.TemeperatureSliderPos = sliderPositionForTarget(
+            ingot.temperature[1],
+            ingot.temperature[2],
+            defaultTempTarget
+        )
+        self.PressureSliderPos = sliderPositionForTarget(
+            ingot.pressure[1],
+            ingot.pressure[2],
+            defaultPressureTarget
+        )
         ic.write_id(self.SelectedIngotHashMem, LT.Setting, self.SelectedIngotHash)
         ic.write_id(self.TemperatureMinDsp, LT.Setting, ingot.temperature[1])
         ic.write_id(self.TemperatureMaxDsp, LT.Setting, ingot.temperature[2]) 
         ic.write_id(self.PressureMinDsp, LT.Setting, ingot.pressure[1] * 1000)
-        ic.write_id(self.PressureMaxDsp, LT.Setting, ingot.pressure[2] * 1000)   
+        ic.write_id(self.PressureMaxDsp, LT.Setting, ingot.pressure[2] * 1000)
+        ic.write_id(self.TemperatureSlider, LT.Setting, self.TemeperatureSliderPos)
+        ic.write_id(self.PressureSlider, LT.Setting, self.PressureSliderPos)
     end
 
     local temperatureSlider = ic.read_id(self.TemperatureSlider, LT.Setting)
