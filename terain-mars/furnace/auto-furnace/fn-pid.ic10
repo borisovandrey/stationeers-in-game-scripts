@@ -113,30 +113,12 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
         j main
     sub r15 tgtval currentVal
     put db PRESSURExDIFFxADDR r15
-    div deviation r15 tgtval
+    div deviation r15 1000 #tgtval
     jal pidController
     move outputPress output
     jal storeLocalPressure
 
-    #Check completeness - the requested hash in the furnace and errors are small
-    #Check deviation for completness
-    get r15 db TEMPERATURExDIFFxADDR
-    abs r15 r15
-    bge r15 TEMPERATURE_COMPLETNESS_DIV apply
-    get r15 db PRESSURExDIFFxADDR 
-    abs r15 r15
-    bge r15 PRESSURE_COMPLETNESS_DIV apply
-    #Hash Completeness test
-    l r15 FURNACE.RID RecipeHash   #Read furnace hash
-    get r14 db REQUESTEDxHASHxADDR #Read required hash RID
-    l r14 r14 Setting              #Read required hash by RID
-    bne r15 r14 apply              #Hash is not complete continue control
-    move newState STATExIDLE 
-    bneal newState state changeState #State is changed set everthing down
-    j main                         #Current state is IDLE - do nothing
-
     #Apply controllers
-apply:
     jal applyActuators 
 j main
 
