@@ -25,15 +25,15 @@ move NAMES.CURRENT 0
 move DEV.ACTIVE 0
 move sp DEVICES.START
 move Selected -1
-s $6D546 Color Color.Khaki
-s $6D547 Color Color.Khaki
+s $6D546 Color Color.Khaki #Page Back
+s $6D547 Color Color.Khaki #Page Down
 move r15 $8FE95 #Setup package router
 s r15 Setting 0
 s r15 SettingOutput 0
 s r15 Mode 0 
 main:
     yield
-    l PWR.VAL $6D56C On
+    l PWR.VAL $6D56C On #Power On Switch
     beqal State POWERxOFFxSTATE inPowerOff
     beqal State POWERxONxSTATE inPowerOn
 j main
@@ -60,10 +60,10 @@ inPowerOn:
     jal startProduction 
 j Return
 checkPackRoute:
-    move r15 $8FE95
-    l r14 $6D56F On
+    move r15 $8FE95 #Splitter
+    l r14 $6D56F On #Route switch
     snez r14 r14
-    s r15 Mode r14
+    s r15 Mode r14 #Select local or remote storage
 j ra
 power:
     s $6C014 On PWR.VAL
@@ -105,7 +105,8 @@ updateDisplays:
         select BtnColor DEV.ACTIVE Color.Blue Color.Green
         seqz r15 Name
         select BtnColor r15 Color.Gray BtnColor
-        seq r15 Selected idx
+        add r15 NAMES.CURRENT idx
+        seq r15 Selected r15
         select BtnColor r15 Color.Orange BtnColor
         add r15 BUTTON.START idx
         get Device MEM.PIN r15
@@ -117,7 +118,7 @@ checkNext:
     l r15 $6D546 Activate
     select r14 r15 -5 0
     l r15 $6D547 Activate
-    select r14 r15 -5 r14
+    select r14 r15 5 r14
     add NAMES.CURRENT NAMES.CURRENT r14
     min NAMES.CURRENT NAMES.CURRENT 100
     max NAMES.CURRENT NAMES.CURRENT 0
@@ -135,7 +136,7 @@ startProduction:
             add r15 NAMES.CURRENT idx
             add r15 r15 REF.START
             get RCPS.REF MEM.PIN r15 
-            move Selected idx
+            add Selected NAMES.CURRENT idx
             s db Setting RCPS.REF
             j ra
         add idx idx 1

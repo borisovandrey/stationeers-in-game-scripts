@@ -19,6 +19,7 @@ define DEVICES.START 100
 define DISPLAY.START 110
 define BUTTON.START  120 
 clr MEM.PIN
+s db Setting 0
 jal configConsole
 #Large battery
 move name STR("LBATTR") 
@@ -71,12 +72,8 @@ move hash HASH("KitSDBSilo")
 move qtty 1 
 move dev AUTO
 jal insert
-move hash HASH("KitSDBSilo")
-move qtty 1 
-move dev AUTO
-jal insert
 move hash HASH("ItemSteelSheets")
-move qtty 15 
+move qtty 16 
 move dev AUTO
 jal insert
 move hash HASH("ItemPlasticSheets")
@@ -84,7 +81,7 @@ move qtty 10
 move dev AUTO
 jal insert
 move hash HASH("ItemCableCoil")
-move qtty 5 
+move qtty 6
 move dev AUTO
 jal insert
 jal end
@@ -108,6 +105,60 @@ move qtty 4
 move dev ELECTRO
 jal insert
 jal end
+#Airlock
+move name STR("AIRLCK")
+jal begin
+move hash HASH("ItemKitDoor")
+move qtty 2 
+move dev AUTO
+jal insert
+move hash HASH("ItemPlasticSheets")
+move qtty 2 
+move dev AUTO
+jal insert
+move hash HASH("ItemGlassSheets")
+move qtty 6 
+move dev AUTO
+jal insert
+move hash HASH("ItemCableCoil")
+move qtty 50 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemKitConsole")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("CircuitboardAdvAirlockControl")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemKitSensor")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemAreaPowerControl")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemBatteryCellLarge")
+move qtty 1 
+move dev ELECTRO
+jal insert
+move hash HASH("ItemActiveVent")
+move qtty 2 
+move dev ATMO
+jal insert
+move hash HASH("ItemPassiveVentInsulated")
+move qtty 2 
+move dev ATMO
+jal insert
+move hash HASH("ItemKitInsulatedPipe")
+move qtty 10 
+move dev ATMO
+jal insert
+jal end
+#End of item's list
+
 jal configurePackageSorter
 j finish
 
@@ -142,46 +193,60 @@ end:
 j ra
 configConsole:
     move idx DEVICES.START
-    put MEM.PIN idx $4B135 #Autolat
+    lbn r15 HASH("StructureAutolathe") HASH("man-al-dev") ReferenceId Minimum
+    put MEM.PIN idx r15 #Autolat
     add idx idx 1
-    put MEM.PIN idx $4B3A8 #Atmo
+    lbn r15 HASH("StructureHydraulicPipeBender") HASH("man-atm-dev") ReferenceId Minimum
+    put MEM.PIN idx r15 #Atmo
     add idx idx 1
-    put MEM.PIN idx $4B436 #Electro
+    lbn r15 HASH("StructureElectronicsPrinter") HASH("man-el-dev") ReferenceId Minimum
+    put MEM.PIN idx r15 #Electro
     add idx idx 1
-    put MEM.PIN idx $4B4A7 #Craft
+    lbn r15 HASH("StructureToolManufactory") HASH("man-tl-dev") ReferenceId Minimum
+    put MEM.PIN idx r15 #Craft
     add idx idx 1
     put MEM.PIN idx 0
 
-    s $6C01A On 1
-    s $6D542 On 1
-    s $6D543 On 1
-    s $6D544 On 1
-    s $6D545 On 1
-
     move idx DISPLAY.START
-    put MEM.PIN idx $6C01A
+    lbn r15 HASH("ModularDeviceLEDdisplay3") HASH("kit-dsp-1") ReferenceId Minimum
+    s r15 On 1
+    put MEM.PIN idx r15 #DSP1
     add idx idx 1
-    put MEM.PIN idx $6D542
+    lbn r15 HASH("ModularDeviceLEDdisplay3") HASH("kit-dsp-2") ReferenceId Minimum
+    s r15 On 1
+    put MEM.PIN idx r15 #DSP2
     add idx idx 1
-    put MEM.PIN idx $6D543
+    lbn r15 HASH("ModularDeviceLEDdisplay3") HASH("kit-dsp-3") ReferenceId Minimum
+    s r15 On 1
+    put MEM.PIN idx r15 #DSP3
     add idx idx 1
-    put MEM.PIN idx $6D544
+    lbn r15 HASH("ModularDeviceLEDdisplay3") HASH("kit-dsp-4") ReferenceId Minimum
+    s r15 On 1
+    put MEM.PIN idx r15 #DSP4
     add idx idx 1
-    put MEM.PIN idx $6D545
+    lbn r15 HASH("ModularDeviceLEDdisplay3") HASH("kit-dsp-5") ReferenceId Minimum
+    s r15 On 1
+    put MEM.PIN idx r15 #DSP5
     add idx idx 1
     put MEM.PIN idx 0
 
     move idx BUTTON.START
-    put MEM.PIN idx $6D563
+    lbn r15 HASH("ModularDeviceSquareButton") HASH("kit-btn-1") ReferenceId Minimum
+    put MEM.PIN idx r15
     add idx idx 1
-    put MEM.PIN idx $6D565
+    lbn r15 HASH("ModularDeviceSquareButton") HASH("kit-btn-2") ReferenceId Minimum
+    put MEM.PIN idx r15
     add idx idx 1
-    put MEM.PIN idx $6D566
+    lbn r15 HASH("ModularDeviceSquareButton") HASH("kit-btn-3") ReferenceId Minimum
+    put MEM.PIN idx r15
     add idx idx 1
-    put MEM.PIN idx $6D567
+    lbn r15 HASH("ModularDeviceSquareButton") HASH("kit-btn-4") ReferenceId Minimum
+    put MEM.PIN idx r15
     add idx idx 1
-    put MEM.PIN idx $6D568
+    lbn r15 HASH("ModularDeviceSquareButton") HASH("kit-btn-5") ReferenceId Minimum
+    put MEM.PIN idx r15
     add idx idx 1
     put MEM.PIN idx 0
 j ra
 finish:
+s db Setting 1001
