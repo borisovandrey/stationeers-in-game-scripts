@@ -1,0 +1,93 @@
+#terain-mars/green-house/inner-atm-cntrl.ic10
+#No Nitrogen, only Co2 + O2
+alias isOverPressure r0
+alias needExtarctO2 r1
+alias isOverO2 r2
+alias isPolutated r3
+alias Dial.rid r4
+alias O2.level r5
+alias Pol.level r6
+alias Press r7
+alias Filter.on r8
+alias ExtPump.on r9
+alias ExtPump.rid r10
+alias Filter.rid r11
+define Dial.hash HASH("ModularDeviceDialSmall")
+define Dial.name HASH("ch1-press-dial")
+define Sensor.hash HASH("StructureGasSensor")
+define Sensor.name HASH("ch1-gas-sns")
+define ExtPump.hash HASH("StructureTurboVolumePump")
+define ExtPump.name HASH("ch1-ext-pump")
+define Filter.hash HASH("StructureFiltration")
+define Filter.name HASH("ch1-filter")
+define FilterPumps.hash HASH("StructureVolumePump")
+define FilterPumps.name HASH("ch1-filter-pumps")
+define OXYGENxEXTRACTxLEVEL 0.1
+define OXYGENxOVERxLEVEL 0.3
+define OXYGENxLOWxLEVEL 0.005
+define EPSILON 0.0001
+
+
+lbn Dial.rid Dial.hash Dial.name ReferenceId Minimum
+lbn ExtPump.rid ExtPump.hash ExtPump.name ReferenceId Minimum
+lbn Filter.rid Filter.hash Filter.name ReferenceId Minimum
+
+move Filter.on 0
+move ExtPump.on 0
+s ExtPump.rid On 0
+s Filter.rid On 0
+sbn FilterPumps.hash FilterPumps.name On 0
+yield
+
+main:
+    lbn Press Sensor.hash Sensor.name Pressure Average
+    l r15 Dial.rid Setting
+    sgt isOverPressure Press r15
+    lbn O2.level Sensor.hash Sensor.name RatioOxygen Average
+    sge needExtarctO2 O2.level OXYGENxEXTRACTxLEVEL
+    sge isOverO2 O2.level OXYGENxOVERxLEVEL
+    lbn r15 Sensor.hash Sensor.name RatioCarbonDioxide Average
+    move Pol.level 1
+    sub Pol.level Pol.level r15
+    sub Pol.level Pol.level O2.level
+    sge isPolutated Pol.level EPSILON
+
+    jal checkO2Extraction
+    jal checkExtarctingPump
+    bnezal needExtarctO2 startO2Extraction
+    bnezal isOverO2 startExtarctingPump
+    bnezal isOverPressure startExtarctingPump
+    bnezal isPolutated startExtarctingPump
+
+    sleep 1
+j main
+
+checkExtarctingPump:
+    beqz ExtPump.on ra
+    or r15 isPolutated isOverPressure
+    or r15 r15 isOverO2
+    bnez r15 ra
+    move ExtPump.on 0
+    s ExtPump.rid On ExtPump.on
+j ra
+
+startExtarctingPump:
+    bnez ExtPump.on ra
+    move ExtPump.on 1 
+    s ExtPump.rid On ExtPump.on
+j ra
+
+checkO2Extraction:
+    beqz Filter.on ra
+    bge O2.level OXYGENxLOWxLEVEL ra
+    move Filter.on 0
+    s Filter.rid On Filter.on
+    sbn FilterPumps.hash FilterPumps.name On Filter.on
+j ra
+
+startO2Extraction:
+    bnez Filter.on ra
+    move Filter.on 1
+    sbn FilterPumps.hash FilterPumps.name On Filter.on
+    s Filter.rid On Filter.on
+j ra
