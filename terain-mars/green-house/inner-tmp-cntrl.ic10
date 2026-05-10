@@ -1,0 +1,47 @@
+#terain-mars/green-house/inner-tmp-cntrl.ic10
+#Control temperature using passive cooling (gigital valve or door to cool camera)
+alias Dial r0
+alias Cooler r1
+alias TempDsp r2
+alias CoolerIsOn r3
+define GasSNS HASH("StructureGasSensor")
+define SensorName HASH("ch1-gas-sns")
+define SLEEPxTIME 1
+define TEMPERATURExTOLLERANCE 0.5
+define KLVN 273.15 #Kelvin value for 0C
+
+move CoolerIsOn 0
+lbn Dial HASH("ModularDeviceDialSmall") HASH("ch1-temp-dial") ReferenceId Minimum
+lbn Cooler HASH("StructureDigitalValve") HASH("ch1-cooler-vlv") ReferenceId Minimum
+lbn TempDsp HASH("ModularDeviceLEDdisplay3") HASH("ch1-temp-dsp") ReferenceId Minimum
+
+s TempDsp Color Color.Green
+s TempDsp Mode DisplayMode.Celsius
+
+jal stopCool
+main:
+    sleep SLEEPxTIME
+    l r15 Dial Setting
+    lbn r14 GasSNS SensorName Temperature Average
+    sub r14 r14 KLVN
+    s TempDsp Setting r14 
+    sub r15 r14 r15
+    abs r13 r15
+    brgt r13 TEMPERATURExTOLLERANCE 3 #Don't react on the temperature diff in 0.5
+         jal stopCool
+    j main
+    bgtzal r15 startCool
+    blezal r15 stopCool
+j main
+
+startCool:
+    bnez CoolerIsOn ra
+    s Cooler On 1
+    move CoolerIsOn 1 
+j ra
+
+stopCool:
+    beqz CoolerIsOn ra
+    s Cooler On 0
+    move CoolerIsOn 0
+j ra
