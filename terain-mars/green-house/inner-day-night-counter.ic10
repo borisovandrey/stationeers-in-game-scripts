@@ -1,0 +1,56 @@
+#terain-mars/green-house/inner-day-night-counter.ic10
+#Show current phase duration and last full night and day duration on displays
+alias CurrentDsp r0
+alias NightDsp r1
+alias DayDsp r2
+alias SensorRid r3
+alias IsDay r4
+alias PhaseTime r5
+alias DayTime r6
+alias NightTime r7
+define SLEEPxTIME 1
+
+lbn CurrentDsp HASH("ModularDeviceLEDdisplay3") HASH("gh-current-phase-dsp") ReferenceId Minimum
+lbn NightDsp HASH("ModularDeviceLEDdisplay3") HASH("gh-night-dsp") ReferenceId Minimum
+lbn DayDsp HASH("ModularDeviceLEDdisplay3") HASH("gh-day-dsp") ReferenceId Minimum
+lbn SensorRid HASH("StructureDaylightSensor") HASH("gh-daylight-sns") ReferenceId Minimum
+
+s CurrentDsp Color Color.Green
+s CurrentDsp Mode DisplayMode.Minutes
+s NightDsp Color Color.Blue
+s NightDsp Mode DisplayMode.Minutes
+s DayDsp Color Color.Yellow
+s DayDsp Mode DisplayMode.Minutes
+
+move PhaseTime 0
+move DayTime 0
+move NightTime 0
+l IsDay SensorRid Activate
+
+main:
+    sleep SLEEPxTIME
+    l r15 SensorRid Activate
+    beq r15 IsDay phaseContinues
+        beqz IsDay storeNightTime
+            move DayTime PhaseTime
+            j phaseChanged
+storeNightTime:
+        move NightTime PhaseTime
+phaseChanged:
+        move IsDay r15
+        move PhaseTime 1
+        jal updateDisplays
+        j main
+phaseContinues:
+    add PhaseTime PhaseTime 1
+    jal updateDisplays
+j main
+
+updateDisplays:
+    div r15 PhaseTime 60 
+    s CurrentDsp Setting r15
+    div r15 NightTime 60
+    s NightDsp Setting r15
+    div r15 DayTime 60
+    s DayDsp Setting r15
+j ra
