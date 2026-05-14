@@ -1,5 +1,5 @@
-#terain-mars/green-house/inner-day-night-counter.ic10
-#Show current phase duration and last full night and day duration on displays
+# terain-mars/green-house/gh-day-night-counter.ic10
+# Displays the current phase duration and the last full day and night lengths.
 alias CurrentDsp r0
 alias NightDsp r1
 alias DayDsp r2

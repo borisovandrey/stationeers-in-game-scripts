@@ -1,5 +1,5 @@
-#terain-mars/green-house/inner-tmp-cntrl.ic10
-#Control temperature using passive cooling (gigital valve or door to cool camera)
+# terain-mars/green-house/gh-tmp-cntrl.ic10
+# Controls greenhouse temperature using passive cooling and a configurable setpoint.
 alias Dial r0
 alias Cooler r1
 alias TempDsp r2

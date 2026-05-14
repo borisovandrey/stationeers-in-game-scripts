@@ -1,5 +1,5 @@
-#terain-mars/green-house/inner-atm-cntrl.ic10
-#No Nitrogen, only Co2 + O2
+# terain-mars/green-house/gh-atm-cntrl.ic10
+# Controls greenhouse channel 1 atmosphere using CO2 and O2 only.
 alias isOverPressure r0
 alias needExtarctO2 r1
 alias isOverO2 r2

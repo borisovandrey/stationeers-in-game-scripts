@@ -1,0 +1,116 @@
+# terain-mars/green-house/gh-growth-dsp.ic10
+# Updates greenhouse tray LEDs to reflect hydroponics growth state and readiness.
+# Tray states: 3 = growth, 4 = ready, 5 = seeding.
+define LISTxTRAYSxADDR 100
+alias Count r0
+alias Tray.rid r1
+alias Led.rid r2
+alias Clr r3
+alias Return r4
+
+move Count 0
+jal setupTrays
+
+main:
+    jal updateLeds
+    sleep 5
+j main
+
+discoverTrays:
+    lbn r15 HASH("StructureHydroponicsTrayData") Tray.rid ReferenceId Minimum
+    push r15 
+    lbn r15 HASH("ModularDeviceLabelDiode2") Led.rid ReferenceId Minimum
+    push r15 
+j ra
+
+setupTrays:
+    move Return ra
+    move sp LISTxTRAYSxADDR
+    move Count sp
+    move Tray.rid HASH("ch1-tr11-dev")
+    move Led.rid HASH("ch1-tr11-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr12-dev")
+    move Led.rid HASH("ch1-tr12-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr13-dev")
+    move Led.rid HASH("ch1-tr13-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr14-dev")
+    move Led.rid HASH("ch1-tr14-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr21-dev")
+    move Led.rid HASH("ch1-tr21-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr22-dev")
+    move Led.rid HASH("ch1-tr22-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr23-dev")
+    move Led.rid HASH("ch1-tr23-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr24-dev")
+    move Led.rid HASH("ch1-tr24-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr31-dev")
+    move Led.rid HASH("ch1-tr31-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr32-dev")
+    move Led.rid HASH("ch1-tr32-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr33-dev")
+    move Led.rid HASH("ch1-tr33-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr34-dev")
+    move Led.rid HASH("ch1-tr34-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr41-dev")
+    move Led.rid HASH("ch1-tr41-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr42-dev")
+    move Led.rid HASH("ch1-tr42-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr43-dev")
+    move Led.rid HASH("ch1-tr43-led")
+    jal discoverTrays
+    move Tray.rid HASH("ch1-tr44-dev")
+    move Led.rid HASH("ch1-tr44-led")
+    jal discoverTrays
+    sub Count sp Count
+    move ra Return
+j ra
+
+definePlantState:
+    move Clr Color.Black
+    ls r15 Tray.rid 0 Occupied
+    beqz r15 setLed
+    ls r15 Tray.rid 0 Seeding
+    breqz r15 3
+        move Clr Color.White
+        j setLed 
+    ls r15 Tray.rid 0 Efficiency
+    brge r15 0.3 2
+         move Clr Color.Red
+    brge r15 0.7 2
+        move Clr Color.Yellow
+    brge r15 0.9 2
+        move Clr Color.Orange
+    brge r15 1 2
+        move Clr Color.Green
+    move Clr Color.Green    
+setLed:
+    s Led.rid Color Clr
+    sne r15 Clr Color.Black
+    s Led.rid On r15
+j ra
+
+updateLeds:
+    move Return ra
+    move sp LISTxTRAYSxADDR
+    add sp sp Count
+    breq sp LISTxTRAYSxADDR 5
+        pop Led.rid
+        pop Tray.rid
+        jal definePlantState
+    jr -4
+    move ra Return
+j ra

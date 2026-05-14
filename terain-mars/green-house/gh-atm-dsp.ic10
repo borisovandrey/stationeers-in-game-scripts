@@ -1,4 +1,5 @@
-#terain-mars/green-house/inner-atm-dsp.ic10
+# terain-mars/green-house/gh-atm-dsp.ic10
+# Displays greenhouse channel 1 CO2, O2, pollutant ratio, and pressure readings.
 alias CO2DSP r0
 alias O2DSP r1
 alias PolDSP r2

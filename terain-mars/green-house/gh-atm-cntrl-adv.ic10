@@ -1,12 +1,6 @@
-#terain-mars/green-house/inner-atm-cntrl-adv.ic10
-#3 gas model:
-# - Gas1 + Gas2 is a normal atmo. 
-# - Gas3 - shall be filtered out.
-# - Other is polutant
-# Script control proportion of gases set in mixer, 
-# by switching on one oer another pump with setting, proportional to the error
-# PID will be more suittable here, but the code is long enough 
-# Gases are hardcoded
+# terain-mars/green-house/gh-atm-cntrl-adv.ic10
+# Controls greenhouse channel 2 atmosphere with a 3-gas feed mix and extraction.
+# Gas1 + Gas2 form the target atmosphere, Gas3 is extracted, and other gases are treated as pollutants.
 define GAS1 15 #LogicType.RatioCarbonDioxide
 define GAS2 16 #LogicType.RatioNitrogen
 define GAS3 14 #LogicType.RatioOxygen 
