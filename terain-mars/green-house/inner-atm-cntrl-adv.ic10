@@ -1,0 +1,278 @@
+#terain-mars/green-house/inner-atm-cntrl-adv.ic10
+#3 gas model:
+# - Gas1 + Gas2 is a normal atmo. 
+# - Gas3 - shall be filtered out.
+# - Other is polutant
+# Script control proportion of gases set in mixer, 
+# by switching on one oer another pump with setting, proportional to the error
+# PID will be more suittable here, but the code is long enough 
+# Gases are hardcoded
+define GAS1 15 #LogicType.RatioCarbonDioxide
+define GAS2 16 #LogicType.RatioNitrogen
+define GAS3 14 #LogicType.RatioOxygen 
+
+define GAS3xEXTRACTxLEVEL 0.1
+define GAS3xOVERxLEVEL 0.3
+define GAS3xLOWxLEVEL 0.005
+define FEEDxPRESSURE_LIMIT 1200
+define EPSILON 0.0001
+define RATIO_EPSILON 0.03
+
+alias isOverPressure r0
+alias needExtarctGas3 r1
+alias isOverGas3 r2
+alias isPolutated r3
+alias Gas1.level r4
+alias Gas2.level r5
+alias Gas3.level r6
+alias Pol.level r7
+alias Filter.on r8
+alias ExtPump.on r9
+alias FeedMixer.on r10
+alias Proportion r11
+alias Gas1Pump.on r12
+alias Gas2Pump.on r13
+
+
+define PressureDial.hash HASH("ModularDeviceDialSmall")
+define PressureDial.name HASH("ch2-press-dial")
+define PressureDial.rid 10
+
+define Sensor.hash HASH("StructureGasSensor")
+define Sensor.name HASH("ch2-gas-sns")
+define ExtPump.hash HASH("StructureTurboVolumePump")
+define ExtPump.name HASH("ch2-ext-pump")
+define ExtPump.rid 11
+
+define Filter.hash HASH("StructureFiltration")
+define Filter.name HASH("ch2-filter")
+define Filter.rid 12
+
+define FilterPumps.hash HASH("StructureVolumePump")
+define FilterPumps.name HASH("ch2-filter-pumps")
+
+define FeedSns.hash HASH("StructurePipeAnalysizer")
+define FeedSns.name HASH("ch2-feed-sns")
+define FeedSns.rid 13
+
+define FeedMixer.hash HASH("StructureGasMixer")
+define FeedMixer.name HASH("ch2-feed-mixer")
+define FeedMixer.rid 14
+
+define Gas1Pump.hash HASH("StructureVolumePump")
+define Gas1Pump.name HASH("ch2-gas1-pump")
+define Gas1Pump.rid 15
+
+define Gas2Pump.hash HASH("StructureVolumePump")
+define Gas2Pump.name HASH("ch2-gas2-pump")
+define Gas2Pump.rid 16
+
+move needExtarctGas3 0
+move isOverGas3 0
+move isOverPressure 0
+move isPolutated 0
+
+jal discovery
+jal onStart
+
+main:
+    jal detectGasLevels
+    jal checkOverPressure
+    jal checkFeedCamera
+    jal checkGas3Extraction
+    jal checkExtarctingPump
+    jal checkPrportion
+    bnezal needExtarctGas3 startGas3Extraction
+    bnezal isOverGas3 startExtarctingPump
+    bnezal isOverPressure startExtarctingPump
+    bnezal isPolutated startExtarctingPump
+    sleep 1
+j main
+
+discovery:
+    lbn r15 PressureDial.hash PressureDial.name ReferenceId Minimum
+    put db PressureDial.rid r15
+    lbn r15 ExtPump.hash ExtPump.name ReferenceId Minimum
+    put db ExtPump.rid r15
+    lbn r15 Filter.hash Filter.name ReferenceId Minimum
+    put db Filter.rid r15
+    lbn r15 FeedSns.hash FeedSns.name ReferenceId Minimum
+    put db FeedSns.rid r15
+    lbn r15 FeedMixer.hash FeedMixer.name ReferenceId Minimum
+    put db FeedMixer.rid r15
+    lbn r15 Gas1Pump.hash Gas1Pump.name ReferenceId Minimum
+    put db Gas1Pump.rid r15
+    lbn r15 Gas2Pump.hash Gas2Pump.name ReferenceId Minimum
+    put db Gas2Pump.rid r15
+j ra
+
+onStart:
+    move Filter.on 0
+    move ExtPump.on 0
+    move FeedMixer.on 0
+    move Proportion 0
+    move Gas1Pump.on 0
+    move Gas2Pump.on 0
+    get r15 db ExtPump.rid 
+    s r15 On 0
+    get r15 db Filter.rid
+    s r15 On 0
+    get r15 db FeedMixer.rid
+    s r15 On 0
+    get r15 db Gas1Pump.rid
+    s r15 On 0
+    get r15 db Gas2Pump.rid
+    s r15 On 0
+    get r15 db FeedSns.rid
+    s r15 On 1
+    sbn FilterPumps.hash FilterPumps.name On 0
+    yield
+j ra
+
+stopGas1Pump:
+    beqz Gas1Pump.on ra
+    move Gas1Pump.on 0
+    get r15 db Gas1Pump.rid
+    s r15 On Gas1Pump.on
+    s r15 Setting 0
+j ra
+
+stopGas2Pump:
+    beqz Gas2Pump.on ra
+    move Gas2Pump.on 0
+    get r15 db Gas2Pump.rid
+    s r15 On Gas2Pump.on
+    s r15 Setting 0
+j ra
+
+calculateProportion:
+    abs Proportion Proportion
+    mul Proportion Proportion 10
+    min Proportion Proportion 10 #Setting of volume pump is maximum 10 
+j ra 
+
+startGas1Pump:
+    push ra
+    get r15 db Gas1Pump.rid
+    jal calculateProportion
+    s r15 Setting Proportion
+    brnez Gas1Pump.on 4
+        jal stopGas2Pump
+        move Gas1Pump.on 1
+        s r15 On Gas1Pump.on
+    pop ra
+j ra
+
+startGas2Pump:
+    push ra
+    get r15 db Gas2Pump.rid
+    jal calculateProportion
+    s r15 Setting Proportion
+    brnez Gas2Pump.on 4
+        jal stopGas1Pump
+        move Gas2Pump.on 1
+        s r15 On Gas2Pump.on
+    pop ra
+j ra
+
+checkPrportion:
+    push ra
+    get r15 db FeedMixer.rid
+    l Proportion r15 Ratio #Gas1 proportion
+    add r14 Gas1.level Gas2.level
+    brnez r14 5
+        jal stopGas1Pump
+        jal stopGas2Pump
+        pop ra
+    j ra
+    div r15 Gas1.level r14
+    sub Proportion r15 Proportion
+    abs r14 Proportion
+    brgt r14 RATIO_EPSILON 5
+        jal stopGas1Pump
+        jal stopGas2Pump
+        pop ra
+    j ra
+    brgtz Proportion 3
+        jal startGas1Pump
+    jr 2
+        jal startGas2Pump
+    pop ra
+j ra
+
+feedMixerOn:
+    bnez FeedMixer.on ra
+    move FeedMixer.on 1
+    get r15 db FeedMixer.rid
+    s r15 On FeedMixer.on
+j ra
+
+feedMixerOff:
+    beqz FeedMixer.on ra
+    move FeedMixer.on 0
+    get r15 db FeedMixer.rid
+    s r15 On FeedMixer.on
+j ra
+
+checkFeedCamera:
+    push ra
+    get r15 db FeedSns.rid
+    l r15 r15 Pressure
+    bgtal r15 FEEDxPRESSURE_LIMIT feedMixerOff
+    bleal r15 FEEDxPRESSURE_LIMIT feedMixerOn
+    pop ra 
+j ra
+
+checkOverPressure:
+    lbn r15 Sensor.hash Sensor.name Pressure Average
+    get r14 db PressureDial.rid
+    l r14 r14 Setting #Pressure Dial
+    sgt isOverPressure r15 r14
+j ra
+
+detectGasLevels:
+    move Pol.level 1
+    lbn Gas3.level Sensor.hash Sensor.name GAS3 Average
+    sub Pol.level Pol.level Gas3.level
+    sge needExtarctGas3 Gas3.level GAS3xEXTRACTxLEVEL
+    sge isOverGas3 Gas3.level GAS3xOVERxLEVEL
+    lbn Gas1.level Sensor.hash Sensor.name GAS1 Average
+    sub Pol.level Pol.level Gas1.level
+    lbn Gas2.level Sensor.hash Sensor.name GAS2 Average
+    sub Pol.level Pol.level Gas2.level
+    sge isPolutated Pol.level EPSILON
+j ra
+
+checkExtarctingPump:
+    beqz ExtPump.on ra
+    or r15 isPolutated isOverPressure
+    or r15 r15 isOverGas3
+    bnez r15 ra
+    move ExtPump.on 0
+    get r15 db ExtPump.rid 
+    s r15 On ExtPump.on
+j ra
+
+startExtarctingPump:
+    bnez ExtPump.on ra
+    move ExtPump.on 1 
+    get r15 db ExtPump.rid
+    s r15 On ExtPump.on
+j ra
+
+checkGas3Extraction:
+    beqz Filter.on ra
+    bge Gas3.level GAS3xLOWxLEVEL ra
+    move Filter.on 0
+    get r15 db Filter.rid
+    s r15 On Filter.on
+    sbn FilterPumps.hash FilterPumps.name On Filter.on
+j ra
+
+startGas3Extraction:
+    bnez Filter.on ra
+    move Filter.on 1
+    sbn FilterPumps.hash FilterPumps.name On Filter.on
+    get r15 db Filter.rid 
+    s r15 On Filter.on
+j ra

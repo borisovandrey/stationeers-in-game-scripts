@@ -1,0 +1,51 @@
+#terain-mars/green-house/inner-atm-dsp-adv.ic10
+alias CO2DSP r0
+alias O2DSP r1
+alias N2DSP r2
+alias PolDSP r3
+alias PressDsp r4
+define GasSNS HASH("StructureGasSensor")
+define SensorName HASH("ch2-gas-sns")
+
+lbn CO2DSP HASH("ModularDeviceLEDdisplay3") HASH("ch2-atm-co2-dsp") ReferenceId Minimum
+lbn O2DSP HASH("ModularDeviceLEDdisplay3") HASH("ch2-atm-o2-dsp") ReferenceId Minimum
+lbn N2DSP HASH("ModularDeviceLEDdisplay3") HASH("ch2-atm-n2-dsp") ReferenceId Minimum
+lbn PolDSP HASH("ModularDeviceLEDdisplay3") HASH("ch2-atm-pol-dsp") ReferenceId Minimum
+lbn PressDsp HASH("ModularDeviceLEDdisplay3") HASH("ch2-atm-press-dsp") ReferenceId Minimum
+
+s CO2DSP Color Color.Yellow
+s CO2DSP Mode DisplayMode.Percent 
+s O2DSP Color Color.White
+s O2DSP Mode DisplayMode.Percent 
+s N2DSP Color Color.Green
+s N2DSP Mode DisplayMode.Percent 
+s PolDSP Color Color.Red
+s PolDSP Mode DisplayMode.Percent 
+
+s PressDsp Mode DisplayMode.Pa
+s PressDsp Color Color.Orange 
+
+main:
+    lbn r15 GasSNS SensorName Pressure Average
+    mul r14 r15 1000
+    s PressDsp Setting r14
+
+    move r15 1
+
+    lbn r14 GasSNS SensorName RatioOxygen Average
+    s O2DSP Setting r14
+    sub r15 r15 r14
+
+    lbn r14 GasSNS SensorName RatioNitrogen Average
+    s N2DSP Setting r14
+    sub r15 r15 r14
+
+    lbn r14 GasSNS SensorName RatioCarbonDioxide Average
+    s CO2DSP Setting r14
+    sub r15 r15 r14
+
+    s PolDSP Setting r15
+
+    sleep 1
+j main
+
