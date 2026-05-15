@@ -1,0 +1,157 @@
+# terain-mars/green-house/gh-grow-light-ctrl.ic10
+# Controls four greenhouse grow lights from console switches and dials.
+# On every day to night transition, each enabled light stays off for the
+# configured number of minutes and then turns back on.
+define LISTxADDR 100
+define MUTABLExPART 3
+define SLEEPxTIME 1
+define MINUTExSECONDS 60
+define Light.hash HASH("StructureGrowLight")
+define Switch.hash HASH("ModularDeviceFlipSwitch")
+define Dial.hash HASH("ModularDeviceDialSmall")
+define Sensor.hash HASH("StructureDaylightSensor")
+define Sensor.name HASH("gh-daylight-sns")
+
+alias Count r0
+alias Sensor.rid r1
+alias isDay r2
+alias onNightStarted r3
+alias Light.rid r4
+alias Switch.rid r5
+alias Dial.rid r6
+alias Delay r7
+alias SwitchOn r8
+alias Return r9
+alias Return2 r10
+alias Return3 r11
+
+move isDay 0
+move Sensor.rid 0
+move Count 0
+
+jal setup
+main:
+    sleep SLEEPxTIME
+    jal detectNightStartedEvent
+    jal updateLights
+j main
+
+detectNightStartedEvent:
+    move onNightStarted  0
+    l r15 Sensor.rid Activate
+    beq r15 isDay ra
+    beqz r15 setNight
+        move isDay 1
+    j ra
+setNight:
+    move isDay 0
+    move onNightStarted 1
+j ra
+
+discoverRids:
+    lbn Light.rid Light.hash Light.rid ReferenceId Minimum
+    push Light.rid
+    lbn Switch.rid Switch.hash Switch.rid ReferenceId Minimum
+    push Switch.rid
+    lbn Dial.rid Dial.hash Dial.rid ReferenceId Minimum
+    push Dial.rid
+    push 0 #on-off
+    push 0 #delay
+j ra
+
+popRids:
+    pop Delay
+    pop SwitchOn
+    pop Dial.rid
+    pop Switch.rid
+    pop Light.rid
+j ra
+
+writeMutable:
+    move r15 sp
+    add sp sp MUTABLExPART
+    push SwitchOn
+    push Delay
+    move sp r15
+j ra
+
+lightOn:
+    move Return3 ra
+    beqz onNightStarted if_not_night_started
+        l Delay Dial.rid Setting
+        mul Delay Delay MINUTExSECONDS
+        j end_if_night
+if_not_night_started:
+        sub Delay Delay SLEEPxTIME
+        max Delay Delay 0
+end_if_night:
+    seqz r15 Delay
+    breq r15 SwitchOn 3
+        move SwitchOn r15
+        s Light.rid On SwitchOn
+    jal writeMutable
+    move ra Return3
+j ra
+
+lightOff:
+    beqz SwitchOn ra
+    move Return3 ra
+    move SwitchOn 0
+    move Delay 0
+    s Light.rid On SwitchOn
+    jal writeMutable
+    move ra Return3
+j ra
+
+checkLight:
+    move Return2 ra
+    l r15 Switch.rid On
+    breqz r15 3
+        jal lightOn
+    jr 2
+        jal lightOff
+    move ra Return2
+j ra
+
+updateLights:
+    move Return ra
+    add sp LISTxADDR Count
+loop:
+    ble sp LISTxADDR loopEnd
+        jal popRids
+        jal checkLight
+    j loop
+loopEnd:
+    move ra Return
+j ra
+
+setup:
+    move Return ra
+    move sp LISTxADDR
+    move Count sp
+    move Light.rid HASH("gh2-glight-dev1")
+    move Switch.rid HASH("gh2-glight-sw1")
+    move Dial.rid HASH("gh2-glight-dial1")
+    jal discoverRids
+
+    move Light.rid HASH("gh2-glight-dev2")
+    move Switch.rid HASH("gh2-glight-sw2")
+    move Dial.rid HASH("gh2-glight-dial2")
+    jal discoverRids
+
+    move Light.rid HASH("gh2-glight-dev3")
+    move Switch.rid HASH("gh2-glight-sw3")
+    move Dial.rid HASH("gh2-glight-dial3")
+    jal discoverRids
+
+    move Light.rid HASH("gh2-glight-dev4")
+    move Switch.rid HASH("gh2-glight-sw4")
+    move Dial.rid HASH("gh2-glight-dial4")
+    jal discoverRids
+
+    sub Count sp Count
+    lbn Sensor.rid Sensor.hash Sensor.name ReferenceId Minimum
+    l isDay Sensor.rid Activate
+    move ra Return
+j ra
+
