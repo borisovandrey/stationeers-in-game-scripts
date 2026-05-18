@@ -1,0 +1,25 @@
+#terain-mars\inner-base\atm-control\inner-atm-feed-ctrl.ic10
+#Controls the inner atmosphere feed mixer using pressure from a connected gas sensor.
+#d0: gas sensor reading room pressure
+#d1: mixer or valve device that feeds the room atmosphere
+#Turns feed on below the pressure limit and off once the limit is reached.
+alias Sensor d0
+alias Mixer.d d1
+alias Mixer.on r0
+
+define PRESSURE_LIMIT_KPA 2000 
+
+#Start with the feed disabled until the first pressure check runs.
+move Mixer.on 0
+s Mixer.d On Mixer.on
+
+main:
+    sleep 1
+    #Request feed only while measured pressure stays below the configured limit.
+    l r15 Sensor Pressure
+    slt r15 r15 PRESSURE_LIMIT_KPA
+    #Avoid writing the device unless the requested state changed.
+    beq r15 Mixer.on main
+    move Mixer.on r15
+    s Mixer.d On Mixer.on
+j main

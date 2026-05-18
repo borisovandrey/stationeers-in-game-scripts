@@ -1,0 +1,53 @@
+define MediumDSP HASH("StructureConsoleLED1x2")
+define LargeDSP HASH("StructureConsoleLED1x3")
+define GasSNS HASH("StructureGasSensor")
+define SensorName HASH("atm-quality-sns")
+define DisplayName HASH("atm-quality-dsp")
+alias Rest r0
+define DELTA 0.001
+
+# Rotates one shared display through room pressure, O2, CO2, pollutant,
+# and any remaining unknown or forbidden gas content.
+main:
+    lbn r15 GasSNS SensorName Pressure Average
+    sbn MediumDSP DisplayName Color Color.Green
+    sbn MediumDSP DisplayName Mode DisplayMode.Pa
+    mul r15 r15 1000
+    sbn MediumDSP DisplayName Setting r15
+    sleep 3
+
+    beqz r15 main
+
+    move Rest 1.0
+    lbn r15 GasSNS SensorName RatioOxygen Average
+    sub Rest Rest r15
+    sbn MediumDSP DisplayName Color Color.White
+    sbn MediumDSP DisplayName Mode DisplayMode.Percent
+    sbn MediumDSP DisplayName Setting r15
+    sleep 3
+    
+    lbn r15 GasSNS SensorName RatioCarbonDioxide Average
+    sub Rest Rest r15
+    sbn MediumDSP DisplayName Color Color.Yellow
+    sbn MediumDSP DisplayName Mode DisplayMode.Percent
+    sbn MediumDSP DisplayName Setting r15
+    sleep 3
+
+    lbn r15 GasSNS SensorName RatioPollutant Average
+    sub Rest Rest r15
+    sbn MediumDSP DisplayName Color Color.Red
+    sbn MediumDSP DisplayName Mode DisplayMode.Percent
+    sbn MediumDSP DisplayName Setting r15
+    sleep 3
+
+    lbn r15 GasSNS SensorName RatioNitrogen Average
+    sub Rest Rest r15
+    abs Rest Rest
+    ble Rest DELTA main
+    
+    # Show anything left after subtracting the known safe gases.
+    sbn MediumDSP DisplayName Color Color.Pink
+    sbn MediumDSP DisplayName Mode DisplayMode.Percent
+    sbn MediumDSP DisplayName Setting Rest
+    sleep 6
+j main

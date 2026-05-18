@@ -1,6 +1,11 @@
 #terain-mars\inner-base\atm-control\inner-atm-cntrl.ic10
-#Controls atmosphere
-alias ControlSetting d0
+# Controls inner atmosphere quality by increasing scrubber stages
+# when pressure or gas ratios move beyond the configured limits.
+# Device names:
+#   atm-quality-sns   - room gas sensor
+#   atm-quality-pump1 - first turbo pump, half/full for low-medium response
+#   atm-quality-pump2 - second turbo pump, enabled for forced response
+#   atm-quality-vent3 - powered vent, enabled only for hard response
 define GasSNS HASH("StructureGasSensor")
 define SensorName HASH("atm-quality-sns")
 
@@ -17,63 +22,80 @@ define MEDIUM 2
 define FORCED 3
 define HARD 4
 
+# Cached device state and current response level.
 alias State r0
 alias Rest r1
 alias Step2 r2
 alias Step3 r3
 alias Step4 r4
+alias PumpStep1.rid r5
+alias PumpStep2.rid r6
+alias VentStep3.rid r7
+alias PumpStep1.on r8
+alias PumpStep1.set r9
+alias PumpStep2.on r10
+alias VentStep3.on r11
+
+lbn PumpStep1.rid HASH("StructureTurboVolumePump") HASH("atm-quality-pump1") ReferenceId Minimum
+lbn PumpStep2.rid HASH("StructureTurboVolumePump") HASH("atm-quality-pump2") ReferenceId Minimum
+lbn VentStep3.rid HASH("StructurePoweredVent") HASH("atm-quality-vent3") ReferenceId Minimum
+
+move PumpStep1.on 1
+move PumpStep1.set 100
+move PumpStep2.on 1
+move VentStep3.on 1
 
 move State IDLE
+jal controlPumps
 
 main:
-s ControlSetting Setting State
-s db Setting State
-#sleep 10
-move Rest 1.0
-move State IDLE
-#Pressure
-lbn r15 GasSNS SensorName Pressure Average
-sub r15 r15 PRESSURExLIMIT
-move Step2 10 
-move Step3 30
-move Step4 50
-jal calculateState
-#Oxigen
-lbn r15 GasSNS SensorName RatioOxygen Average
-sub Rest Rest r15
-sub r15 O2xLIMIT r15
-move Step2 0.02 
-move Step3 0.05
-move Step4 0.1
-jal calculateState
-#CO2
-lbn r15 GasSNS SensorName RatioCarbonDioxide Average
-sub Rest Rest r15
-sub r15 r15 CO2xLIMIT
-move Step2 0.1 
-move Step3 0.15
-move Step4 0.2
-jal calculateState
-#Polutant
-lbn r15 GasSNS SensorName RatioPollutant Average
-sub Rest Rest r15
-move Step2 0.001 
-move Step3 0.01
-move Step4 0.1
-jal calculateState
-#Rest
-lbn r15 GasSNS SensorName RatioNitrogen Average
-sub r15 Rest r15
-sub r15 r15 UNKNOWNxLIMIT
-move Step2 0.001 
-move Step3 0.005
-move Step4 0.01
-jal calculateState
-
-s ControlSetting Setting State
+    sleep 1
+    move Rest 1.0
+    move State IDLE
+    # Pressure above the room limit increases the response level.
+    lbn r15 GasSNS SensorName Pressure Average
+    sub r15 r15 PRESSURExLIMIT
+    move Step2 10 
+    move Step3 30
+    move Step4 50
+    jal calculateState
+    # Oxygen below the target ratio needs atmosphere cleanup.
+    lbn r15 GasSNS SensorName RatioOxygen Average
+    sub Rest Rest r15
+    sub r15 O2xLIMIT r15
+    move Step2 0.02 
+    move Step3 0.05
+    move Step4 0.1
+    jal calculateState
+    # Carbon dioxide above the limit increases the response level.
+    lbn r15 GasSNS SensorName RatioCarbonDioxide Average
+    sub Rest Rest r15
+    sub r15 r15 CO2xLIMIT
+    move Step2 0.1 
+    move Step3 0.15
+    move Step4 0.2
+    jal calculateState
+    # Pollutants above the limit increase the response level.
+    lbn r15 GasSNS SensorName RatioPollutant Average
+    sub Rest Rest r15
+    sub r15 r15 POLUTANTxLIMIT
+    move Step2 0.001 
+    move Step3 0.01
+    move Step4 0.1
+    jal calculateState
+    # Treat the remaining non-nitrogen balance as unknown gas content.
+    lbn r15 GasSNS SensorName RatioNitrogen Average
+    sub r15 Rest r15
+    sub r15 r15 UNKNOWNxLIMIT
+    move Step2 0.001 
+    move Step3 0.005
+    move Step4 0.01
+    jal calculateState
+    jal controlPumps
 j main
 
 calculateState:
+# Escalate to the highest required state based on the current deviation.
 brgtz r15 3
 max State State IDLE
 j ra
@@ -87,4 +109,94 @@ brgt r15 Step4 3
 max State State FORCED
 j ra
 max State State HARD
+j ra
+
+switchPump1Off:
+    beqz PumpStep1.on ra
+    move PumpStep1.on 0
+    move PumpStep1.set 0 
+    s PumpStep1.rid On PumpStep1.on
+    s PumpStep1.rid Setting PumpStep1.set
+j ra
+
+switchPump2Off:
+    beqz PumpStep2.on ra
+    move PumpStep2.on 0
+    s PumpStep2.rid On PumpStep2.on
+    s PumpStep2.rid Setting 0
+j ra
+
+switchVent3Off:
+    beqz VentStep3.on ra
+    move VentStep3.on 0
+    s VentStep3.rid On VentStep3.on
+j ra
+
+switchPump1Half:
+    beq PumpStep1.set 50 ra
+    move PumpStep1.set 50
+    s PumpStep1.rid Setting PumpStep1.set
+    bnez PumpStep1.on ra
+    move PumpStep1.on 1
+    s PumpStep1.rid On PumpStep1.on    
+j ra
+
+switchPump1Full:
+    beq PumpStep1.set 100 ra
+    move PumpStep1.set 100
+    s PumpStep1.rid Setting PumpStep1.set
+    bnez PumpStep1.on ra
+    move PumpStep1.on 1
+    s PumpStep1.rid On PumpStep1.on  
+j ra
+
+switchPump2Full:
+    bnez PumpStep2.on ra
+    s PumpStep2.rid Setting 100
+    move PumpStep2.on 1
+    s PumpStep2.rid On PumpStep2.on  
+j ra
+
+switchVent3Full:
+    bnez VentStep3.on ra
+    move VentStep3.on 1
+    s VentStep3.rid On VentStep3.on  
+j ra
+
+controlPumps:
+    push ra
+    # Each state enables one more cleanup stage.
+    beq State IDLE on_idle
+    beq State SLOW on_slow
+    beq State MEDIUM on_medium
+    beq State FORCED on_forced
+    beq State HARD on_hard
+    j on_idle
+on_idle:
+    jal switchPump1Off
+    jal switchPump2Off
+    jal switchVent3Off
+    j end
+on_slow:
+    jal switchPump1Half
+    jal switchPump2Off
+    jal switchVent3Off
+    j end
+on_medium:
+    jal switchPump1Full
+    jal switchPump2Off
+    jal switchVent3Off
+    j end
+on_forced:
+    jal switchPump1Full
+    jal switchPump2Full
+    jal switchVent3Off
+    j end
+on_hard:
+    jal switchPump1Full
+    jal switchPump2Full
+    jal switchVent3Full
+    j end
+end:
+    pop ra
 j ra
