@@ -74,7 +74,7 @@ inWaitResource:
     bne IncommingRequest ExecutingRequest cancelRequest
     get r15 iSTORE.PIN OUTPUTxADDR
     ble r15 -1 ra #In progress
-    blt r15 Qtty error
+    blt r15 Qtty error #Wait in error state
     j ra
 cancelRequest:
     push ra
@@ -83,6 +83,8 @@ cancelRequest:
     pop ra
     j ra
 error:
+    l r15 $65BD8 Activate #Start button
+    bnez r15 cancelRequest #Restart request 
     push ra
     move LED.Color Color.Red #Error, but still waiting
     jal releaseMutex
