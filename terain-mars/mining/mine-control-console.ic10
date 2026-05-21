@@ -14,6 +14,11 @@ push $8686D #WIFI-Input
 push $84929 #DSP
 push $84926 #Dial
 push 2  #Index
+#Cooper
+push $F3FFD #WIFI-Input
+push $8492A #DSP
+push $84927 #Dial
+push 3  #Index
 alias List r0
 move List sp
 alias WIFI.Input r1 

@@ -3,7 +3,7 @@
 alias Dial d0
 alias Cooler d1
 define GasSNS HASH("StructureGasSensor")
-define SensorName HASH("inner-gas-sns")
+define SensorName HASH("atm-quality-sns")
 define SLEEPxTIME 3
 define TEMPERATURExTOLLERANCE 0.5
 define KLVN 273.15 #Kelvin value for 0C
@@ -25,9 +25,9 @@ main:
 j main
 
 startCool:
-    s Cooler On 1
+    s Cooler Open 1
 j ra
 
 stopCool:
-    s Cooler On 0
+    s Cooler Open 0
 j ra

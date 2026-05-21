@@ -9,6 +9,9 @@ alias qtty r2
 alias dev  r3
 alias idx  r4
 alias Sorter r5
+alias Return r6
+alias Multiplier r7
+alias Return2 r8
 alias IDX.HDR r10
 alias IDX.REF r11
 alias IDX.RGN r12
@@ -21,146 +24,244 @@ define BUTTON.START  120
 clr MEM.PIN
 s db Setting 0
 jal configConsole
-#Large battery
+
+move Multiplier 1
+#Start kit configurations
 move name STR("LBATTR") 
 jal begin
-move hash HASH("ItemKitBatteryLarge")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemSteelSheets")
-move qtty 4 
-move dev AUTO
-jal insert
-move hash HASH("ItemElectronicParts")
-move qtty 2
-move dev ELECTRO
-jal insert
+    jal addLargeBattery
 jal end
-#Wind large turbine 
 move name STR("TURBIN") 
 jal begin
-move hash HASH("ItemKitWindTurbine")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemSteelSheets")
-move qtty 5 
-move dev AUTO
-jal insert
-move hash HASH("ItemCableCoil")
-move qtty 5 
-move dev AUTO
-jal insert
+    jal addLargeTurbine
 jal end
-#Centrifuge
-move name STR("CNTRFG") 
-jal begin
-move hash HASH("ItemKitCentrifuge")
-move qtty 1 
-move dev AUTO
-jal insert
-move hash HASH("ItemSteelSheets")
-move qtty 4 
-move dev AUTO
-jal insert
-jal end
-#Silo
-move name STR("SILO")
-jal begin
-move hash HASH("KitSDBSilo")
-move qtty 1 
-move dev AUTO
-jal insert
-move hash HASH("ItemSteelSheets")
-move qtty 16 
-move dev AUTO
-jal insert
-move hash HASH("ItemPlasticSheets")
-move qtty 10 
-move dev AUTO
-jal insert
-move hash HASH("ItemCableCoil")
-move qtty 6
-move dev AUTO
-jal insert
-jal end
-#Deep miner
-move name STR("DEEPMN")
-jal begin
-move hash HASH("ItemKitDeepMiner")
-move qtty 1 
-move dev AUTO
-jal insert
-move hash HASH("ItemSteelSheets")
-move qtty 12
-move dev AUTO
-jal insert
-move hash HASH("ItemCableCoil")
-move qtty 5 
-move dev AUTO
-jal insert
-move hash HASH("ItemElectronicParts")
-move qtty 4
-move dev ELECTRO
-jal insert
-jal end
-#Airlock
 move name STR("AIRLCK")
 jal begin
-move hash HASH("ItemKitDoor")
-move qtty 2 
-move dev AUTO
-jal insert
-move hash HASH("ItemPlasticSheets")
-move qtty 2 
-move dev AUTO
-jal insert
-move hash HASH("ItemGlassSheets")
-move qtty 6 
-move dev AUTO
-jal insert
-move hash HASH("ItemCableCoil")
-move qtty 50 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemKitConsole")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("CircuitboardAdvAirlockControl")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemKitSensor")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemAreaPowerControl")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemBatteryCellLarge")
-move qtty 1 
-move dev ELECTRO
-jal insert
-move hash HASH("ItemActiveVent")
-move qtty 2 
-move dev ATMO
-jal insert
-move hash HASH("ItemPassiveVentInsulated")
-move qtty 2 
-move dev ATMO
-jal insert
-move hash HASH("ItemKitInsulatedPipe")
-move qtty 10 
-move dev ATMO
-jal insert
+    jal addAirlock
 jal end
-#End of item's list
-
+move name STR("OUTPST")
+jal begin
+    jal addOutpost
+jal end
+move name STR("SILO")
+jal begin
+    jal addSilo
+jal end
+move name STR("DEEPMN")
+jal begin
+    jal addDeepMiner
+jal end
+#Stop kit configurations
 jal configurePackageSorter
 j finish
+
+addLargeBattery:
+    move Return ra
+    move hash HASH("ItemKitBatteryLarge")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemSteelSheets")
+    move qtty 4 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemElectronicParts")
+    move qtty 2
+    move dev ELECTRO
+    jal insert
+    move ra Return
+j ra
+
+addLargeTurbine:
+    move Return ra
+    move hash HASH("ItemKitWindTurbine")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemSteelSheets")
+    move qtty 5 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemCableCoil")
+    move qtty 5 
+    move dev AUTO
+    jal insert
+    move ra Return
+j ra
+
+addSilo:
+    move Return ra
+    move hash HASH("KitSDBSilo")
+    move qtty 1 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemSteelSheets")
+    move qtty 16 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemPlasticSheets")
+    move qtty 10 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemCableCoil")
+    move qtty 6
+    move dev AUTO
+    jal insert
+    move ra Return
+j ra
+
+addDeepMiner:
+    move Return ra
+    move hash HASH("ItemKitDeepMiner")
+    move qtty 1 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemSteelSheets")
+    move qtty 12
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemCableCoil")
+    move qtty 5 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemElectronicParts")
+    move qtty 4
+    move dev ELECTRO
+    jal insert
+    move ra Return 
+j ra
+
+addAirlock:
+    move Return ra
+    move hash HASH("ItemKitDoor")
+    move qtty 2 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemPlasticSheets")
+    move qtty 2 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemGlassSheets")
+    move qtty 6 
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemCableCoil")
+    move qtty 50 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemKitConsole")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("CircuitboardAdvAirlockControl")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemKitSensor")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemAreaPowerControl")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemBatteryCellLarge")
+    move qtty 1 
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemActiveVent")
+    move qtty 2 
+    move dev ATMO
+    jal insert
+    move hash HASH("ItemPassiveVentInsulated")
+    move qtty 2 
+    move dev ATMO
+    jal insert
+    move hash HASH("ItemKitInsulatedPipe")
+    move qtty 10 
+    move dev ATMO
+    jal insert
+    move ra Return
+j ra
+
+addOutpost:
+    move Return2 ra
+    jal addDeepMiner
+    jal addSilo
+    move hash HASH("ItemIronFrames")
+    move qtty 60
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemIronSheets")
+    move qtty 60
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitCompositeFloorGrating")
+    move qtty 50
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitRailing")
+    move qtty 20
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitStairs")
+    move qtty 3
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitSolarPanelReinforced")
+    move qtty 12
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemGlassSheets")
+    move qtty 60
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemAreaPowerControl")
+    move qtty 1
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemKitChute")
+    move qtty 30
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitStandardChute")
+    move qtty 10
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemWallLight")
+    move qtty 3
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemCableCoil")
+    move qtty 100
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemCableCoilHeavy")
+    move qtty 100
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemKitBattery")
+    move qtty 1
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemSteelSheets")
+    move qtty 2
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitLogicCircuit")
+    move qtty 2
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemIntegratedCircuit10")
+    move qtty 2
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemKitLogicTransmitter")
+    move qtty 2
+    move dev ELECTRO
+    jal insert
+    move ra Return2
+j ra
 
 configurePackageSorter:
     move Sorter $8FF88
@@ -180,6 +281,7 @@ begin:
     add IDX.REF IDX.REF 1 
 j ra
 insert:
+    mul qtty qtty Multiplier
     sll r15 hash 16
     sll r14 qtty 8
     or r15 r15 r14
@@ -248,5 +350,6 @@ configConsole:
     add idx idx 1
     put MEM.PIN idx 0
 j ra
+
 finish:
 s db Setting 1001
