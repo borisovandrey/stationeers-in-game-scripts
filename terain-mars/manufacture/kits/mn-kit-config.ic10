@@ -187,7 +187,9 @@ j ra
 addOutpost:
     move Return2 ra
     jal addDeepMiner
+    move Multiplier 2
     jal addSilo
+    move Multiplier 1 
     move hash HASH("ItemIronFrames")
     move qtty 60
     move dev AUTO
@@ -221,15 +223,11 @@ addOutpost:
     move dev ELECTRO
     jal insert
     move hash HASH("ItemKitChute")
-    move qtty 30
-    move dev AUTO
-    jal insert
-    move hash HASH("ItemKitStandardChute")
-    move qtty 10
+    move qtty 40
     move dev AUTO
     jal insert
     move hash HASH("ItemWallLight")
-    move qtty 3
+    move qtty 1
     move dev ELECTRO
     jal insert
     move hash HASH("ItemCableCoil")
@@ -259,6 +257,18 @@ addOutpost:
     move hash HASH("ItemKitLogicTransmitter")
     move qtty 2
     move dev ELECTRO
+    jal insert
+    move hash HASH("ItemKitArcFurnace")
+    move qtty 1
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemKitVendingMachineRefrigerated")
+    move qtty 1
+    move dev ELECTRO
+    jal insert
+    move hash HASH("ItemPlasticSheets")
+    move qtty 2
+    move dev AUTO
     jal insert
     move ra Return2
 j ra
