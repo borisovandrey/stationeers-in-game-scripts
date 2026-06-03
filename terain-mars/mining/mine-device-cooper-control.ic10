@@ -7,28 +7,31 @@ alias ProductionTime r1
 alias Output.RID r2
 alias TimeCounter r3
 alias Timeout r4
-alias Vending.RID r5
+alias Silo.RID r5
 alias Furnace.RID r6
 alias Centrifuge1.RID r7
 alias Centrifuge2.RID r8
 alias Centrifuge.RID r9
 alias Return r11
+alias Sorter r12
+alias Ingot r13
 define CENTRIFUGExUPxLIMIT 200
 define CENTRIFUGExLOWxLIMIT 3
 define LxTRANS HASH("StructureLogicTransmitter")
 define DMN HASH("StructureDeepMiner")
-define VENDINGxHASH HASH("StructureRefrigeratedVendingMachine")
+define SILOxHASH HASH("StructureSDBSilo")
 define FURNACExHASH HASH("StructureArcFurnace")
 define CENTRIFUGExHASH HASH("StructureCentrifuge")
 lbn Mining.RID DMN HASH("mine-cooper-dev") ReferenceId Minimum
 lbn Output.RID LxTRANS HASH("mine-cooper-wifi-out") ReferenceId Minimum
-lbn Vending.RID VENDINGxHASH HASH("mine-cooper-vending") ReferenceId Minimum
+lbn Silo.RID SILOxHASH HASH("mine-cooper-vending") ReferenceId Minimum
 lbn Furnace.RID FURNACExHASH HASH("mine-cooper-furnace") ReferenceId Minimum
 lbn Centrifuge1.RID CENTRIFUGExHASH HASH("mine-cooper-centrifuge1") ReferenceId Minimum
 lbn Centrifuge2.RID CENTRIFUGExHASH HASH("mine-cooper-centrifuge2") ReferenceId Minimum
 move ProductionTime 0
 move TimeCounter 0
 move Timeout 0
+jal setupSorters
 jal calculateTimeout
 jal claibrate
 
@@ -41,7 +44,14 @@ main:
     jal checkCentrifuge
     move Centrifuge.RID Centrifuge2.RID
     jal checkCentrifuge
+    jal conctrolLight
 j main
+
+conctrolLight:
+    lb r15 HASH("StructureDaylightSensor") Activate Minimum
+    snez r15 r15
+    sb HASH("StructureWallLight") On r15 
+j ra
 
 checkCentrifuge:
     l r15 Centrifuge.RID Open
@@ -103,7 +113,7 @@ calculateTimeout:
 j ra
 
 siloQuantity:
-    l r15 Vending.RID Quantity
+    l r15 Silo.RID Quantity
     s Output.RID Setting r15
 j ra
 
@@ -118,4 +128,24 @@ claibrate:
         l r15 Mining.RID ExportCount
     beqz r15 claibrateCycle
     s Mining.RID ClearMemory 1
+j ra
+
+setupSorters:
+    push ra
+    lbn Sorter HASH("StructureLogicSorter") HASH("mine-cooper-sorter1") ReferenceId Minimum
+    move Ingot HASH("ItemCopperIngot")
+    jal setupSorter
+    lbn Sorter HASH("StructureLogicSorter") HASH("mine-cooper-sorter2") ReferenceId Minimum
+    move Ingot HASH("ItemSiliconIngot")
+    jal setupSorter
+    pop ra
+j ra
+
+setupSorter:
+    clrd Sorter
+    s Sorter Mode 0 # All
+    move r15 0
+    sll r15 Ingot 8
+    or r15 r15 SorterInstruction.FilterPrefabHashNotEquals
+    put Sorter 0 r15
 j ra
