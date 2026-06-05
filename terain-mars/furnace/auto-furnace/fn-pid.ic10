@@ -39,6 +39,9 @@ define TEMPERATURExINTGxADDR    21 #Stack offset for calculated temperature inte
 define PRESSURExPDIVxADDR       30 #Stack offset for calculated pressure previous deviation values 
 define PRESSURExINTGxADDR       31 #Stack offset for calculated pressure integral values 
 
+define PRESSURE_DIFF_CLAMP      1000 #The limit of difference
+define TEMPERATURE_DIFF_CLAMP   100  #The limit of difference
+
 alias state         r0          #State of furnance
 alias tgtval        r1          #Active target value for pressure or temperature
 alias previousdeviation r2      #The value of the normalized previous deviation in %
@@ -95,8 +98,12 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
     l currentVal FURNACE.RID Temperature
     sub r15 tgtval currentVal
     put db TEMPERATURExDIFFxADDR r15
-    div deviation r15 tgtval #Calculate normilized deviation [-1..1]
-    jal pidController #Apply calculation for temperature
+    sgtz r14 r15
+    select r14 r14 TEMPERATURE_DIFF_CLAMP tgtval
+    div deviation r15 r14   #tgtval #Calculate normilized deviation [-1..1]
+    min r15 r15 1
+    max r15 r15 -1
+    jal pidController       #Apply calculation for temperature
     move outputTemp output  #Temperature controller output [-10.0..10.0]
     jal storeLocalTemeprature 
 
@@ -113,7 +120,9 @@ beq state STATExIDLE main          #Current state is IDLE - do nothing
         j main
     sub r15 tgtval currentVal
     put db PRESSURExDIFFxADDR r15
-    div deviation r15 1000 #tgtval
+    div deviation r15 PRESSURE_DIFF_CLAMP #tgtval
+    min r15 r15 1
+    max r15 r15 -1
     jal pidController
     move outputPress output
     jal storeLocalPressure

@@ -1,0 +1,151 @@
+#terain-mars/mining/mine-device-ncikel-control.ic10
+define idx 4
+define MAXxTIMExCONST $FFFFFFFF
+alias Mining.RID r0
+alias Input.RID d0
+alias ProductionTime r1
+alias Output.RID r2
+alias TimeCounter r3
+alias Timeout r4
+alias Silo.RID r5
+alias Furnace.RID r6
+alias Centrifuge1.RID r7
+alias Centrifuge2.RID r8
+alias Centrifuge.RID r9
+alias Return r11
+alias Sorter r12
+alias Ingot r13
+define CENTRIFUGExUPxLIMIT 200
+define CENTRIFUGExLOWxLIMIT 3
+define LxTRANS HASH("StructureLogicTransmitter")
+define DMN HASH("StructureDeepMiner")
+define SILOxHASH HASH("StructureSDBSilo")
+define FURNACExHASH HASH("StructureArcFurnace")
+define CENTRIFUGExHASH HASH("StructureCentrifuge")
+lbn Mining.RID DMN HASH("mine-ncikel-dev") ReferenceId Minimum
+lbn Output.RID LxTRANS HASH("mine-nickel-wifi-out") ReferenceId Minimum
+lbn Silo.RID SILOxHASH HASH("mine-nickel-vending") ReferenceId Minimum
+lbn Furnace.RID FURNACExHASH HASH("mine-nickel-furnace") ReferenceId Minimum
+lbn Centrifuge1.RID CENTRIFUGExHASH HASH("mine-nickel-centrifuge1") ReferenceId Minimum
+lbn Centrifuge2.RID CENTRIFUGExHASH HASH("mine-nickel-centrifuge2") ReferenceId Minimum
+move ProductionTime 0
+move TimeCounter 0
+move Timeout 0
+jal setupSorters
+jal calculateTimeout
+jal claibrate
+
+main:
+    sleep 1
+    jal controlMiner
+    jal siloQuantity
+    jal checkFurnace
+    move Centrifuge.RID Centrifuge1.RID
+    jal checkCentrifuge
+    move Centrifuge.RID Centrifuge2.RID
+    jal checkCentrifuge
+    jal conctrolLight
+j main
+
+conctrolLight:
+    lb r15 HASH("StructureDaylightSensor") Activate Minimum
+    snez r15 r15
+    sb HASH("StructureWallLight") On r15 
+j ra
+
+checkCentrifuge:
+    l r15 Centrifuge.RID Open
+    l r14 Centrifuge.RID Reagents 
+    beqz r15 centrifugeisClosed 
+centrifugeisOpen:
+    bgt r14 CENTRIFUGExLOWxLIMIT ra
+    s Centrifuge.RID Open 0
+    j ra
+centrifugeisClosed:
+    ble r14 CENTRIFUGExUPxLIMIT ra
+    s Centrifuge.RID Open 1
+j ra
+
+checkFurnace:
+    ls r15 Furnace.RID 0 Occupied
+    beqz r15 ra
+    s Furnace.RID Activate 1
+j ra
+
+controlMiner:
+    move Return ra
+    add TimeCounter TimeCounter 1
+    min TimeCounter TimeCounter MAXxTIMExCONST
+    s db Setting TimeCounter
+    jal calculateTimeout
+    beqzal Timeout switchOff
+    beqzal Timeout setCounterToMax
+    beqz Timeout Return
+    breq Timeout ProductionTime 3 #In case of timeout equal to ProductionTime no pause  
+        l r15 Mining.RID ExportCount
+        bnezal r15 switchOff
+    bgeal TimeCounter Timeout switchOn 
+    move ra Return
+j ra
+
+setCounterToMax:
+    move TimeCounter MAXxTIMExCONST
+j ra
+
+switchOn:
+    s Mining.RID On 1
+    move TimeCounter 0
+j ra
+
+switchOff:
+    s Mining.RID On 0
+    s Mining.RID ClearMemory 1
+    yield
+j ra
+
+calculateTimeout:
+    l r15 Input.RID Setting
+    move r14 idx
+    mul r14 r14 4
+    srl r15 r15 r14
+    and r15 r15 $F
+    mul Timeout r15 ProductionTime
+j ra
+
+siloQuantity:
+    l r15 Silo.RID Quantity
+    s Output.RID Setting r15
+j ra
+
+claibrate:
+    s Mining.RID On 0
+    s Mining.RID ClearMemory 1
+    yield
+    s Mining.RID On 1
+    claibrateCycle:
+        sleep 1
+        add ProductionTime ProductionTime 1
+        l r15 Mining.RID ExportCount
+    beqz r15 claibrateCycle
+    s Mining.RID ClearMemory 1
+j ra
+
+setupSorters:
+    push ra
+    lbn Sorter HASH("StructureLogicSorter") HASH("mine-cooper-sorter1") ReferenceId Minimum
+    move Ingot HASH("ItemNickelIngot")
+    jal setupSorter
+    lbn Sorter HASH("StructureLogicSorter") HASH("mine-cooper-sorter2") ReferenceId Minimum
+    move Ingot HASH("ItemLeadIngot")
+    jal setupSorter
+    pop ra
+j ra
+
+setupSorter:
+    clrd Sorter
+    s Sorter Mode 0 # All
+    move r15 0
+    sll r15 Ingot 8
+    or r15 r15 SorterInstruction.FilterPrefabHashNotEquals
+    put Sorter 0 r15
+j ra
