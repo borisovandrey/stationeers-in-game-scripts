@@ -9,6 +9,7 @@ local LBM = ic.enums.LogicBatchMethod
 local EPSILON = 0.001
 local SCAN_HORISONTAL_STEP = 45 -- 0°
 local SCAN_VERTICAL_STEP = 30   -- 30°
+local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is -1
 
 local TraderType = {
     Unknown             = -1,
@@ -52,7 +53,7 @@ end
 
 local Signal = {
     Id = -1,                -- current signal id
-    Strength = -1,          -- current signal strenght
+    Strength = -1,          -- current signal strength
     contactTypeId = TraderType.Unknown, -- one of the possible contact type id (see TraderType)
     contactSlotIndex = -1   -- contact slot index
 }
@@ -198,9 +199,11 @@ local ScannerStates = {
 
 Scanner = {
     dish = nil,
+    readAttempts = 0,
+    currentIndex = 0,
     StateMachine = {
         [ScannerStates.Initial] =    { enter = nil, exit = nil, next = nil },
-        [ScannerStates.ScanCycle] =  { enter = nil, exit = nil, next = nil },
+        [ScannerStates.ScanCycle] =  { enter = nil, exit = nil, next = nil, },
         [ScannerStates.FinishCycle] =  { enter = nil, exit = nil, next = nil },
     },
     currentState = ScannerStates.Initial
@@ -231,6 +234,7 @@ end
 -- State ScanCycle
 Scanner.StateMachine[ScannerStates.ScanCycle].enter = function(self)
     self.dish:setPosition(0, SCAN_VERTICAL_STEP)
+    self.readAttempts = 0
     SignalList:initScan()
 end
 Scanner.StateMachine[ScannerStates.ScanCycle].exit = function(self)
@@ -239,8 +243,13 @@ end
 Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
     self.dish:readData()
     if self.dish.isIdle then 
-        sleep(1)
-        self.dish:readData()
+        if self.dish.signal.Strength == -1 then
+            if self.readAttempts < READ_ATTEMPTS_LIMIT then
+                self.readAttempts = self.readAttempts + 1
+                return ScannerStates.ScanCycle
+            end
+        end
+        self.readAttempts = 0
         --print("Current position:" .. self.dish.horizontal .. ":" .. self.dish.vertical .. self.dish.signal:toDebugString())
         SignalList:update(self.dish.signal, self.dish.horizontal, self.dish.vertical)
         local newHorizontal = self.dish.horizontal + SCAN_HORISONTAL_STEP
@@ -288,7 +297,7 @@ end
 
 local scanner = Scanner.new()
 
-while true do
+-- Application run
+function tick(dt)
     scanner:run()
-    sleep(1)
 end
