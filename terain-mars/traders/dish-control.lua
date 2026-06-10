@@ -7,8 +7,8 @@ local LT  = ic.enums.LogicType
 local LBM = ic.enums.LogicBatchMethod
 
 local EPSILON = 0.001
-local SCAN_HORISONTAL_STEP = 45 -- 0°
-local SCAN_VERTICAL_STEP = 30   -- 30°
+local SCAN_HORISONTAL_STEP = 10 -- 10°
+local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is -1
 
 local TraderType = {
@@ -191,6 +191,61 @@ function SignalList:printCurrentState()
     end
 end
 
+local function buildScanPlan(hStart,         -- horizontal sector start
+                             hEnd,           -- horizontal sector end
+                             vMin,           -- vertical min, zenith
+                             vMax,           -- vertical max, near horizon
+                             vStep,          -- vertical step
+                             desiredHStep    -- desired horizontal resolution near horizon
+                            )
+    local function degToRad(deg)
+        return deg * math.pi / 180.0
+    end
+    local plan = {}
+    local sectorWidth = hEnd - hStart
+    local rowIndex = 0
+
+    local v = vMin
+    while v <= vMax do
+        local sinv = math.sin(degToRad(v))
+
+        -- Near zenith, horizontal direction has almost no meaning.
+        -- Therefore scan only one horizontal point.
+        local count = 1
+        if sinv > 0.01 then
+            count = math.ceil(sectorWidth * sinv / desiredHStep)
+            if count < 1 then
+                count = 1
+            end
+        end
+
+        local row = {}
+        for i = 0, count - 1 do
+            -- Cell-center sampling, avoids sector-border overlap.
+            local h = hStart + sectorWidth * (i + 0.5) / count
+            table.insert(row, { h = h, v = v })
+        end
+
+        -- Serpentine order: every second row is reversed.
+        if rowIndex % 2 == 1 then
+            local reversed = {}
+            for i = #row, 1, -1 do
+                table.insert(reversed, row[i])
+            end
+            row = reversed
+        end
+
+        for i = 1, #row do
+            table.insert(plan, row[i])
+        end
+
+        rowIndex = rowIndex + 1
+        v = v + vStep
+    end
+
+    return plan
+end
+
 local ScannerStates = {
     Initial   = 0,
     ScanCycle = 1,
@@ -200,7 +255,10 @@ local ScannerStates = {
 Scanner = {
     dish = nil,
     readAttempts = 0,
-    currentIndex = 0,
+    nextIndex = 1,
+    plan = {},
+    step = 1,
+    shouldContinue = false,
     StateMachine = {
         [ScannerStates.Initial] =    { enter = nil, exit = nil, next = nil },
         [ScannerStates.ScanCycle] =  { enter = nil, exit = nil, next = nil, },
@@ -210,10 +268,19 @@ Scanner = {
 }
 Scanner.__index = Scanner
 
-function Scanner.new()
+function Scanner.new(id,             -- scanner id
+                     hStart,         -- horizontal sector start
+                     hEnd,           -- horizontal sector end
+                     vMin,           -- vertical min, zenith
+                     vMax,           -- vertical max, near horizon
+                     vStep,          -- vertical step
+                     desiredHStep    -- desired horizontal resolution near horizon
+                    )
     local self = setmetatable({
-        dish = Dish.new("scanner-dish"),
+        dish = Dish.new("scanner-dish"..id),
         currentState = ScannerStates.Initial,
+        plan = buildScanPlan(hStart, hEnd, vMin, vMax, vStep, desiredHStep),
+        nextIndex = 1,
     }, Scanner)
     self.StateMachine[self.currentState].enter(self)
     return self
@@ -221,7 +288,11 @@ end
 
 -- State Initial
 Scanner.StateMachine[ScannerStates.Initial].enter = function(self)
-    self.dish:setPosition(0, 0)
+    if #self.plan == 0 then return end
+    self.nextIndex = 1
+    self.step = 1
+    self.dish:setPosition(self.plan[self.nextIndex].h, self.plan[self.nextIndex].v)
+    self.nextIndex = self.nextIndex + 1
 end
 Scanner.StateMachine[ScannerStates.Initial].exit = function(self)
     --Nothing to do
@@ -233,14 +304,13 @@ end
 
 -- State ScanCycle
 Scanner.StateMachine[ScannerStates.ScanCycle].enter = function(self)
-    self.dish:setPosition(0, SCAN_VERTICAL_STEP)
     self.readAttempts = 0
-    SignalList:initScan()
 end
 Scanner.StateMachine[ScannerStates.ScanCycle].exit = function(self)
-    --Nothing to do
+    self.step = -self.step
 end
 Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
+    if #self.plan == 0 then return ScannerStates.FinishCycle end
     self.dish:readData()
     if self.dish.isIdle then 
         if self.dish.signal.Strength == -1 then
@@ -252,31 +322,35 @@ Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
         self.readAttempts = 0
         --print("Current position:" .. self.dish.horizontal .. ":" .. self.dish.vertical .. self.dish.signal:toDebugString())
         SignalList:update(self.dish.signal, self.dish.horizontal, self.dish.vertical)
-        local newHorizontal = self.dish.horizontal + SCAN_HORISONTAL_STEP
-        local newVertical = self.dish.vertical
-        if newHorizontal >= 360 then
-            newHorizontal = 0
-            newVertical = newVertical + SCAN_VERTICAL_STEP
-            if newVertical > 90 then
-                return ScannerStates.FinishCycle -- Full cycle
-            end
+        if #self.plan < 2 then
+            return ScannerStates.FinishCycle -- Full cycle
         end
+        if self.nextIndex > #self.plan then
+            self.nextIndex = #self.plan - 1
+            return ScannerStates.FinishCycle -- Full cycle
+        end
+        if self.nextIndex < 1 then
+            self.nextIndex = 2
+            return ScannerStates.FinishCycle -- Full cycle
+        end
+
+        local newHorizontal = self.plan[self.nextIndex].h
+        local newVertical = self.plan[self.nextIndex].v
         self.dish:setPosition(newHorizontal, newVertical)
+        self.nextIndex = self.nextIndex + self.step
     end
     return ScannerStates.ScanCycle
 end
 
 -- State Initial
 Scanner.StateMachine[ScannerStates.FinishCycle].enter = function(self)
-    SignalList:removeOutdated()
-    print("End of cycle:")
-    SignalList:printCurrentState()
+    self.shouldContinue = false 
 end
 Scanner.StateMachine[ScannerStates.FinishCycle].exit = function(self)
     --Nothing to do
 end
 Scanner.StateMachine[ScannerStates.FinishCycle].next = function(self)
-    return ScannerStates.ScanCycle
+    if self.shouldContinue then return ScannerStates.ScanCycle else return ScannerStates.FinishCycle end
 end
 
 function Scanner:defineNewState()
@@ -295,9 +369,36 @@ function Scanner:run()
     end
 end
 
-local scanner = Scanner.new()
+function Scanner:cycleFinsihed()
+    return self.currentState == ScannerStates.FinishCycle
+end
+
+function Scanner:continue()
+    self.shouldContinue = true
+end
+
+local scanner1 = Scanner.new(1, 0, 90, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
+local scanner2 = Scanner.new(2, 90, 180, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
+local scanner3 = Scanner.new(3, 180, 270, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
+local scanner4 = Scanner.new(4, 270, 360, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
 -- Application run
 function tick(dt)
-    scanner:run()
+    scanner1:run()
+    scanner2:run()
+    scanner3:run()
+    scanner4:run()
+    if scanner1:cycleFinsihed() and
+       scanner2:cycleFinsihed() and
+       scanner3:cycleFinsihed() and
+       scanner4:cycleFinsihed() then
+            SignalList:removeOutdated()
+            print("End of cycle:")
+            SignalList:printCurrentState()
+            SignalList:initScan()
+            scanner1:continue()
+            scanner2:continue()
+            scanner3:continue()
+            scanner4:continue()
+    end 
 end
