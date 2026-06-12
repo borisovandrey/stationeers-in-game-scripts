@@ -10,6 +10,7 @@ local EPSILON = 0.001
 local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is -1
+local SEARCH_STEP = 16 -- Antenna search initial step
 
 local TraderType = {
     Unknown             = -1,
@@ -135,6 +136,10 @@ function Dish:readData()
 end
 
 function Dish:setPosition(hor, vert)
+    if self.device == nil then
+        print("Dish setPosition failed: device not found")
+        return
+    end
     ic.write_id(self.device, LT.Horizontal, hor)
     ic.write_id(self.device, LT.Vertical, vert)
 end
@@ -193,6 +198,13 @@ function SignalList:printCurrentState()
             " V:" .. string.format("%.2f", value.bestVertical) .. "°"
         )
     end
+end
+
+function SignalList:findSlot(slot)
+    for key, value in pairs(self.data) do
+        if value.signal.contactSlotIndex == slot then return key end
+    end
+    return -1
 end
 
 local function buildScanPlan(hStart,         -- horizontal sector start
@@ -411,9 +423,178 @@ function ScannerArray:run()
     end
 end
 
+local AntennaState = {
+    Idle = 1,           -- Initial state and innactive state
+    Search = 2,         -- Antenna searches the point
+    Communication = 3,  -- Antenna have found the point
+    Error = 4,          -- It is not possible to find the point as the signal strength is -1
+    NoSignal = 5,       -- Signal disappears from signal list
+}
+
+local Antenna = {
+    slot = -1,
+    currentState = AntennaState.Idle,
+    searchPatternIndex = 0,
+    signalId = -1,
+    signalStrength = -1,
+    step = SEARCH_STEP,
+    dish = {},
+    searchCenterPosition = { h = -1, v = -1 },
+
+    StateMachine = {
+        [AntennaState.Idle] =    { enter = nil, exit = nil, next = nil },
+        [AntennaState.Search] =  { enter = nil, exit = nil, next = nil, },
+        [AntennaState.Communication] = { enter = nil, exit = nil, next = nil },
+        [AntennaState.Error] =    { enter = nil, exit = nil, next = nil },
+        [AntennaState.NoSignal] = { enter = nil, exit = nil, next = nil },
+    },
+}
+Antenna.__index = Antenna
+
+local SearchPattern = {
+    { h = -1, v = -1 }, { h = 0, v = -1 }, { h = 1, v = -1 },
+    { h = -1, v =  0 },                    { h = 1, v =  0 },
+    { h = -1, v =  1 }, { h = 0, v =  1 }, { h = 1, v =  1 }
+}
+
+function Antenna.new(slot, dishName)
+    local self = setmetatable({
+        slot = slot,
+        dish = Dish.new(dishName)
+    }, Antenna)
+    self.StateMachine[self.currentState].enter(self)
+    return self
+end
+
+-- State Idle
+Antenna.StateMachine[AntennaState.Idle].enter = function(self)
+    self.searchPatternIndex = 0
+    self.signalId = -1
+end
+Antenna.StateMachine[AntennaState.Idle].exit = function(self)
+    --Nothing to do
+end
+Antenna.StateMachine[AntennaState.Idle].next = function(self)
+    if self.slot ~= -1 then return AntennaState.Search end
+    return AntennaState.Idle
+end
+
+-- State Search
+Antenna.StateMachine[AntennaState.Search].enter = function(self)
+    self.step = SEARCH_STEP
+    self.searchPatternIndex = 1
+    self.signalId = SignalList:findSlot(self.slot)
+    if self.signalId == -1 then return end
+    local data = SignalList.data[self.signalId]
+    self.signalStrength = data.signal.Strength
+    self.searchCenterPosition.h = data.bestHorizontal
+    self.searchCenterPosition.v = data.bestVertical
+    self.dish:setPosition(data.bestHorizontal - self.step, data.bestVertical - self.step)
+end
+Antenna.StateMachine[AntennaState.Search].exit = function(self)
+    --Nothing to do
+end
+Antenna.StateMachine[AntennaState.Search].next = function(self)
+    if self.slot == -1 then return AntennaState.Idle end
+    if self.signalId == -1 then return AntennaState.NoSignal end
+    local checkId = SignalList:findSlot(self.slot)
+    if self.signalId  ~= checkId then return AntennaState.NoSignal end
+    if self.dish:isIdle() then
+        self.dish:readData()
+        if self.dish.signal.Strength > self.signalStrength then
+            self.searchPatternIndex = 1
+            self.signalStrength = self.dish.signal.Strength
+            self.searchCenterPosition.h = self.dish.horizontal
+            self.searchCenterPosition.v = self.dish.vertical
+            self.dish:setPosition(self.dish.horizontal - self.step, self.dish.vertical - self.step)
+            return AntennaState.Search
+        end
+        if self.searchPatternIndex == #SearchPattern then
+            if self.signalStrength == -1 then return AntennaState.Error end
+            self.searchPatternIndex = 1
+            self.step = self.step / 2
+            if self.step < 2 then return AntennaState.Communication end
+            self.dish:setPosition(self.searchCenterPosition.h - self.step, self.searchCenterPosition.v - self.step)
+            return AntennaState.Search
+        end
+        self.searchPatternIndex = self.searchPatternIndex + 1
+        local pattern = SearchPattern[self.searchPatternIndex]
+        local newHorizontal = self.searchCenterPosition.h + self.step * pattern.h
+        local newVertical = self.searchCenterPosition.v + self.step * pattern.v
+        self.dish:setPosition(newHorizontal, newVertical)
+    end
+    return AntennaState.Search
+end
+
+-- State NoSignal
+Antenna.StateMachine[AntennaState.NoSignal].enter = function(self)
+    self.searchPatternIndex = 0
+    self.signalId = -1
+end
+Antenna.StateMachine[AntennaState.NoSignal].exit = function(self)
+    --Nothing to do
+end
+Antenna.StateMachine[AntennaState.NoSignal].next = function(self)
+    if self.slot == -1 then return AntennaState.Idle end
+    local signalId = SignalList:findSlot(self.slot)
+    if signalId ~= -1 then return AntennaState.Search end
+    return AntennaState.NoSignal
+end
+
+-- State Error
+Antenna.StateMachine[AntennaState.Error].enter = function(self)
+    self.searchPatternIndex = 0
+end
+Antenna.StateMachine[AntennaState.Error].exit = function(self)
+    --Nothing to do
+end
+Antenna.StateMachine[AntennaState.Error].next = function(self)
+    if self.slot == -1 then return AntennaState.Idle end
+    local signalId = SignalList:findSlot(self.slot)
+    if signalId ~= self.signalId then return AntennaState.NoSignal end
+    local data = SignalList.data[signalId]
+    if data.signal.Strength ~= -1 then return AntennaState.Search end
+    return AntennaState.Error
+end
+
+-- State Communication
+Antenna.StateMachine[AntennaState.Communication].enter = function(self)
+end
+Antenna.StateMachine[AntennaState.Communication].exit = function(self)
+    --Nothing to do
+end
+Antenna.StateMachine[AntennaState.Communication].next = function(self)
+    if self.slot == -1 then return AntennaState.Idle end
+    local signalId = SignalList:findSlot(self.slot)
+    if signalId == -1 then return AntennaState.NoSignal end
+    if signalId ~= self.signalId then return AntennaState.NoSignal end
+    return AntennaState.Communication
+end
+
+function Antenna:defineNewState()
+    local state = self.StateMachine[self.currentState]
+    return state.next(self)
+end
+
+function Antenna:run()
+    local newState = self:defineNewState()
+    if self.currentState ~= newState then
+        local old = self.StateMachine[self.currentState]
+        local new = self.StateMachine[newState]
+        if old and old.exit then old.exit(self) end
+        if new and new.enter then new.enter(self) end
+        self.currentState = newState
+    end
+end
+
+-- Application Initialization
+
 ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
+
+local antenna = Antenna.new(0, "antenna-dish")
 
 -- Application run
 function tick(dt)
     ScannerArray:run()
+    antenna:run()
 end
