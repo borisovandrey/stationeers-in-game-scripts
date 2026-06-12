@@ -101,7 +101,6 @@ Dish = {
     device = nil,
     vertical = -1,          -- vertical orientation
     horizontal = -1,        -- horizontal orientation
-    isIdle = false,         -- dish is ready to ready for signals
     signal = Signal.new()   -- signal
 }
 Dish.__index = Dish
@@ -111,7 +110,6 @@ function Dish.new(name)
         device = ic.find(name),
         vertical = Dish.vertical,
         horizontal = Dish.horizontal,
-        isIdle = Dish.isIdle,
         signal = Signal.new(),
     }, Dish)
     if self.device == nil then
@@ -120,9 +118,14 @@ function Dish.new(name)
     return self
 end
 
+-- dish is ready to ready for read signals
+function Dish:isIdle()
+    if self.device == nil then return false end
+    return ic.read_id(self.device, LT.Idle) == 1
+end
+
 function Dish:readData()
     if self.device == nil then return end
-    self.isIdle = ic.read_id(self.device, LT.Idle) == 1
     self.horizontal = ic.read_id(self.device, LT.Horizontal)
     self.vertical = ic.read_id(self.device, LT.Vertical)
     self.signal.Id = ic.read_id(self.device, LT.SignalID)
@@ -184,6 +187,7 @@ end
 function SignalList:printCurrentState()
     for _, value in pairs(self.data) do
         print(
+            "ver:" .. value.version .. 
             value.signal:toDebugString() ..
             " H:" .. string.format("%.2f", value.bestHorizontal) .. "°" ..
             " V:" .. string.format("%.2f", value.bestVertical) .. "°"
@@ -298,8 +302,7 @@ Scanner.StateMachine[ScannerStates.Initial].exit = function(self)
     --Nothing to do
 end
 Scanner.StateMachine[ScannerStates.Initial].next = function(self)
-    self.dish:readData()
-    if self.dish.isIdle then return ScannerStates.ScanCycle else return ScannerStates.Initial end
+    if self.dish:isIdle() then return ScannerStates.ScanCycle else return ScannerStates.Initial end
 end
 
 -- State ScanCycle
@@ -311,8 +314,8 @@ Scanner.StateMachine[ScannerStates.ScanCycle].exit = function(self)
 end
 Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
     if #self.plan == 0 then return ScannerStates.FinishCycle end
-    self.dish:readData()
-    if self.dish.isIdle then 
+    if self.dish:isIdle() then 
+        self.dish:readData()
         if self.dish.signal.Strength == -1 then
             if self.readAttempts < READ_ATTEMPTS_LIMIT then
                 self.readAttempts = self.readAttempts + 1
@@ -377,28 +380,40 @@ function Scanner:continue()
     self.shouldContinue = true
 end
 
-local scanner1 = Scanner.new(1, 0, 90, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
-local scanner2 = Scanner.new(2, 90, 180, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
-local scanner3 = Scanner.new(3, 180, 270, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
-local scanner4 = Scanner.new(4, 270, 360, 0, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
+local ScannerArray = {
+    scanners = {}
+}
+
+function ScannerArray:init(ammount, verticalLimit, verticalStep, horizontalStep)
+    local sectorSize = 360 / ammount
+    for i = 1, ammount do
+        self.scanners[i] = Scanner.new(i, (i - 1) * sectorSize, i * sectorSize, 0, verticalLimit, verticalStep, horizontalStep)
+    end
+end
+
+function ScannerArray:run()
+    for i = 1, #self.scanners do
+        self.scanners[i]:run()
+    end
+    local cycleFinsihed = true
+    for i = 1, #self.scanners do
+        cycleFinsihed = cycleFinsihed and self.scanners[i]:cycleFinsihed()
+        if not cycleFinsihed then break end
+    end
+    if cycleFinsihed then
+        SignalList:removeOutdated()
+        print("End of cycle:")
+        SignalList:printCurrentState()
+        SignalList:initScan()
+        for i = 1, #self.scanners do
+            self.scanners[i]:continue()
+        end
+    end
+end
+
+ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
 -- Application run
 function tick(dt)
-    scanner1:run()
-    scanner2:run()
-    scanner3:run()
-    scanner4:run()
-    if scanner1:cycleFinsihed() and
-       scanner2:cycleFinsihed() and
-       scanner3:cycleFinsihed() and
-       scanner4:cycleFinsihed() then
-            SignalList:removeOutdated()
-            print("End of cycle:")
-            SignalList:printCurrentState()
-            SignalList:initScan()
-            scanner1:continue()
-            scanner2:continue()
-            scanner3:continue()
-            scanner4:continue()
-    end 
+    ScannerArray:run()
 end
