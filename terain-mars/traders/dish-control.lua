@@ -12,9 +12,10 @@ local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is INVALID for Scanner
 local READ_ATTEMPTS_ANTENNA_LIMIT = 12 -- Ammount of reads the data if the signal strength is INVALID for Antenna
-local SEARCH_STEP = 16 -- Antenna search initial step
+local SEARCH_STEP = 8 -- Antenna search initial step
 local MIN_VERTICAL_ANGLE = 0
 local MAX_VERTICAL_ANGLE = 90
+local OPTIMIZATION_RESOLUTION = 2 -- Optimization resolution window for direction 
 
 local TraderType = {
     Unknown             = INVALID,
@@ -74,30 +75,16 @@ local function isValidReading(value)
     return value ~= INVALID
 end
 
-local function hasValidSignalSample(signal)
-    return isValidReading(signal.WattsReachingContact)
-end
-
 local function isBetterSignalSample(left, right)
-    local leftHasPower = hasValidSignalSample(left)
-    local rightHasPower = hasValidSignalSample(right)
-    if leftHasPower ~= rightHasPower then
-        return leftHasPower
+    local leftValid = isValidReading(left)
+    local rightValid = isValidReading(right)
+    if leftValid ~= rightValid then
+        return leftValid
     end
-    if not leftHasPower then
+    if not leftValid then
         return false
     end
-    if left.WattsReachingContact ~= right.WattsReachingContact then
-        return left.WattsReachingContact > right.WattsReachingContact
-    end
-
-    local leftHasDistance = isValidReading(left.AngularDistance)
-    local rightHasDistance = isValidReading(right.AngularDistance)
-    if leftHasDistance and left.AngularDistance ~= right.AngularDistance then
-        return left.AngularDistance < right.AngularDistance
-    end
-
-    return false
+    return left > right
 end
 
 local Signal = {
@@ -196,6 +183,18 @@ function Dish:setPosition(hor, vert)
     ic.write_id(self.device, LT.Vertical, clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE))
 end
 
+function Dish:setContactFilter(id)
+    if self.device == nil then
+        print("Dish setPosition failed: device not found")
+        return
+    end
+    ic.write_id(self.device, LT.BestContactFilter, id)
+end
+
+function Dish:clearContactFilter()
+    self:setContactFilter(-1)
+end
+
 local SignalList = {
     currentVersion = 0,
     data = {}
@@ -205,7 +204,7 @@ function SignalList:update(signal, hor, vert)
     local found = self.data[signal.Id]
     if found ~= nil then
         found.version = self.currentVersion
-        if isBetterSignalSample(signal, found.signal) then
+        if isBetterSignalSample(signal.WattsReachingContact, found.signal.WattsReachingContact) then
             print(
                 "Update " ..
                 signal:toDebugString() ..
@@ -257,6 +256,10 @@ function SignalList:findSlot(slot)
         if value.signal.contactSlotIndex == slot then return key end
     end
     return INVALID
+end
+
+function SignalList:removeSignal(id)
+    self.data[id] = nil
 end
 
 local function buildScanPlan(hStart,         -- horizontal sector start
@@ -380,7 +383,7 @@ Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
     if #self.plan == 0 then return ScannerStates.FinishCycle end
     if self.dish:isIdle() then 
         self.dish:readData()
-        if not hasValidSignalSample(self.dish.signal) then
+        if not isValidReading(self.dish.signal.WattsReachingContact) then
             if self.readAttempts < READ_ATTEMPTS_LIMIT then
                 self.readAttempts = self.readAttempts + 1
                 return ScannerStates.ScanCycle
@@ -505,7 +508,6 @@ local Antenna = {
     dish = {},
     searchCenterPosition = { h = INVALID, v = INVALID },
     searchPosition = { h = INVALID, v = INVALID },
-    searchShift = { h = 0, v = 0 },
     readAttempts = 0,
 
     StateMachine = {
@@ -528,13 +530,11 @@ local function nextSearchPatternIndex(patternIndex)
     return patternIndex % #SearchPattern + 1
 end
 
-local function clearSkippedSearchPoints(self)
+function Antenna:clearSkippedSearchPoints()
     self.skipCheckedPoints = false
-    self.searchShift.h = 0
-    self.searchShift.v = 0
 end
 
-local function setSearchPosition(self, patternIndex)
+function Antenna:setSearchPosition(patternIndex)
     local pattern = SearchPattern[patternIndex]
     self.searchPatternIndex = patternIndex
     self.searchPosition.h = self.searchCenterPosition.h + self.step * pattern.h
@@ -542,24 +542,27 @@ local function setSearchPosition(self, patternIndex)
     self.dish:setPosition(self.searchPosition.h, self.searchPosition.v)
 end
 
-local function startSearchRing(self, patternIndex)
+function Antenna:startSearchRing(patternIndex)
     self.searchStartPatternIndex = patternIndex
     self.searchPointsChecked = 0
-    setSearchPosition(self, patternIndex)
+    self:setSearchPosition(patternIndex)
 end
 
-local function setSkippedSearchPoints(self, patternIndex)
-    local pattern = SearchPattern[patternIndex]
+function Antenna:returnToCenter()
+    self.dish:setPosition(self.searchCenterPosition.h, self.searchCenterPosition.v)
+end 
+
+function Antenna:setSkippedSearchPoints(patternIndex)
     self.skipCheckedPoints = true
-    self.searchShift.h = pattern.h
-    self.searchShift.v = pattern.v
+    self.searchStartPatternIndex = patternIndex
 end
 
-local function isAlreadyCheckedPoint(self, patternIndex)
+function Antenna:isAlreadyCheckedPoint(patternIndex)
     if not self.skipCheckedPoints then return false end
+    local shiftPattern = SearchPattern[self.searchStartPatternIndex]
     local pattern = SearchPattern[patternIndex]
-    local shiftH = pattern.h + self.searchShift.h
-    local shiftV = pattern.v + self.searchShift.v
+    local shiftH = pattern.h + shiftPattern.h
+    local shiftV = pattern.v + shiftPattern.v
     if shiftH < -1 or shiftH > 1 then return false end
     if shiftV < -1 or shiftV > 1 then return false end
     return true
@@ -569,10 +572,10 @@ local function moveToNextSearchPosition(self)
     local patternIndex = self.searchPatternIndex
     while self.searchPointsChecked < #SearchPattern do
         patternIndex = nextSearchPatternIndex(patternIndex)
-        if isAlreadyCheckedPoint(self, patternIndex) then
+        if self:isAlreadyCheckedPoint(patternIndex) then
             self.searchPointsChecked = self.searchPointsChecked + 1
         else
-            setSearchPosition(self, patternIndex)
+            self:setSearchPosition(patternIndex)
             return true
         end
     end
@@ -621,23 +624,24 @@ end
 -- State Search
 Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.step = SEARCH_STEP
-    self.searchPatternIndex = 1
+    self.searchPatternIndex = 1 
     self.searchStartPatternIndex = 1
     self.searchPointsChecked = 0
-    clearSkippedSearchPoints(self)
+    self:clearSkippedSearchPoints()
     self.readAttempts = 0
     self.signalId = SignalList:findSlot(self.slot)
 
     if self.signalId == INVALID then return end
+    self.dish:setContactFilter(self.signalId)
     local data = SignalList.data[self.signalId]
     self.bestAngularDistance = data.signal.AngularDistance
     self.bestWattsReachingContact = data.signal.WattsReachingContact
     self.searchCenterPosition.h = data.bestHorizontal
     self.searchCenterPosition.v = data.bestVertical
-    startSearchRing(self, 1)
+    self:startSearchRing(1)
 end
 Antenna.StateMachine[AntennaState.Search].exit = function(self)
-    --Nothing to do
+    self.dish:clearContactFilter()
 end
 Antenna.StateMachine[AntennaState.Search].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
@@ -646,8 +650,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
     if self.signalId  ~= checkId then return AntennaState.NoSignal end
     if self.dish:isIdle() then
         self.dish:readData()
-
-        if not hasValidSignalSample(self.dish.signal) then
+        if not isValidReading(self.dish.signal.WattsReachingContact) then
             if self.readAttempts < READ_ATTEMPTS_ANTENNA_LIMIT then
                 self.readAttempts = self.readAttempts + 1
                 return AntennaState.Search
@@ -657,42 +660,32 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
 
         self:printState("Read signal")
         if self.signalId == self.dish.signal.Id then
-            if isBetterSignalSample(self.dish.signal, {
-                AngularDistance = self.bestAngularDistance,
-                WattsReachingContact = self.bestWattsReachingContact,
-            }) then
+            if isValidReading(self.dish.signal.AngularDistance) and (self.dish.signal.AngularDistance < OPTIMIZATION_RESOLUTION) then
+                return AntennaState.Communication
+            end
+            if isBetterSignalSample(self.dish.signal.WattsReachingContact, self.bestWattsReachingContact) then
                 self.bestAngularDistance = self.dish.signal.AngularDistance
                 self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
                 self.searchCenterPosition.h = self.dish.horizontal
                 self.searchCenterPosition.v = self.dish.vertical
-                setSkippedSearchPoints(self, self.searchPatternIndex)
-                startSearchRing(self, self.searchPatternIndex)
+                self:setSkippedSearchPoints(self.searchPatternIndex)
+                self:startSearchRing(self.searchPatternIndex)
                 self:printState("Better signal")
                 return AntennaState.Search
             end
         end
         self.searchPointsChecked = self.searchPointsChecked + 1
-        if self.searchPointsChecked == #SearchPattern then
-            if not hasValidSignalSample({
-                AngularDistance = self.bestAngularDistance,
-                WattsReachingContact = self.bestWattsReachingContact,
-            }) then return AntennaState.Error end
+
+        --Check we have reached the end of serach pattern
+        if (self.searchPointsChecked == #SearchPattern) or not moveToNextSearchPosition(self) then
+            if not isValidReading(self.bestWattsReachingContact) then return AntennaState.Error end
             self.step = self.step / 2
-            if self.step < 2 then return AntennaState.Communication end
-            clearSkippedSearchPoints(self)
-            startSearchRing(self, self.searchStartPatternIndex)
-            self:printState("No better signal")
-            return AntennaState.Search
-        end
-        if not moveToNextSearchPosition(self) then
-            if not hasValidSignalSample({
-                AngularDistance = self.bestAngularDistance,
-                WattsReachingContact = self.bestWattsReachingContact,
-            }) then return AntennaState.Error end
-            self.step = self.step / 2
-            if self.step < 2 then return AntennaState.Communication end
-            clearSkippedSearchPoints(self)
-            startSearchRing(self, self.searchStartPatternIndex)
+            if self.step < OPTIMIZATION_RESOLUTION then 
+                self:returnToCenter()  
+                return AntennaState.Communication     
+            end
+            self:clearSkippedSearchPoints(self)
+            self:startSearchRing(self.searchStartPatternIndex)
             self:printState("No better signal")
             return AntennaState.Search
         end
@@ -704,7 +697,7 @@ end
 Antenna.StateMachine[AntennaState.NoSignal].enter = function(self)
     self.searchPatternIndex = 0
     self.searchPointsChecked = 0
-    clearSkippedSearchPoints(self)
+    self:clearSkippedSearchPoints()
     self.signalId = INVALID
 end
 Antenna.StateMachine[AntennaState.NoSignal].exit = function(self)
@@ -721,7 +714,7 @@ end
 Antenna.StateMachine[AntennaState.Error].enter = function(self)
     self.searchPatternIndex = 0
     self.searchPointsChecked = 0
-    clearSkippedSearchPoints(self)
+    self:clearSkippedSearchPoints()
 end
 Antenna.StateMachine[AntennaState.Error].exit = function(self)
     --Nothing to do
@@ -731,7 +724,7 @@ Antenna.StateMachine[AntennaState.Error].next = function(self)
     local signalId = SignalList:findSlot(self.slot)
     if signalId ~= self.signalId then return AntennaState.NoSignal end
     local data = SignalList.data[signalId]
-    if hasValidSignalSample(data.signal) then return AntennaState.Search end
+    if isValidReading(data.signal.WattsReachingContact) then return AntennaState.Search end
     return AntennaState.Error
 end
 
@@ -747,7 +740,10 @@ Antenna.StateMachine[AntennaState.Communication].next = function(self)
     if signalId == INVALID then return AntennaState.NoSignal end
     if signalId ~= self.signalId then return AntennaState.NoSignal end
     self.dish:readData()
-    if self.dish.signal.Id ~= self.signalId then return AntennaState.NoSignal end
+    if self.dish.signal.Id ~= self.signalId then 
+        SignalList:removeSignal(self.signalId)    
+        return AntennaState.NoSignal 
+    end
     return AntennaState.Communication
 end
 
