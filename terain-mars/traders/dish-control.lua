@@ -7,15 +7,16 @@ local LT  = ic.enums.LogicType
 local LBM = ic.enums.LogicBatchMethod
 
 local EPSILON = 0.001
+local INVALID = -1
 local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
-local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is -1
+local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is INVALID
 local SEARCH_STEP = 16 -- Antenna search initial step
 local MIN_VERTICAL_ANGLE = 0
 local MAX_VERTICAL_ANGLE = 90
 
 local TraderType = {
-    Unknown             = -1,
+    Unknown             = INVALID,
     OreTrader           = -1374574351,
     AlloyTrader         =  54412100,
     HydroponicsTrader   = -1077922067,
@@ -69,10 +70,10 @@ local function normalizeHorizontal(angle)
 end
 
 local Signal = {
-    Id = -1,                -- current signal id
-    Strength = -1,          -- current signal strength
+    Id = INVALID,                -- current signal id
+    Strength = INVALID,          -- current signal strength
     contactTypeId = TraderType.Unknown, -- one of the possible contact type id (see TraderType)
-    contactSlotIndex = -1   -- contact slot index
+    contactSlotIndex = INVALID   -- contact slot index
 }
 Signal.__index = Signal
 
@@ -100,8 +101,8 @@ end
 local SignalData = {
     version = 0,            -- version of the signal - can be 0 or 1, used for detecting dead signals       
     signal = {},            -- signal data
-    bestHorizontal = -1,    -- best known horizontal angle
-    bestVertical = -1,      -- best vertical angle
+    bestHorizontal = INVALID,    -- best known horizontal angle
+    bestVertical = INVALID,      -- best vertical angle
 }
 
 function SignalData.new(version, signal, hor, vert)
@@ -116,8 +117,8 @@ end
 
 Dish = {
     device = nil,
-    vertical = -1,          -- vertical orientation
-    horizontal = -1,        -- horizontal orientation
+    vertical = INVALID,          -- vertical orientation
+    horizontal = INVALID,        -- horizontal orientation
     signal = Signal.new()   -- signal
 }
 Dish.__index = Dish
@@ -220,7 +221,7 @@ function SignalList:findSlot(slot)
     for key, value in pairs(self.data) do
         if value.signal.contactSlotIndex == slot then return key end
     end
-    return -1
+    return INVALID
 end
 
 local function buildScanPlan(hStart,         -- horizontal sector start
@@ -344,7 +345,7 @@ Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
     if #self.plan == 0 then return ScannerStates.FinishCycle end
     if self.dish:isIdle() then 
         self.dish:readData()
-        if self.dish.signal.Strength == -1 then
+        if self.dish.signal.Strength == INVALID then
             if self.readAttempts < READ_ATTEMPTS_LIMIT then
                 self.readAttempts = self.readAttempts + 1
                 return ScannerStates.ScanCycle
@@ -443,7 +444,7 @@ local AntennaState = {
     Idle = 1,           -- Initial state and innactive state
     Search = 2,         -- Antenna searches the point
     Communication = 3,  -- Antenna have found the point
-    Error = 4,          -- It is not possible to find the point as the signal strength is -1
+    Error = 4,          -- It is not possible to find the point as the signal strength is INVALID
     NoSignal = 5,       -- Signal disappears from signal list
 }
 
@@ -456,14 +457,15 @@ local AntennaStateNames = {
 }
 
 local Antenna = {
-    slot = -1,
+    slot = INVALID,
     currentState = AntennaState.Idle,
     searchPatternIndex = 0,
-    signalId = -1,
-    signalStrength = -1,
+    signalId = INVALID,
+    signalStrength = INVALID,
     step = SEARCH_STEP,
     dish = {},
-    searchCenterPosition = { h = -1, v = -1 },
+    searchCenterPosition = { h = INVALID, v = INVALID },
+    readAttempts = 0,
 
     StateMachine = {
         [AntennaState.Idle] =    { enter = nil, exit = nil, next = nil },
@@ -504,13 +506,13 @@ end
 -- State Idle
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
     self.searchPatternIndex = 0
-    self.signalId = -1
+    self.signalId = INVALID
 end
 Antenna.StateMachine[AntennaState.Idle].exit = function(self)
     --Nothing to do
 end
 Antenna.StateMachine[AntennaState.Idle].next = function(self)
-    if self.slot ~= -1 then return AntennaState.Search end
+    if self.slot ~= INVALID then return AntennaState.Search end
     return AntennaState.Idle
 end
 
@@ -518,9 +520,10 @@ end
 Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.step = SEARCH_STEP
     self.searchPatternIndex = 1
+    self.readAttempts = 0
     self.signalId = SignalList:findSlot(self.slot)
 
-    if self.signalId == -1 then return end
+    if self.signalId == INVALID then return end
     local data = SignalList.data[self.signalId]
     self.signalStrength = data.signal.Strength
     self.searchCenterPosition.h = data.bestHorizontal
@@ -531,12 +534,20 @@ Antenna.StateMachine[AntennaState.Search].exit = function(self)
     --Nothing to do
 end
 Antenna.StateMachine[AntennaState.Search].next = function(self)
-    if self.slot == -1 then return AntennaState.Idle end
-    if self.signalId == -1 then return AntennaState.NoSignal end
+    if self.slot == INVALID then return AntennaState.Idle end
+    if self.signalId == INVALID then return AntennaState.NoSignal end
     local checkId = SignalList:findSlot(self.slot)
     if self.signalId  ~= checkId then return AntennaState.NoSignal end
     if self.dish:isIdle() then
         self.dish:readData()
+
+        if self.dish.signal.Strength == INVALID then
+            if self.readAttempts < READ_ATTEMPTS_LIMIT then
+                self.readAttempts = self.readAttempts + 1
+                return AntennaState.Search
+            end
+        end
+        self.readAttempts = 0
         if self.signalId == self.dish.signal.Id and self.dish.signal.Strength > self.signalStrength then
             self.searchPatternIndex = 1
             self.signalStrength = self.dish.signal.Strength
@@ -547,7 +558,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
             return AntennaState.Search
         end
         if self.searchPatternIndex == #SearchPattern then
-            if self.signalStrength == -1 then return AntennaState.Error end
+            if self.signalStrength == INVALID then return AntennaState.Error end
             self.searchPatternIndex = 1
             self.step = self.step / 2
             if self.step < 2 then return AntennaState.Communication end
@@ -567,15 +578,15 @@ end
 -- State NoSignal
 Antenna.StateMachine[AntennaState.NoSignal].enter = function(self)
     self.searchPatternIndex = 0
-    self.signalId = -1
+    self.signalId = INVALID
 end
 Antenna.StateMachine[AntennaState.NoSignal].exit = function(self)
     --Nothing to do
 end
 Antenna.StateMachine[AntennaState.NoSignal].next = function(self)
-    if self.slot == -1 then return AntennaState.Idle end
+    if self.slot == INVALID then return AntennaState.Idle end
     local signalId = SignalList:findSlot(self.slot)
-    if signalId ~= -1 then return AntennaState.Search end
+    if signalId ~= INVALID then return AntennaState.Search end
     return AntennaState.NoSignal
 end
 
@@ -587,11 +598,11 @@ Antenna.StateMachine[AntennaState.Error].exit = function(self)
     --Nothing to do
 end
 Antenna.StateMachine[AntennaState.Error].next = function(self)
-    if self.slot == -1 then return AntennaState.Idle end
+    if self.slot == INVALID then return AntennaState.Idle end
     local signalId = SignalList:findSlot(self.slot)
     if signalId ~= self.signalId then return AntennaState.NoSignal end
     local data = SignalList.data[signalId]
-    if data.signal.Strength ~= -1 then return AntennaState.Search end
+    if data.signal.Strength ~= INVALID then return AntennaState.Search end
     return AntennaState.Error
 end
 
@@ -602,9 +613,9 @@ Antenna.StateMachine[AntennaState.Communication].exit = function(self)
     --Nothing to do
 end
 Antenna.StateMachine[AntennaState.Communication].next = function(self)
-    if self.slot == -1 then return AntennaState.Idle end
+    if self.slot == INVALID then return AntennaState.Idle end
     local signalId = SignalList:findSlot(self.slot)
-    if signalId == -1 then return AntennaState.NoSignal end
+    if signalId == INVALID then return AntennaState.NoSignal end
     if signalId ~= self.signalId then return AntennaState.NoSignal end
     return AntennaState.Communication
 end
