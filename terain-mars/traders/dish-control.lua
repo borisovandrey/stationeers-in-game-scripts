@@ -11,6 +11,8 @@ local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is -1
 local SEARCH_STEP = 16 -- Antenna search initial step
+local MIN_VERTICAL_ANGLE = 0
+local MAX_VERTICAL_ANGLE = 90
 
 local TraderType = {
     Unknown             = -1,
@@ -50,6 +52,20 @@ local function copyTable(src)
         dst[k] = v
     end
     return setmetatable(dst, getmetatable(src))
+end
+
+local function clamp(value, minValue, maxValue)
+    if value < minValue then return minValue end
+    if value > maxValue then return maxValue end
+    return value
+end
+
+local function normalizeHorizontal(angle)
+    angle = angle % 360
+    if angle < 0 then
+        angle = angle + 360
+    end
+    return angle
 end
 
 local Signal = {
@@ -140,8 +156,8 @@ function Dish:setPosition(hor, vert)
         print("Dish setPosition failed: device not found")
         return
     end
-    ic.write_id(self.device, LT.Horizontal, hor)
-    ic.write_id(self.device, LT.Vertical, vert)
+    ic.write_id(self.device, LT.Horizontal, normalizeHorizontal(hor))
+    ic.write_id(self.device, LT.Vertical, clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE))
 end
 
 local SignalList = {
@@ -431,6 +447,14 @@ local AntennaState = {
     NoSignal = 5,       -- Signal disappears from signal list
 }
 
+local AntennaStateNames = {
+    [AntennaState.Idle] = "Idle",
+    [AntennaState.Search] = "Search",
+    [AntennaState.Communication] = "Communication",
+    [AntennaState.Error] = "Error",
+    [AntennaState.NoSignal] = "NoSignal",
+}
+
 local Antenna = {
     slot = -1,
     currentState = AntennaState.Idle,
@@ -466,6 +490,17 @@ function Antenna.new(slot, dishName)
     return self
 end
 
+function Antenna:printState(message)
+    print(
+        "Antenna slot:" .. self.slot ..
+        " state:" .. (AntennaStateNames[self.currentState] or "Unknown") ..
+        " Id:" .. self.signalId ..
+        " strength:" .. string.format("%.2f", self.signalStrength) ..
+        " pos:" .. string.format("%.2f", self.searchCenterPosition.h) .. ":" .. string.format("%.2f", self.searchCenterPosition.v) ..
+        " " .. message
+    )
+end
+
 -- State Idle
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
     self.searchPatternIndex = 0
@@ -484,6 +519,7 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.step = SEARCH_STEP
     self.searchPatternIndex = 1
     self.signalId = SignalList:findSlot(self.slot)
+
     if self.signalId == -1 then return end
     local data = SignalList.data[self.signalId]
     self.signalStrength = data.signal.Strength
@@ -501,12 +537,13 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
     if self.signalId  ~= checkId then return AntennaState.NoSignal end
     if self.dish:isIdle() then
         self.dish:readData()
-        if self.dish.signal.Strength > self.signalStrength then
+        if self.signalId == self.dish.signal.Id and self.dish.signal.Strength > self.signalStrength then
             self.searchPatternIndex = 1
             self.signalStrength = self.dish.signal.Strength
             self.searchCenterPosition.h = self.dish.horizontal
             self.searchCenterPosition.v = self.dish.vertical
             self.dish:setPosition(self.dish.horizontal - self.step, self.dish.vertical - self.step)
+            self:printState("Better signal")
             return AntennaState.Search
         end
         if self.searchPatternIndex == #SearchPattern then
@@ -515,6 +552,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
             self.step = self.step / 2
             if self.step < 2 then return AntennaState.Communication end
             self.dish:setPosition(self.searchCenterPosition.h - self.step, self.searchCenterPosition.v - self.step)
+            self:printState("No better signal")
             return AntennaState.Search
         end
         self.searchPatternIndex = self.searchPatternIndex + 1
@@ -579,6 +617,13 @@ end
 function Antenna:run()
     local newState = self:defineNewState()
     if self.currentState ~= newState then
+        print(
+            "Antenna slot:" .. self.slot ..
+            " transition:" ..
+            (AntennaStateNames[self.currentState] or "Unknown") ..
+            "->" ..
+            (AntennaStateNames[newState] or "Unknown")
+        )
         local old = self.StateMachine[self.currentState]
         local new = self.StateMachine[newState]
         if old and old.exit then old.exit(self) end
