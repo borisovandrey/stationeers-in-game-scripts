@@ -118,6 +118,10 @@ local function almostEqual(left, right)
     return math.abs(left - right) < EPSILON
 end
 
+local function isWithinResolution(value, resolution)
+    return isValidReading(value) and (value < resolution or almostEqual(value, resolution))
+end
+
 local function round2(value)
     return math.floor(value * 100 + 0.5) / 100
 end
@@ -1011,7 +1015,7 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
         self.step = SEARCH_STEP
         self.readAttemptsLimit = self.configuredReadAttemptsLimit
     end
-    if isValidReading(self.bestAngularDistance) and (self.bestAngularDistance < self.optimizationResolution) then
+    if isWithinResolution(self.bestAngularDistance, self.optimizationResolution) then
         self.found = true
         self:updateSignalBack(self.searchCenterPosition.h, self.searchCenterPosition.v)
         self:returnToCenter()
@@ -1049,7 +1053,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
             return AntennaState.NoSignal
         end
         if self.signalId == self.dish.signal.Id then
-            if isValidReading(self.dish.signal.AngularDistance) and (self.dish.signal.AngularDistance < self.optimizationResolution) then
+            if isWithinResolution(self.dish.signal.AngularDistance, self.optimizationResolution) then
                 self.bestAngularDistance = self.dish.signal.AngularDistance
                 self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
                 self.searchCenterPosition.h = self.dish.horizontal
@@ -1082,7 +1086,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
         if (self.searchPointsChecked == #SearchPattern) or not moveToNextSearchPosition(self) then
             if not isValidReading(self.bestWattsReachingContact) then return AntennaState.Error end
             self.step = self.step / 2
-            if self.step < self.optimizationResolution then 
+            if isWithinResolution(self.step, self.optimizationResolution) then 
                 self:updateSignalBack(self.searchCenterPosition.h, self.searchCenterPosition.v)
                 self:returnToCenter() 
                 self.found = true
