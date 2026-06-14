@@ -99,6 +99,10 @@ local function isBetterSignalSample(left, right)
     return left > right
 end
 
+local function almostEqual(left, right)
+    return math.abs(left - right) < EPSILON
+end
+
 local Signal = {
     Id = INVALID,                -- current signal id
     AngularDistance = INVALID,   -- current angular distance to the signal source
@@ -343,16 +347,33 @@ function SignalList:getPositionSourceBySlotAndId(slot, id)
     return data.positionSource
 end
 
-function SignalList:updateSignalSampleBySlotAndId(slot, id, signal, hor, vert)
+local BorderSignalTracker
+
+function SignalList:updateSignalBack(slot, id, angularDistance, watts, hor, vert)
     local data = self:getBySlot(slot)
     if data == nil then return false end
     if data.signal.Id ~= id then return false end
-    data.signal = copyTable(signal)
-    data.bestHorizontal = normalizeHorizontal(hor)
-    data.bestVertical = clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE)
+    local normalizedHorizontal = normalizeHorizontal(hor)
+    local normalizedVertical = clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE)
+    local sameAngularDistance = (data.signal.AngularDistance == angularDistance) or
+        (isValidReading(data.signal.AngularDistance) and isValidReading(angularDistance) and almostEqual(data.signal.AngularDistance, angularDistance))
+    local sameWatts = data.signal.WattsReachingContact == watts
+    local sameHorizontal = almostEqual(data.bestHorizontal, normalizedHorizontal)
+    local sameVertical = almostEqual(data.bestVertical, normalizedVertical)
+    local sameSource = data.positionSource == SignalPositionSource.Sample
+    if sameAngularDistance and sameWatts and sameHorizontal and sameVertical and sameSource then
+        BorderSignalTracker:clearBySlotAndId(slot, id)
+        return false
+    end
+
+    data.signal.AngularDistance = angularDistance
+    data.signal.WattsReachingContact = watts
+    data.bestHorizontal = normalizedHorizontal
+    data.bestVertical = normalizedVertical
     data.positionSource = SignalPositionSource.Sample
     data.version = self.currentVersion
     self.isDirty = true
+    BorderSignalTracker:clearBySlotAndId(slot, id)
     return true
 end
 
@@ -436,7 +457,7 @@ function SignalList:clear()
 end
 
 
-local BorderSignalTracker = {
+BorderSignalTracker = {
     data = {}
 }
 
@@ -773,6 +794,7 @@ local Antenna = {
     dish = {},
     searchCenterPosition = { h = INVALID, v = INVALID },
     searchPosition = { h = INVALID, v = INVALID },
+    found = false,
     readAttempts = 0,
     readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
     configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
@@ -884,6 +906,21 @@ function Antenna:setReadAttemptsLimit(limit)
     self.readAttemptsLimit = limit
 end
 
+function Antenna:updateSignalBack(hor, vert)
+    local data = self:getCurrentSignalData()
+    if data == nil then return false end
+
+    SignalList:updateSignalBack(
+        self.slot,
+        self.signalId,
+        self.bestAngularDistance,
+        self.bestWattsReachingContact,
+        hor,
+        vert
+    )
+    return true
+end
+
 function Antenna:printState(message)
     print(
         "Antenna slot:" .. self.slot ..
@@ -928,6 +965,7 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.searchPatternIndex = 1 
     self.searchStartPatternIndex = 1
     self.searchPointsChecked = 0
+    self.found = false
     self:clearSkippedSearchPoints()
     self.readAttempts = 0
     local data = SignalList:getBySlot(self.slot)
@@ -954,7 +992,13 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
         self.step = SEARCH_STEP
         self.readAttemptsLimit = self.configuredReadAttemptsLimit
     end
-    self:startSearchRing(1)
+    if isValidReading(self.bestAngularDistance) and (self.bestAngularDistance < self.optimizationResolution) then
+        self.found = true
+        self:updateSignalBack(self.searchCenterPosition.h, self.searchCenterPosition.v)
+        self:returnToCenter()
+    else
+        self:startSearchRing(1)
+    end
 end
 Antenna.StateMachine[AntennaState.Search].exit = function(self)
     self.dish:clearContactFilter()
@@ -963,6 +1007,13 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
     if self.signalId == INVALID then return AntennaState.NoSignal end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
+    if self.found then
+        if self.dish:isIdle() then
+            self.found = false
+            return AntennaState.Communication
+        end
+        return AntennaState.Search
+    end
     if self.dish:isIdle() then
         self.dish:readData()
         if not isValidReading(self.dish.signal.WattsReachingContact) then
@@ -976,6 +1027,12 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
         self:printState("Read signal")
         if self.signalId == self.dish.signal.Id then
             if isValidReading(self.dish.signal.AngularDistance) and (self.dish.signal.AngularDistance < self.optimizationResolution) then
+                self.bestAngularDistance = self.dish.signal.AngularDistance
+                self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
+                self.searchCenterPosition.h = self.dish.horizontal
+                self.searchCenterPosition.v = self.dish.vertical
+                self:updateSignalBack(self.dish.horizontal, self.dish.vertical)
+                self.found = true
                 return AntennaState.Communication
             end
             if isBetterSignalSample(self.dish.signal.WattsReachingContact, self.bestWattsReachingContact) then
@@ -983,14 +1040,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
                 self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
                 self.searchCenterPosition.h = self.dish.horizontal
                 self.searchCenterPosition.v = self.dish.vertical
-                SignalList:updateSignalSampleBySlotAndId(
-                    self.slot,
-                    self.signalId,
-                    self.dish.signal,
-                    self.dish.horizontal,
-                    self.dish.vertical
-                )
-                BorderSignalTracker:clearBySlotAndId(self.slot, self.signalId)
+                self:updateSignalBack(self.dish.horizontal, self.dish.vertical)
                 if(self.step <= SEARCH_STEP) then
                     -- In case of search by samples 
                     self:setSkippedSearchPoints(self.searchPatternIndex) 
@@ -1010,7 +1060,9 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
             if not isValidReading(self.bestWattsReachingContact) then return AntennaState.Error end
             self.step = self.step / 2
             if self.step < self.optimizationResolution then 
+                self:updateSignalBack(self.searchCenterPosition.h, self.searchCenterPosition.v)
                 self:returnToCenter() 
+                self.found = true
                 return AntennaState.Communication     
             end
             self:clearSkippedSearchPoints(self)
