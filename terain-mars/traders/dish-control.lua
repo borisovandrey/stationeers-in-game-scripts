@@ -12,10 +12,16 @@ local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is INVALID for Scanner
 local READ_ATTEMPTS_ANTENNA_LIMIT = 12 -- Ammount of reads the data if the signal strength is INVALID for Antenna
+local READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT = 32 -- Around 1 minute waiting for midpoint-derived targets
 local SEARCH_STEP = 8 -- Antenna search initial step
+local SEARCH_STEP_MIDPOINT = 32 -- Antenna search initial step for midpoint-derived targets
 local MIN_VERTICAL_ANGLE = 0
 local MAX_VERTICAL_ANGLE = 90
 local OPTIMIZATION_RESOLUTION = 2 -- Optimization resolution window for direction 
+local BORDER_ONLY_SLOTS = {
+    [3] = true,
+    [4] = true,
+}
 
 local TraderType = {
     Unknown             = INVALID,
@@ -47,6 +53,11 @@ local TraderTypeNames = {
     [TraderType.ApplianceTrader]     = "Appliance",
     [TraderType.GeneticsTrader]      = "Genetics",
     [TraderType.RareItemsTrader]     = "RareItems", 
+}
+
+local SignalPositionSource = {
+    Sample = 1,
+    BorderMidpoint = 2,
 }
 
 local function copyTable(src)
@@ -124,14 +135,16 @@ local SignalData = {
     signal = {},            -- signal data
     bestHorizontal = INVALID,    -- best known horizontal angle
     bestVertical = INVALID,      -- best vertical angle
+    positionSource = SignalPositionSource.Sample,
 }
 
-function SignalData.new(version, signal, hor, vert)
+function SignalData.new(version, signal, hor, vert, positionSource)
     local self = {
         version = version,
         signal = copyTable(signal),
         bestHorizontal = hor, 
-        bestVertical = vert
+        bestVertical = vert,
+        positionSource = positionSource or SignalPositionSource.Sample,
     }
     return self
 end
@@ -209,7 +222,7 @@ function SignalList:update(signal, hor, vert)
         found.version = self.currentVersion
         if found.signal.Id ~= signal.Id then
             print("Replace slot:" .. slot .. " " .. signal:toDebugString())
-            self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert)
+            self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert, SignalPositionSource.Sample)
         elseif isBetterSignalSample(signal.WattsReachingContact, found.signal.WattsReachingContact) then
             print(
                 "Update " ..
@@ -222,10 +235,11 @@ function SignalList:update(signal, hor, vert)
             found.signal = copyTable(signal)
             found.bestHorizontal = hor
             found.bestVertical = vert
+            found.positionSource = SignalPositionSource.Sample
         end
     else
         print("New " .. signal:toDebugString())
-        self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert)
+        self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert, SignalPositionSource.Sample)
     end
 end
 
@@ -278,6 +292,114 @@ function SignalList:removeSignalBySlotAndId(slot, id)
     if data.signal.Id ~= id then return false end
     self.data[slot] = nil
     return true
+end
+
+function SignalList:setBestPositionBySlotAndId(slot, id, hor, vert)
+    local data = self:getBySlot(slot)
+    if data == nil then return false end
+    if data.signal.Id ~= id then return false end
+    data.bestHorizontal = normalizeHorizontal(hor)
+    data.bestVertical = clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE)
+    return true
+end
+
+function SignalList:setPositionSourceBySlotAndId(slot, id, positionSource)
+    local data = self:getBySlot(slot)
+    if data == nil then return false end
+    if data.signal.Id ~= id then return false end
+    data.positionSource = positionSource
+    return true
+end
+
+function SignalList:getPositionSourceBySlotAndId(slot, id)
+    local data = self:getBySlot(slot)
+    if data == nil then return nil end
+    if data.signal.Id ~= id then return nil end
+    return data.positionSource
+end
+
+function SignalList:updateSignalSampleBySlotAndId(slot, id, signal, hor, vert)
+    local data = self:getBySlot(slot)
+    if data == nil then return false end
+    if data.signal.Id ~= id then return false end
+    data.signal = copyTable(signal)
+    data.bestHorizontal = normalizeHorizontal(hor)
+    data.bestVertical = clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE)
+    data.positionSource = SignalPositionSource.Sample
+    data.version = self.currentVersion
+    return true
+end
+
+local BorderSignalTracker = {
+    data = {}
+}
+
+function BorderSignalTracker:initCycle()
+    self.data = {}
+end
+
+function BorderSignalTracker:update(signal, hor, vert)
+    local slot = signal.contactSlotIndex
+    if not BORDER_ONLY_SLOTS[slot] then return end
+    if signal.Id == INVALID then return end
+
+    local tracked = self.data[slot]
+    if tracked == nil or tracked.signalId ~= signal.Id then
+        tracked = {
+            signalId = signal.Id,
+            hasValidWatts = false,
+            firstHorizontal = normalizeHorizontal(hor),
+            minHorizontalOffset = 0,
+            maxHorizontalOffset = 0,
+            minVertical = vert,
+            maxVertical = vert,
+        }
+        self.data[slot] = tracked
+    end
+
+    if isValidReading(signal.WattsReachingContact) then
+        tracked.hasValidWatts = true
+    end
+
+    local offset = normalizeHorizontal(hor) - tracked.firstHorizontal
+    if offset > 180 then
+        offset = offset - 360
+    elseif offset < -180 then
+        offset = offset + 360
+    end
+
+    if offset < tracked.minHorizontalOffset then
+        tracked.minHorizontalOffset = offset
+    end
+    if offset > tracked.maxHorizontalOffset then
+        tracked.maxHorizontalOffset = offset
+    end
+    if vert < tracked.minVertical then
+        tracked.minVertical = vert
+    end
+    if vert > tracked.maxVertical then
+        tracked.maxVertical = vert
+    end
+end
+
+function BorderSignalTracker:applyFallbacks()
+    for slot, tracked in pairs(self.data) do
+        if not tracked.hasValidWatts then
+            local midHorizontal = normalizeHorizontal(
+                tracked.firstHorizontal + (tracked.minHorizontalOffset + tracked.maxHorizontalOffset) / 2
+            )
+            local midVertical = (tracked.minVertical + tracked.maxVertical) / 2
+            if SignalList:setBestPositionBySlotAndId(slot, tracked.signalId, midHorizontal, midVertical) then
+                SignalList:setPositionSourceBySlotAndId(slot, tracked.signalId, SignalPositionSource.BorderMidpoint)
+                print(
+                    "Border midpoint slot:" .. slot ..
+                    " id:" .. tracked.signalId ..
+                    " H:" .. string.format("%.2f", midHorizontal) ..
+                    " V:" .. string.format("%.2f", midVertical)
+                )
+            end
+        end
+    end
 end
 
 local function buildScanPlan(hStart,         -- horizontal sector start
@@ -342,13 +464,12 @@ local ScannerStates = {
 }
 
 Scanner = {
+    id = -1,
     dish = nil,
     readAttempts = 0,
     nextIndex = 1,
     plan = {},
     step = 1,
-    pointScanIndex = 1,
-    pointScans = {},
     shouldContinue = false,
     StateMachine = {
         [ScannerStates.Initial] =    { enter = nil, exit = nil, next = nil },
@@ -368,6 +489,7 @@ function Scanner.new(id,             -- scanner id
                      desiredHStep    -- desired horizontal resolution near horizon
                     )
     local self = setmetatable({
+        id = id,
         dish = Dish.new("scanner-dish"..id),
         currentState = ScannerStates.Initial,
         plan = buildScanPlan(hStart, hEnd, vMin, vMax, vStep, desiredHStep),
@@ -377,53 +499,7 @@ function Scanner.new(id,             -- scanner id
     return self
 end
 
-function Scanner:resetPointScans()
-    self.pointScanIndex = 1
-    self.pointScans = {
-        { id = INVALID },
-    }
-    self.dish:clearContactFilter()
-end
-
-function Scanner:hasNextPointScan()
-    return self.pointScanIndex < #self.pointScans
-end
-
-function Scanner:queuePointScan(id)
-    if id == INVALID then return end
-    for i = 1, #self.pointScans do
-        if self.pointScans[i].id == id then
-            return
-        end
-    end
-    table.insert(self.pointScans, { id = id })
-end
-
-function Scanner:prepareExtraPointScans(bestSlot)
-    if bestSlot ~= 3 then
-        local slot3 = SignalList:getBySlot(3)
-        if slot3 ~= nil then
-            self:queuePointScan(slot3.signal.Id)
-        end
-    end
-    if bestSlot ~= 4 then
-        local slot4 = SignalList:getBySlot(4)
-        if slot4 ~= nil then
-            self:queuePointScan(slot4.signal.Id)
-        end
-    end
-end
-
-function Scanner:startNextPointScan()
-    if not self:hasNextPointScan() then return false end
-    self.pointScanIndex = self.pointScanIndex + 1
-    self.readAttempts = 0
-    self.dish:setContactFilter(self.pointScans[self.pointScanIndex].id)
-    return true
-end
-
 function Scanner:moveToNextPoint()
-    self:resetPointScans()
     if #self.plan < 2 then
         return ScannerStates.FinishCycle -- Full cycle
     end
@@ -448,7 +524,6 @@ Scanner.StateMachine[ScannerStates.Initial].enter = function(self)
     if #self.plan == 0 then return end
     self.nextIndex = 1
     self.step = 1
-    self:resetPointScans()
     self.dish:setPosition(self.plan[self.nextIndex].h, self.plan[self.nextIndex].v)
     self.nextIndex = self.nextIndex + 1
 end
@@ -477,14 +552,9 @@ Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
             end
         end
         self.readAttempts = 0
-        --print("Current position:" .. self.dish.horizontal .. ":" .. self.dish.vertical .. self.dish.signal:toDebugString())
+        --print("Scan:" .. self.id .. " pos:" .. string.format("%.2f", self.dish.horizontal)  .. ":" .. string.format("%.2f", self.dish.vertical) .. " signal:" .. self.dish.signal:toDebugString())
         SignalList:update(self.dish.signal, self.dish.horizontal, self.dish.vertical)
-        if self.pointScanIndex == 1 then
-            self:prepareExtraPointScans(self.dish.signal.contactSlotIndex)
-        end
-        if self:startNextPointScan() then
-            return ScannerStates.ScanCycle
-        end
+        BorderSignalTracker:update(self.dish.signal, self.dish.horizontal, self.dish.vertical)
         return self:moveToNextPoint()
     end
     return ScannerStates.ScanCycle
@@ -547,9 +617,11 @@ function ScannerArray:run()
     end
     if cycleFinsihed then
         SignalList:removeOutdated()
+        BorderSignalTracker:applyFallbacks()
         print("End of cycle:")
         SignalList:printCurrentState()
         SignalList:initScan()
+        BorderSignalTracker:initCycle()
         for i = 1, #self.scanners do
             self.scanners[i]:continue()
         end
@@ -587,6 +659,7 @@ local Antenna = {
     searchCenterPosition = { h = INVALID, v = INVALID },
     searchPosition = { h = INVALID, v = INVALID },
     readAttempts = 0,
+    readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
 
     StateMachine = {
         [AntennaState.Idle] =    { enter = nil, exit = nil, next = nil },
@@ -682,6 +755,7 @@ function Antenna:printState(message)
         " pos:" .. string.format("%.1f", self.searchPosition.h) .. ":" .. string.format("%.1f", self.searchPosition.v) ..
         " idx:" .. self.searchPatternIndex .. 
         " stp:" .. self.step ..
+        " src:" .. (SignalList:getPositionSourceBySlotAndId(self.slot, self.signalId) or 0) ..
         " " .. message
     )
 end
@@ -697,6 +771,7 @@ end
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
     self.searchPatternIndex = 0
     self.signalId = INVALID
+    self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT
 end
 Antenna.StateMachine[AntennaState.Idle].exit = function(self)
     --Nothing to do
@@ -708,7 +783,6 @@ end
 
 -- State Search
 Antenna.StateMachine[AntennaState.Search].enter = function(self)
-    self.step = SEARCH_STEP
     self.searchPatternIndex = 1 
     self.searchStartPatternIndex = 1
     self.searchPointsChecked = 0
@@ -727,6 +801,13 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.bestWattsReachingContact = data.signal.WattsReachingContact
     self.searchCenterPosition.h = data.bestHorizontal
     self.searchCenterPosition.v = data.bestVertical
+    if data.positionSource == SignalPositionSource.BorderMidpoint then
+        self.step = SEARCH_STEP_MIDPOINT
+        self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT
+    else
+        self.step = SEARCH_STEP
+        self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT
+    end
     self:startSearchRing(1)
 end
 Antenna.StateMachine[AntennaState.Search].exit = function(self)
@@ -739,7 +820,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
     if self.dish:isIdle() then
         self.dish:readData()
         if not isValidReading(self.dish.signal.WattsReachingContact) then
-            if self.readAttempts < READ_ATTEMPTS_ANTENNA_LIMIT then
+            if self.readAttempts < self.readAttemptsLimit then
                 self.readAttempts = self.readAttempts + 1
                 return AntennaState.Search
             end
@@ -756,7 +837,20 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
                 self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
                 self.searchCenterPosition.h = self.dish.horizontal
                 self.searchCenterPosition.v = self.dish.vertical
-                self:setSkippedSearchPoints(self.searchPatternIndex)
+                SignalList:updateSignalSampleBySlotAndId(
+                    self.slot,
+                    self.signalId,
+                    self.dish.signal,
+                    self.dish.horizontal,
+                    self.dish.vertical
+                )
+                if(self.step <= SEARCH_STEP) then
+                    -- In case of search by samples 
+                    self:setSkippedSearchPoints(self.searchPatternIndex) 
+                else 
+                    -- In case of search by borders and calculated middle - swithc to normal search, but don't exclude points
+                    self.step = SEARCH_STEP
+                end
                 self:startSearchRing(self.searchPatternIndex)
                 self:printState("Better signal")
                 return AntennaState.Search
@@ -769,7 +863,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
             if not isValidReading(self.bestWattsReachingContact) then return AntennaState.Error end
             self.step = self.step / 2
             if self.step < OPTIMIZATION_RESOLUTION then 
-                self:returnToCenter()  
+                self:returnToCenter() 
                 return AntennaState.Communication     
             end
             self:clearSkippedSearchPoints(self)
@@ -810,6 +904,7 @@ Antenna.StateMachine[AntennaState.Error].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
     local data = self:getCurrentSignalData()
     if data == nil then return AntennaState.NoSignal end
+    if data.positionSource == SignalPositionSource.BorderMidpoint then return AntennaState.Search end
     if isValidReading(data.signal.WattsReachingContact) then return AntennaState.Search end
     return AntennaState.Error
 end
@@ -861,10 +956,12 @@ end
 
 ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
-local antenna = Antenna.new(1, "antenna-dish")
+local antennaM = Antenna.new(3, "antenna-dish-M")
+local antennaL = Antenna.new(4, "antenna-dish-L")
 
 -- Application run
 function tick(dt)
     ScannerArray:run()
-    antenna:run()
+    antennaM:run()
+    antennaL:run()
 end
