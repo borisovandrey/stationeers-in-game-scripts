@@ -188,6 +188,16 @@ function Dish:readData()
     self.signal.contactSlotIndex = ic.read_id(self.device, LT.ContactSlotIndex)
 end
 
+function Dish:isOn()
+    if self.device == nil then return false end
+    return ic.read_id(self.device, LT.On) == 1
+end
+
+function Dish:setOn(on)
+    if self.device == nil then return false end
+    ic.write_id(self.device, LT.On, on and 1 or 0)
+end
+
 function Dish:setPosition(hor, vert)
     if self.device == nil then
         print("Dish setPosition failed: device not found")
@@ -1062,6 +1072,64 @@ function Antenna:run()
     end
 end
 
+-- Console
+local Console = {
+    antennaM_sw = ic.find("tr-antenna-3-sw"),
+    antennaM_dial = ic.find("tr-antenna-3-dial"),
+    antennaL_sw = ic.find("tr-antenna-4-sw"),
+    antennaL_dial = ic.find("tr-antenna-4-dial"),
+    antennaM = {},
+    antennaL = {},
+    antennaM_on = false,
+    antennaL_on = false,
+    antennaM_slot = 0,
+    antennaL_slot = 0,
+}
+
+function Console:init(antennaM, antennaL)
+    self.antennaM = antennaM
+    self.antennaL = antennaL
+    self.antennaM_on = self.antennaM.dish:isOn()
+    self.antennaL_on = self.antennaL.dish:isOn()
+    self.antennaM_slot = antennaM.slot
+    self.antennaL_slot = antennaL.slot
+end
+
+function Console:run()
+    if self.antennaM_sw ~= nil then
+        local on = ic.read_id(self.antennaM_sw, LT.On) == 1
+        if on ~= self.antennaM_on then
+            self.antennaM.dish:setOn(on)
+            self.antennaM_on = on
+        end
+    end
+
+    if self.antennaM_dial ~= nil then
+        local dial = ic.read_id(self.antennaM_dial, LT.Setting)
+        if dial ~= self.antennaM_slot then
+            self.antennaM:changeSlot(dial)
+            self.antennaM_slot = dial
+        end
+    end
+
+    if self.antennaL_sw ~= nil then
+        local on = ic.read_id(self.antennaL_sw, LT.On) == 1
+        if on ~= self.antennaL_on then
+            self.antennaL.dish:setOn(on)
+            self.antennaL_on = on
+        end
+    end
+
+    if self.antennaL_dial ~= nil then
+        local dial = ic.read_id(self.antennaL_dial, LT.Setting)
+        if dial ~= self.antennaL_slot then
+            self.antennaL:changeSlot(dial)
+            self.antennaL_slot = dial
+        end
+    end
+
+end
+
 -- Application Initialization
 
 SignalList:restore()
@@ -1069,12 +1137,19 @@ print("Startup restored signal list:")
 SignalList:printCurrentState()
 ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
-local antennaM = Antenna.new(3, "antenna-dish-M")
---local antennaL = Antenna.new(4, "antenna-dish-L")
+local antennaM = Antenna.new(-1, "antenna-dish-M")
+local antennaL = Antenna.new(-1, "antenna-dish-L")
+
+Console:init(antennaM, antennaL)
 
 -- Application run
 function tick(dt)
     ScannerArray:run()
-    antennaM:run()
-    --antennaL:run()
+    Console:run()
+    if Console.antennaM_on then 
+        antennaM:run()
+    end
+    if Console.antennaL_on then 
+        antennaL:run()
+    end
 end
