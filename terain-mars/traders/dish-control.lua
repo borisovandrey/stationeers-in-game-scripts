@@ -12,7 +12,7 @@ local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is INVALID for Scanner
 local READ_ATTEMPTS_ANTENNA_LIMIT = 12 -- Ammount of reads the data if the signal strength is INVALID for Antenna
-local READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT = 32 -- Around 1 minute waiting for midpoint-derived targets
+local READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT = 64 -- Around 1 minute waiting for midpoint-derived targets
 local SEARCH_STEP = 8 -- Antenna search initial step
 local SEARCH_STEP_MIDPOINT = 32 -- Antenna search initial step for midpoint-derived targets
 local MIN_VERTICAL_ANGLE = 0
@@ -22,6 +22,7 @@ local BORDER_ONLY_SLOTS = {
     [3] = true,
     [4] = true,
 }
+local STORE_KEY = "Trader.SignalList"
 
 local TraderType = {
     Unknown             = INVALID,
@@ -210,7 +211,8 @@ end
 
 local SignalList = {
     currentVersion = 0,
-    data = {}
+    data = {},
+    isDirty = false,
 }
 
 function SignalList:update(signal, hor, vert)
@@ -223,6 +225,7 @@ function SignalList:update(signal, hor, vert)
         if found.signal.Id ~= signal.Id then
             print("Replace slot:" .. slot .. " " .. signal:toDebugString())
             self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert, SignalPositionSource.Sample)
+            self.isDirty = true
         elseif isBetterSignalSample(signal.WattsReachingContact, found.signal.WattsReachingContact) then
             print(
                 "Update " ..
@@ -236,15 +239,22 @@ function SignalList:update(signal, hor, vert)
             found.bestHorizontal = hor
             found.bestVertical = vert
             found.positionSource = SignalPositionSource.Sample
+            self.isDirty = true
         end
     else
         print("New " .. signal:toDebugString())
         self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert, SignalPositionSource.Sample)
+        self.isDirty = true
     end
 end
 
 function SignalList:initScan()
-    self.currentVersion = 1 - self.currentVersion 
+    if self.currentVersion == 0 then
+        self.currentVersion = 1
+    else
+        self.currentVersion = 0
+    end
+    self.isDirty = true
 end
 
 function SignalList:removeOutdated()
@@ -257,6 +267,7 @@ function SignalList:removeOutdated()
     end
     for key, _ in pairs(keys) do
         self.data[key] = nil
+        self.isDirty = true
     end
 end
 
@@ -284,6 +295,7 @@ end
 
 function SignalList:removeBySlot(slot)
     self.data[slot] = nil
+    self.isDirty = true
 end
 
 function SignalList:removeSignalBySlotAndId(slot, id)
@@ -291,6 +303,7 @@ function SignalList:removeSignalBySlotAndId(slot, id)
     if data == nil then return false end
     if data.signal.Id ~= id then return false end
     self.data[slot] = nil
+    self.isDirty = true
     return true
 end
 
@@ -300,6 +313,7 @@ function SignalList:setBestPositionBySlotAndId(slot, id, hor, vert)
     if data.signal.Id ~= id then return false end
     data.bestHorizontal = normalizeHorizontal(hor)
     data.bestVertical = clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE)
+    self.isDirty = true
     return true
 end
 
@@ -308,6 +322,7 @@ function SignalList:setPositionSourceBySlotAndId(slot, id, positionSource)
     if data == nil then return false end
     if data.signal.Id ~= id then return false end
     data.positionSource = positionSource
+    self.isDirty = true
     return true
 end
 
@@ -327,8 +342,93 @@ function SignalList:updateSignalSampleBySlotAndId(slot, id, signal, hor, vert)
     data.bestVertical = clamp(vert, MIN_VERTICAL_ANGLE, MAX_VERTICAL_ANGLE)
     data.positionSource = SignalPositionSource.Sample
     data.version = self.currentVersion
+    self.isDirty = true
     return true
 end
+
+function SignalList:save()
+    if not self.isDirty then return end
+
+    local payload = {
+        -- Persist as bootstrap data; restored entries should not be treated as a completed live scan cycle.
+        v = -1,
+        d = {}
+    }
+
+    for slot, value in pairs(self.data) do
+        payload.d[#payload.d + 1] = {
+            slot,
+            value.version,
+            value.signal.Id,
+            value.signal.AngularDistance,
+            value.signal.WattsReachingContact,
+            value.signal.contactTypeId,
+            value.signal.contactSlotIndex,
+            value.bestHorizontal,
+            value.bestVertical,
+            value.positionSource,
+        }
+    end
+
+    local ok, raw = pcall(util.json.encode, payload)
+    if ok and raw then
+        ic.persist.set(STORE_KEY, raw)
+        self.isDirty = false
+    else
+        print("SignalList save failed")
+    end
+end
+
+function SignalList:restore()
+    if not ic.persist.has(STORE_KEY) then return end
+    local raw = ic.persist.get(STORE_KEY)
+    if type(raw) ~= "string" then return end
+    local ok, decoded = pcall(util.json.decode, raw)
+    if not ok or type(decoded) ~= "table" then
+        print("SignalList restore failed")
+        return
+    end
+
+    if type(decoded.v) == "number" then
+        self.currentVersion = decoded.v
+    else
+        self.currentVersion = 0
+    end
+    self.data = {}
+    self.isDirty = false
+
+    if type(decoded.d) ~= "table" then return end
+
+    for _, value in pairs(decoded.d) do
+        if type(value) == "table" then
+            local slot = value[1]
+            local signalId = value[3]
+            local contactSlotIndex = value[7]
+            if slot ~= nil and signalId ~= nil and contactSlotIndex ~= nil then
+                local signal = Signal.new()
+                signal.Id = signalId
+                signal.AngularDistance = value[4] or INVALID
+                signal.WattsReachingContact = value[5] or INVALID
+                signal.contactTypeId = value[6] or TraderType.Unknown
+                signal.contactSlotIndex = contactSlotIndex
+                self.data[slot] = SignalData.new(
+                    value[2] or 0,
+                    signal,
+                    value[8] or INVALID,
+                    value[9] or INVALID,
+                    value[10] or SignalPositionSource.Sample
+                )
+            end
+        end
+    end
+end
+
+function SignalList:clear()
+    self.data = {}
+    self.currentVersion = 0
+    self.isDirty = true
+end
+
 
 local BorderSignalTracker = {
     data = {}
@@ -620,6 +720,7 @@ function ScannerArray:run()
         BorderSignalTracker:applyFallbacks()
         print("End of cycle:")
         SignalList:printCurrentState()
+        SignalList:save()
         SignalList:initScan()
         BorderSignalTracker:initCycle()
         for i = 1, #self.scanners do
@@ -967,6 +1068,7 @@ end
 
 -- Application Initialization
 
+SignalList:restore()
 ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
 local antennaM = Antenna.new(3, "antenna-dish-M")
