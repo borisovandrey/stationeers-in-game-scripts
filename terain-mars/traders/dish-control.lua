@@ -1025,6 +1025,10 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
         self.readAttempts = 0
 
         self:printState("Read signal")
+        if self.dish.signal.Id ~= self.signalId then
+            SignalList:removeSignalBySlotAndId(self.slot, self.signalId)
+            return AntennaState.NoSignal
+        end
         if self.signalId == self.dish.signal.Id then
             if isValidReading(self.dish.signal.AngularDistance) and (self.dish.signal.AngularDistance < self.optimizationResolution) then
                 self.bestAngularDistance = self.dish.signal.AngularDistance
