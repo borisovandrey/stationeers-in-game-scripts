@@ -12,7 +12,7 @@ local SCAN_HORISONTAL_STEP = 10 -- 10°
 local SCAN_VERTICAL_STEP = 20   -- 20°
 local READ_ATTEMPTS_LIMIT = 4 -- Ammount of reads the data if the signal strength is INVALID for Scanner
 local READ_ATTEMPTS_ANTENNA_LIMIT = 12 -- Ammount of reads the data if the signal strength is INVALID for Antenna
-local READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT = 64 -- Around 1 minute waiting for midpoint-derived targets
+local READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT = 32 -- Around 1 minute waiting for midpoint-derived targets
 local SEARCH_STEP = 8 -- Antenna search initial step
 local SEARCH_STEP_MIDPOINT = 32 -- Antenna search initial step for midpoint-derived targets
 local MIN_VERTICAL_ANGLE = 0
@@ -389,11 +389,7 @@ function SignalList:restore()
         return
     end
 
-    if type(decoded.v) == "number" then
-        self.currentVersion = decoded.v
-    else
-        self.currentVersion = 0
-    end
+    self.currentVersion = 0
     self.data = {}
     self.isDirty = false
 
@@ -1069,6 +1065,8 @@ end
 -- Application Initialization
 
 SignalList:restore()
+print("Startup restored signal list:")
+SignalList:printCurrentState()
 ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
 local antennaM = Antenna.new(3, "antenna-dish-M")
