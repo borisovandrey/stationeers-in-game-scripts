@@ -201,10 +201,16 @@ local SignalList = {
 }
 
 function SignalList:update(signal, hor, vert)
-    local found = self.data[signal.Id]
+    local slot = signal.contactSlotIndex
+    if slot == INVALID then return end
+
+    local found = self.data[slot]
     if found ~= nil then
         found.version = self.currentVersion
-        if isBetterSignalSample(signal.WattsReachingContact, found.signal.WattsReachingContact) then
+        if found.signal.Id ~= signal.Id then
+            print("Replace slot:" .. slot .. " " .. signal:toDebugString())
+            self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert)
+        elseif isBetterSignalSample(signal.WattsReachingContact, found.signal.WattsReachingContact) then
             print(
                 "Update " ..
                 signal:toDebugString() ..
@@ -219,7 +225,7 @@ function SignalList:update(signal, hor, vert)
         end
     else
         print("New " .. signal:toDebugString())
-        self.data[signal.Id] = SignalData.new(self.currentVersion, signal, hor, vert)
+        self.data[slot] = SignalData.new(self.currentVersion, signal, hor, vert)
     end
 end
 
@@ -231,7 +237,7 @@ function SignalList:removeOutdated()
     local keys = {}
     for key, value in pairs(self.data) do
         if value.version ~= self.currentVersion then
-            print("Signal ID:" .. key .. " outdated")
+            print("Signal slot:" .. key .. " ID:" .. value.signal.Id .. " outdated")
             keys[key] = true
         end
     end
@@ -241,8 +247,9 @@ function SignalList:removeOutdated()
 end
 
 function SignalList:printCurrentState()
-    for _, value in pairs(self.data) do
+    for slot, value in pairs(self.data) do
         print(
+            "slot:" .. slot .. " " ..
             "ver:" .. value.version .. 
             value.signal:toDebugString() ..
             " H:" .. string.format("%.2f", value.bestHorizontal) .. "°" ..
@@ -251,15 +258,26 @@ function SignalList:printCurrentState()
     end
 end
 
-function SignalList:findSlot(slot)
-    for key, value in pairs(self.data) do
-        if value.signal.contactSlotIndex == slot then return key end
-    end
-    return INVALID
+function SignalList:getBySlot(slot)
+    return self.data[slot]
 end
 
-function SignalList:removeSignal(id)
-    self.data[id] = nil
+function SignalList:findSignalIdBySlot(slot)
+    local data = self:getBySlot(slot)
+    if data == nil then return INVALID end
+    return data.signal.Id
+end
+
+function SignalList:removeBySlot(slot)
+    self.data[slot] = nil
+end
+
+function SignalList:removeSignalBySlotAndId(slot, id)
+    local data = self:getBySlot(slot)
+    if data == nil then return false end
+    if data.signal.Id ~= id then return false end
+    self.data[slot] = nil
+    return true
 end
 
 local function buildScanPlan(hStart,         -- horizontal sector start
@@ -608,6 +626,13 @@ function Antenna:printState(message)
     )
 end
 
+function Antenna:getCurrentSignalData()
+    local data = SignalList:getBySlot(self.slot)
+    if data == nil then return nil end
+    if data.signal.Id ~= self.signalId then return nil end
+    return data
+end
+
 -- State Idle
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
     self.searchPatternIndex = 0
@@ -629,11 +654,15 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.searchPointsChecked = 0
     self:clearSkippedSearchPoints()
     self.readAttempts = 0
-    self.signalId = SignalList:findSlot(self.slot)
+    local data = SignalList:getBySlot(self.slot)
 
-    if self.signalId == INVALID then return end
+    if data == nil then
+        self.signalId = INVALID
+        return
+    end
+
+    self.signalId = data.signal.Id
     self.dish:setContactFilter(self.signalId)
-    local data = SignalList.data[self.signalId]
     self.bestAngularDistance = data.signal.AngularDistance
     self.bestWattsReachingContact = data.signal.WattsReachingContact
     self.searchCenterPosition.h = data.bestHorizontal
@@ -646,8 +675,7 @@ end
 Antenna.StateMachine[AntennaState.Search].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
     if self.signalId == INVALID then return AntennaState.NoSignal end
-    local checkId = SignalList:findSlot(self.slot)
-    if self.signalId  ~= checkId then return AntennaState.NoSignal end
+    if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
     if self.dish:isIdle() then
         self.dish:readData()
         if not isValidReading(self.dish.signal.WattsReachingContact) then
@@ -705,8 +733,7 @@ Antenna.StateMachine[AntennaState.NoSignal].exit = function(self)
 end
 Antenna.StateMachine[AntennaState.NoSignal].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
-    local signalId = SignalList:findSlot(self.slot)
-    if signalId ~= INVALID then return AntennaState.Search end
+    if SignalList:getBySlot(self.slot) ~= nil then return AntennaState.Search end
     return AntennaState.NoSignal
 end
 
@@ -721,27 +748,27 @@ Antenna.StateMachine[AntennaState.Error].exit = function(self)
 end
 Antenna.StateMachine[AntennaState.Error].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
-    local signalId = SignalList:findSlot(self.slot)
-    if signalId ~= self.signalId then return AntennaState.NoSignal end
-    local data = SignalList.data[signalId]
+    local data = self:getCurrentSignalData()
+    if data == nil then return AntennaState.NoSignal end
     if isValidReading(data.signal.WattsReachingContact) then return AntennaState.Search end
     return AntennaState.Error
 end
 
 -- State Communication
 Antenna.StateMachine[AntennaState.Communication].enter = function(self)
+    self.dish:setContactFilter(self.signalId)
 end
 Antenna.StateMachine[AntennaState.Communication].exit = function(self)
-    --Nothing to do
+    self.dish:clearContactFilter()
 end
 Antenna.StateMachine[AntennaState.Communication].next = function(self)
     if self.slot == INVALID then return AntennaState.Idle end
-    local signalId = SignalList:findSlot(self.slot)
-    if signalId == INVALID then return AntennaState.NoSignal end
-    if signalId ~= self.signalId then return AntennaState.NoSignal end
+    if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
     self.dish:readData()
-    if self.dish.signal.Id ~= self.signalId then 
-        SignalList:removeSignal(self.signalId)    
+    if (self.dish.signal.Id ~= self.signalId) or
+       not isValidReading(self.dish.signal.AngularDistance) or
+       not isValidReading(self.dish.signal.WattsReachingContact) then
+        SignalList:removeSignalBySlotAndId(self.slot, self.signalId)
         return AntennaState.NoSignal 
     end
     return AntennaState.Communication
