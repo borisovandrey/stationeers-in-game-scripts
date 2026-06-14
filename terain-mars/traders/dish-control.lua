@@ -742,6 +742,19 @@ function Antenna.new(slot, dishName)
     return self
 end
 
+function Antenna:changeSlot(slot)
+    local oldState = self.StateMachine[self.currentState]
+    if oldState and oldState.exit then
+        oldState.exit(self)
+    end
+    self.slot = slot
+    self.currentState = AntennaState.Idle
+    local newState = self.StateMachine[self.currentState]
+    if newState and newState.enter then
+        newState.enter(self)
+    end
+end
+
 function Antenna:printState(message)
     print(
         "Antenna slot:" .. self.slot ..
@@ -957,11 +970,11 @@ end
 ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 
 local antennaM = Antenna.new(3, "antenna-dish-M")
-local antennaL = Antenna.new(4, "antenna-dish-L")
+--local antennaL = Antenna.new(4, "antenna-dish-L")
 
 -- Application run
 function tick(dt)
     ScannerArray:run()
     antennaM:run()
-    antennaL:run()
+    --antennaL:run()
 end
