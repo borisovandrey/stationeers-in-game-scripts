@@ -444,6 +444,14 @@ function BorderSignalTracker:initCycle()
     self.data = {}
 end
 
+function BorderSignalTracker:clearBySlotAndId(slot, id)
+    local tracked = self.data[slot]
+    if tracked == nil then return false end
+    if tracked.signalId ~= id then return false end
+    self.data[slot] = nil
+    return true
+end
+
 function BorderSignalTracker:update(signal, hor, vert)
     local slot = signal.contactSlotIndex
     if not BORDER_ONLY_SLOTS[slot] then return end
@@ -767,6 +775,8 @@ local Antenna = {
     searchPosition = { h = INVALID, v = INVALID },
     readAttempts = 0,
     readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
+    configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
+    optimizationResolution = OPTIMIZATION_RESOLUTION,
 
     StateMachine = {
         [AntennaState.Idle] =    { enter = nil, exit = nil, next = nil },
@@ -843,7 +853,10 @@ end
 function Antenna.new(slot, dishName)
     local self = setmetatable({
         slot = slot,
-        dish = Dish.new(dishName)
+        dish = Dish.new(dishName),
+        configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
+        readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
+        optimizationResolution = OPTIMIZATION_RESOLUTION,
     }, Antenna)
     self.StateMachine[self.currentState].enter(self)
     return self
@@ -860,6 +873,15 @@ function Antenna:changeSlot(slot)
     if newState and newState.enter then
         newState.enter(self)
     end
+end
+
+function Antenna:setOptimizationResolution(resolution)
+    self.optimizationResolution = resolution
+end
+
+function Antenna:setReadAttemptsLimit(limit)
+    self.configuredReadAttemptsLimit = limit
+    self.readAttemptsLimit = limit
 end
 
 function Antenna:printState(message)
@@ -891,7 +913,7 @@ end
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
     self.searchPatternIndex = 0
     self.signalId = INVALID
-    self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT
+    self.readAttemptsLimit = self.configuredReadAttemptsLimit
 end
 Antenna.StateMachine[AntennaState.Idle].exit = function(self)
     --Nothing to do
@@ -923,10 +945,14 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.searchCenterPosition.v = data.bestVertical
     if data.positionSource == SignalPositionSource.BorderMidpoint then
         self.step = SEARCH_STEP_MIDPOINT
-        self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT
+        if self.configuredReadAttemptsLimit > READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT then
+            self.readAttemptsLimit = self.configuredReadAttemptsLimit
+        else
+            self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT
+        end
     else
         self.step = SEARCH_STEP
-        self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT
+        self.readAttemptsLimit = self.configuredReadAttemptsLimit
     end
     self:startSearchRing(1)
 end
@@ -949,7 +975,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
 
         self:printState("Read signal")
         if self.signalId == self.dish.signal.Id then
-            if isValidReading(self.dish.signal.AngularDistance) and (self.dish.signal.AngularDistance < OPTIMIZATION_RESOLUTION) then
+            if isValidReading(self.dish.signal.AngularDistance) and (self.dish.signal.AngularDistance < self.optimizationResolution) then
                 return AntennaState.Communication
             end
             if isBetterSignalSample(self.dish.signal.WattsReachingContact, self.bestWattsReachingContact) then
@@ -964,6 +990,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
                     self.dish.horizontal,
                     self.dish.vertical
                 )
+                BorderSignalTracker:clearBySlotAndId(self.slot, self.signalId)
                 if(self.step <= SEARCH_STEP) then
                     -- In case of search by samples 
                     self:setSkippedSearchPoints(self.searchPatternIndex) 
@@ -982,7 +1009,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
         if (self.searchPointsChecked == #SearchPattern) or not moveToNextSearchPosition(self) then
             if not isValidReading(self.bestWattsReachingContact) then return AntennaState.Error end
             self.step = self.step / 2
-            if self.step < OPTIMIZATION_RESOLUTION then 
+            if self.step < self.optimizationResolution then 
                 self:returnToCenter() 
                 return AntennaState.Communication     
             end
