@@ -347,6 +347,8 @@ Scanner = {
     nextIndex = 1,
     plan = {},
     step = 1,
+    pointScanIndex = 1,
+    pointScans = {},
     shouldContinue = false,
     StateMachine = {
         [ScannerStates.Initial] =    { enter = nil, exit = nil, next = nil },
@@ -375,11 +377,78 @@ function Scanner.new(id,             -- scanner id
     return self
 end
 
+function Scanner:resetPointScans()
+    self.pointScanIndex = 1
+    self.pointScans = {
+        { id = INVALID },
+    }
+    self.dish:clearContactFilter()
+end
+
+function Scanner:hasNextPointScan()
+    return self.pointScanIndex < #self.pointScans
+end
+
+function Scanner:queuePointScan(id)
+    if id == INVALID then return end
+    for i = 1, #self.pointScans do
+        if self.pointScans[i].id == id then
+            return
+        end
+    end
+    table.insert(self.pointScans, { id = id })
+end
+
+function Scanner:prepareExtraPointScans(bestSlot)
+    if bestSlot ~= 3 then
+        local slot3 = SignalList:getBySlot(3)
+        if slot3 ~= nil then
+            self:queuePointScan(slot3.signal.Id)
+        end
+    end
+    if bestSlot ~= 4 then
+        local slot4 = SignalList:getBySlot(4)
+        if slot4 ~= nil then
+            self:queuePointScan(slot4.signal.Id)
+        end
+    end
+end
+
+function Scanner:startNextPointScan()
+    if not self:hasNextPointScan() then return false end
+    self.pointScanIndex = self.pointScanIndex + 1
+    self.readAttempts = 0
+    self.dish:setContactFilter(self.pointScans[self.pointScanIndex].id)
+    return true
+end
+
+function Scanner:moveToNextPoint()
+    self:resetPointScans()
+    if #self.plan < 2 then
+        return ScannerStates.FinishCycle -- Full cycle
+    end
+    if self.nextIndex > #self.plan then
+        self.nextIndex = #self.plan - 1
+        return ScannerStates.FinishCycle -- Full cycle
+    end
+    if self.nextIndex < 1 then
+        self.nextIndex = 2
+        return ScannerStates.FinishCycle -- Full cycle
+    end
+
+    local newHorizontal = self.plan[self.nextIndex].h
+    local newVertical = self.plan[self.nextIndex].v
+    self.dish:setPosition(newHorizontal, newVertical)
+    self.nextIndex = self.nextIndex + self.step
+    return ScannerStates.ScanCycle
+end
+
 -- State Initial
 Scanner.StateMachine[ScannerStates.Initial].enter = function(self)
     if #self.plan == 0 then return end
     self.nextIndex = 1
     self.step = 1
+    self:resetPointScans()
     self.dish:setPosition(self.plan[self.nextIndex].h, self.plan[self.nextIndex].v)
     self.nextIndex = self.nextIndex + 1
 end
@@ -410,22 +479,13 @@ Scanner.StateMachine[ScannerStates.ScanCycle].next = function(self)
         self.readAttempts = 0
         --print("Current position:" .. self.dish.horizontal .. ":" .. self.dish.vertical .. self.dish.signal:toDebugString())
         SignalList:update(self.dish.signal, self.dish.horizontal, self.dish.vertical)
-        if #self.plan < 2 then
-            return ScannerStates.FinishCycle -- Full cycle
+        if self.pointScanIndex == 1 then
+            self:prepareExtraPointScans(self.dish.signal.contactSlotIndex)
         end
-        if self.nextIndex > #self.plan then
-            self.nextIndex = #self.plan - 1
-            return ScannerStates.FinishCycle -- Full cycle
+        if self:startNextPointScan() then
+            return ScannerStates.ScanCycle
         end
-        if self.nextIndex < 1 then
-            self.nextIndex = 2
-            return ScannerStates.FinishCycle -- Full cycle
-        end
-
-        local newHorizontal = self.plan[self.nextIndex].h
-        local newVertical = self.plan[self.nextIndex].v
-        self.dish:setPosition(newHorizontal, newVertical)
-        self.nextIndex = self.nextIndex + self.step
+        return self:moveToNextPoint()
     end
     return ScannerStates.ScanCycle
 end
