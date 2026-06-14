@@ -61,6 +61,21 @@ local SignalPositionSource = {
     BorderMidpoint = 2,
 }
 
+local Color = {
+    Blue   = 0,
+    Gray   = 1,
+    Green  = 2,
+    Orange = 3,
+    Red    = 4,
+    Yellow = 5,
+    White  = 6,
+    Black  = 7,
+    Brown  = 8,
+    Khaki  = 9,
+    Pink   = 10,
+    Purple = 11,
+}
+
 local function copyTable(src)
     local dst = {}
     for k, v in pairs(src) do
@@ -101,6 +116,10 @@ end
 
 local function almostEqual(left, right)
     return math.abs(left - right) < EPSILON
+end
+
+local function round2(value)
+    return math.floor(value * 100 + 0.5) / 100
 end
 
 local Signal = {
@@ -1162,6 +1181,8 @@ local AntennaPanel = {
     slot_dial = nil,
     res_dial = nil,
     attmpt_dial = nil,
+    angle_dsp = nil,
+    state_diod = nil,
     on = false,
     slot = 0,
     res = OPTIMIZATION_RESOLUTION,
@@ -1177,12 +1198,43 @@ function AntennaPanel.new(antenna, name)
         slot_dial = ic.find("tr-" .. name .. "-slot-dial"),
         res_dial = ic.find("tr-" .. name .. "-res-dial"),
         attmpt_dial = ic.find("tr-" .. name .. "-attmpt-dial"),
+        angle_dsp = ic.find("tr-" .. name .. "-angle-dsp"),
+        state_diod = ic.find("tr-" .. name .. "-state-diod"),
         on = antenna.dish:isOn(),
         slot = antenna.slot,
         res = antenna.optimizationResolution,
         attmpt = antenna.configuredReadAttemptsLimit,
     }, AntennaPanel)
     return self
+end
+
+function AntennaPanel:updateUi()
+    if self.angle_dsp ~= nil then
+        local angle = self.antenna.bestAngularDistance
+        if not isValidReading(angle) then
+            angle = 0
+        end
+        ic.write_id(self.angle_dsp, LT.Setting, round2(angle))
+    end
+
+    if self.state_diod ~= nil then
+        local color = Color.Gray
+        if self.on then
+            if self.antenna.currentState == AntennaState.Search then
+                color = Color.Orange
+            elseif self.antenna.currentState == AntennaState.Communication then
+                color = Color.Green
+            elseif self.antenna.currentState == AntennaState.Error then
+                color = Color.Red
+            elseif self.antenna.currentState == AntennaState.NoSignal then
+                color = Color.Yellow
+            elseif self.antenna.currentState == AntennaState.Idle then
+                color = Color.Blue
+            end
+        end
+        ic.write_id(self.state_diod, LT.Color, color)
+        ic.write_id(self.state_diod, LT.On, 1)
+    end
 end
 
 function AntennaPanel:run()
@@ -1217,6 +1269,8 @@ function AntennaPanel:run()
             self.attmpt = dial
         end
     end
+
+    self:updateUi()
 end
 
 -- Console
