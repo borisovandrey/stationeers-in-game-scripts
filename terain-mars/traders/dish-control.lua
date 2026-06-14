@@ -368,7 +368,7 @@ function SignalList:save()
     for slot, value in pairs(self.data) do
         payload.d[#payload.d + 1] = {
             slot,
-            value.version,
+            -1,
             value.signal.Id,
             value.signal.AngularDistance,
             value.signal.WattsReachingContact,
@@ -418,7 +418,7 @@ function SignalList:restore()
                 signal.contactTypeId = value[6] or TraderType.Unknown
                 signal.contactSlotIndex = contactSlotIndex
                 self.data[slot] = SignalData.new(
-                    value[2] or 0,
+                    -1,
                     signal,
                     value[8] or INVALID,
                     value[9] or INVALID,
@@ -1099,62 +1099,87 @@ function Antenna:run()
     end
 end
 
+local AntennaPanel = {
+    name = "",
+    antenna = nil,
+    on_sw = nil,
+    slot_dial = nil,
+    res_dial = nil,
+    attmpt_dial = nil,
+    on = false,
+    slot = 0,
+    res = OPTIMIZATION_RESOLUTION,
+    attmpt = READ_ATTEMPTS_ANTENNA_LIMIT,
+}
+AntennaPanel.__index = AntennaPanel
+
+function AntennaPanel.new(antenna, name)
+    local self = setmetatable({
+        name = name,
+        antenna = antenna,
+        on_sw = ic.find("tr-" .. name .. "-on-sw"),
+        slot_dial = ic.find("tr-" .. name .. "-slot-dial"),
+        res_dial = ic.find("tr-" .. name .. "-res-dial"),
+        attmpt_dial = ic.find("tr-" .. name .. "-attmpt-dial"),
+        on = antenna.dish:isOn(),
+        slot = antenna.slot,
+        res = antenna.optimizationResolution,
+        attmpt = antenna.configuredReadAttemptsLimit,
+    }, AntennaPanel)
+    return self
+end
+
+function AntennaPanel:run()
+    if self.on_sw ~= nil then
+        local on = ic.read_id(self.on_sw, LT.On) == 1
+        if on ~= self.on then
+            self.antenna.dish:setOn(on)
+            self.on = on
+        end
+    end
+
+    if self.slot_dial ~= nil then
+        local dial = ic.read_id(self.slot_dial, LT.Setting)
+        if dial ~= self.slot then
+            self.antenna:changeSlot(dial)
+            self.slot = dial
+        end
+    end
+
+    if self.res_dial ~= nil then
+        local dial = ic.read_id(self.res_dial, LT.Setting)
+        if dial ~= self.res then
+            self.antenna:setOptimizationResolution(dial)
+            self.res = dial
+        end
+    end
+
+    if self.attmpt_dial ~= nil then
+        local dial = ic.read_id(self.attmpt_dial, LT.Setting)
+        if dial ~= self.attmpt then
+            self.antenna:setReadAttemptsLimit(dial)
+            self.attmpt = dial
+        end
+    end
+end
+
 -- Console
 local Console = {
-    antennaM_sw = ic.find("tr-antenna-3-sw"),
-    antennaM_dial = ic.find("tr-antenna-3-dial"),
-    antennaL_sw = ic.find("tr-antenna-4-sw"),
-    antennaL_dial = ic.find("tr-antenna-4-dial"),
-    antennaM = {},
-    antennaL = {},
-    antennaM_on = false,
-    antennaL_on = false,
-    antennaM_slot = 0,
-    antennaL_slot = 0,
+    pannels = {}
 }
 
-function Console:init(antennaM, antennaL)
-    self.antennaM = antennaM
-    self.antennaL = antennaL
-    self.antennaM_on = self.antennaM.dish:isOn()
-    self.antennaL_on = self.antennaL.dish:isOn()
-    self.antennaM_slot = antennaM.slot
-    self.antennaL_slot = antennaL.slot
+function Console:init(definitions)
+    self.pannels = {}
+    for i = 1, #definitions do
+        local definition = definitions[i]
+        self.pannels[i] = AntennaPanel.new(definition.antenna, definition.name)
+    end
 end
 
 function Console:run()
-    if self.antennaM_sw ~= nil then
-        local on = ic.read_id(self.antennaM_sw, LT.On) == 1
-        if on ~= self.antennaM_on then
-            self.antennaM.dish:setOn(on)
-            self.antennaM_on = on
-        end
+    for i = 1, #self.pannels do
+        self.pannels[i]:run()
     end
-
-    if self.antennaM_dial ~= nil then
-        local dial = ic.read_id(self.antennaM_dial, LT.Setting)
-        if dial ~= self.antennaM_slot then
-            self.antennaM:changeSlot(dial)
-            self.antennaM_slot = dial
-        end
-    end
-
-    if self.antennaL_sw ~= nil then
-        local on = ic.read_id(self.antennaL_sw, LT.On) == 1
-        if on ~= self.antennaL_on then
-            self.antennaL.dish:setOn(on)
-            self.antennaL_on = on
-        end
-    end
-
-    if self.antennaL_dial ~= nil then
-        local dial = ic.read_id(self.antennaL_dial, LT.Setting)
-        if dial ~= self.antennaL_slot then
-            self.antennaL:changeSlot(dial)
-            self.antennaL_slot = dial
-        end
-    end
-
 end
 
 -- Application Initialization
@@ -1167,16 +1192,19 @@ ScannerArray:init(4, 80, SCAN_VERTICAL_STEP, SCAN_HORISONTAL_STEP)
 local antennaM = Antenna.new(-1, "antenna-dish-M")
 local antennaL = Antenna.new(-1, "antenna-dish-L")
 
-Console:init(antennaM, antennaL)
+Console:init({
+    { antenna = antennaM, name = "M" },
+    { antenna = antennaL, name = "L" },
+})
 
 -- Application run
 function tick(dt)
     ScannerArray:run()
     Console:run()
-    if Console.antennaM_on then 
+    if Console.pannels[1].on then 
         antennaM:run()
     end
-    if Console.antennaL_on then 
+    if Console.pannels[2].on then 
         antennaL:run()
     end
 end
