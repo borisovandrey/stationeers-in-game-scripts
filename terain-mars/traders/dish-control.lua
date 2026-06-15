@@ -1048,7 +1048,7 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
         self.readAttempts = 0
 
         self:printState("Read signal")
-        if self.dish.signal.Id ~= self.signalId then
+        if self.dish.signal.Id ~= self.signalId and isValidReading(self.dish.signal.Id) then
             SignalList:removeSignalBySlotAndId(self.slot, self.signalId)
             return AntennaState.NoSignal
         end
@@ -1187,6 +1187,9 @@ local AntennaPanel = {
     attmpt_dial = nil,
     angle_dsp = nil,
     state_diod = nil,
+    idle_diod = nil,
+    stateColor = INVALID,
+    idleColor = INVALID,
     on = false,
     slot = 0,
     res = OPTIMIZATION_RESOLUTION,
@@ -1204,6 +1207,9 @@ function AntennaPanel.new(antenna, name)
         attmpt_dial = ic.find("tr-" .. name .. "-attmpt-dial"),
         angle_dsp = ic.find("tr-" .. name .. "-angle-dsp"),
         state_diod = ic.find("tr-" .. name .. "-state-diod"),
+        idle_diod = ic.find("tr-" .. name .. "-idle-diod"),
+        stateColor = INVALID,
+        idleColor = INVALID,
         on = antenna.dish:isOn(),
         slot = antenna.slot,
         res = antenna.optimizationResolution,
@@ -1236,8 +1242,27 @@ function AntennaPanel:updateUi()
                 color = Color.Blue
             end
         end
-        ic.write_id(self.state_diod, LT.Color, color)
-        ic.write_id(self.state_diod, LT.On, 1)
+        if color ~= self.stateColor then
+            ic.write_id(self.state_diod, LT.Color, color)
+            ic.write_id(self.state_diod, LT.On, 1)
+            self.stateColor = color
+        end
+    end
+
+    if self.idle_diod ~= nil then
+        local color = Color.Gray
+        if self.on then
+            if self.antenna.dish:isIdle() then
+                color = Color.Green
+            else
+                color = Color.Orange
+            end
+        end
+        if color ~= self.idleColor then
+            ic.write_id(self.idle_diod, LT.Color, color)
+            ic.write_id(self.idle_diod, LT.On, 1)
+            self.idleColor = color
+        end
     end
 end
 
