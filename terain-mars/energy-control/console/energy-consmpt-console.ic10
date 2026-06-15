@@ -36,7 +36,7 @@ push Color.Green
 push $53434 #Maining Meter
 push $558FE #Maining Dsp
 push Color.Orange
-push $150EBB #Trading Meter
+push $17FA3F #Trading Meter
 push $15B236 #Trading Dsp
 push Color.Yellow
 push $C3B05 #Train Meter
