@@ -69,6 +69,7 @@ local Antenna = {
     searchCenterPosition = { h = signals.INVALID, v = signals.INVALID },
     searchPosition = { h = signals.INVALID, v = signals.INVALID },
     found = false,
+    resolved = false,
     readAttempts = 0,
     readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
     configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
@@ -87,6 +88,7 @@ function Antenna.new(slot, dishName)
     local self = setmetatable({
         slot = slot,
         dish = dishes.Dish.new(dishName),
+        resolved = false,
         configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
         readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
         optimizationResolution = OPTIMIZATION_RESOLUTION,
@@ -165,6 +167,13 @@ function Antenna:setReadAttemptsLimit(limit)
     self.readAttemptsLimit = limit
 end
 
+function Antenna:readDishData()
+    self.resolved = false
+    self.dish:readData()
+    self.resolved = signals.isValidReading(self.dish.signal.AngularDistance) and
+        signals.isValidReading(self.dish.signal.WattsReachingContact)
+end
+
 function Antenna:getCurrentSignalData()
     local data = SignalList:getBySlot(self.slot)
     if data == nil or data.signal.Id ~= self.signalId then return nil end
@@ -198,6 +207,7 @@ end
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
     self.searchPatternIndex = 0
     self.signalId = signals.INVALID
+    self.resolved = false
     self.readAttemptsLimit = self.configuredReadAttemptsLimit
 end
 
@@ -214,6 +224,7 @@ Antenna.StateMachine[AntennaState.Search].enter = function(self)
     self.searchStartPatternIndex = 1
     self.searchPointsChecked = 0
     self.found = false
+    self.resolved = false
     self:clearSkippedSearchPoints()
     self.readAttempts = 0
 
@@ -271,8 +282,8 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
         return AntennaState.Search
     end
 
-    self.dish:readData()
-    if not signals.isValidReading(self.dish.signal.WattsReachingContact) then
+    self:readDishData()
+    if not self.resolved then
         if self.readAttempts < self.readAttemptsLimit then
             self.readAttempts = self.readAttempts + 1
             return AntennaState.Search
@@ -378,10 +389,9 @@ end
 Antenna.StateMachine[AntennaState.Communication].next = function(self)
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
-    self.dish:readData()
-    if (self.dish.signal.Id ~= self.signalId) or
-       not signals.isValidReading(self.dish.signal.AngularDistance) or
-       not signals.isValidReading(self.dish.signal.WattsReachingContact) then
+    self:readDishData()
+    if not self.resolved then return AntennaState.Communication end
+    if self.dish.signal.Id ~= self.signalId then
         SignalList:removeSignal(self.slot, self.signalId)
         return AntennaState.NoSignal
     end
