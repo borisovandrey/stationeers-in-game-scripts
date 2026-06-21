@@ -3,10 +3,11 @@ local signals = require("signals")
 local dishes = require("dishes")
 
 local READ_ATTEMPTS_ANTENNA_LIMIT = 12
-local READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT = 32
 local SEARCH_STEP = 8
 local SEARCH_STEP_MIDPOINT = 32
 local OPTIMIZATION_RESOLUTION = 2
+-- Length of a diagonal direction in the normalized search pattern.
+local DIAGONAL_LENGTH = math.sqrt(2)
 
 local Color = {
     Blue   = 0,
@@ -30,15 +31,17 @@ local SignalList = signals.SignalList.new(signals.SignalListRole.Updater, {
 
 local AntennaState = {
     Idle = 1,
-    Search = 2,
+    RingSearch = 2,
     Communication = 3,
     Error = 4,
     NoSignal = 5,
+    GradientSearch = 6,
 }
 
 local AntennaStateNames = {
     [AntennaState.Idle] = "Idle",
-    [AntennaState.Search] = "Search",
+    [AntennaState.RingSearch] = "RingSearch",
+    [AntennaState.GradientSearch] = "GradientSearch",
     [AntennaState.Communication] = "Communication",
     [AntennaState.Error] = "Error",
     [AntennaState.NoSignal] = "NoSignal",
@@ -54,29 +57,20 @@ local function nextSearchPatternIndex(patternIndex)
     return patternIndex % #SearchPattern + 1
 end
 
+local function normalizeDishPosition(hor, vert)
+    if vert < signals.MIN_VERTICAL_ANGLE then
+        hor = hor + 180
+        vert = -vert
+    end
+    return signals.normalizeHorizontal(hor),
+        signals.clamp(vert, signals.MIN_VERTICAL_ANGLE, signals.MAX_VERTICAL_ANGLE)
+end
+
 local Antenna = {
-    slot = signals.INVALID,
-    currentState = AntennaState.Idle,
-    searchPatternIndex = 0,
-    searchStartPatternIndex = 1,
-    searchPointsChecked = 0,
-    skipCheckedPoints = false,
-    signalId = signals.INVALID,
-    bestAngularDistance = signals.INVALID,
-    bestWattsReachingContact = signals.INVALID,
-    step = SEARCH_STEP,
-    dish = nil,
-    searchCenterPosition = { h = signals.INVALID, v = signals.INVALID },
-    searchPosition = { h = signals.INVALID, v = signals.INVALID },
-    found = false,
-    resolved = false,
-    readAttempts = 0,
-    readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
-    configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
-    optimizationResolution = OPTIMIZATION_RESOLUTION,
     StateMachine = {
         [AntennaState.Idle] = { enter = nil, exit = nil, next = nil },
-        [AntennaState.Search] = { enter = nil, exit = nil, next = nil },
+        [AntennaState.RingSearch] = { enter = nil, exit = nil, next = nil },
+        [AntennaState.GradientSearch] = { enter = nil, exit = nil, next = nil },
         [AntennaState.Communication] = { enter = nil, exit = nil, next = nil },
         [AntennaState.Error] = { enter = nil, exit = nil, next = nil },
         [AntennaState.NoSignal] = { enter = nil, exit = nil, next = nil },
@@ -87,9 +81,26 @@ Antenna.__index = Antenna
 function Antenna.new(slot, dishName)
     local self = setmetatable({
         slot = slot,
+        currentState = AntennaState.Idle,
+        signalId = signals.INVALID,
+        step = SEARCH_STEP,
         dish = dishes.Dish.new(dishName),
-        resolved = false,
-        configuredReadAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
+        searchArea = {
+            patternIndex = 0,
+            startPatternIndex = 1,
+            pointsChecked = 0,
+            gradientPatternIndex = 1,
+            position = { h = signals.INVALID, v = signals.INVALID },
+        },
+        bestPoint = {
+            angularDistance = signals.INVALID,
+            wattsReachingContact = signals.INVALID,
+            h = signals.INVALID,
+            v = signals.INVALID,
+        },
+        waitingForBestPosition = false,
+        signalIsResolved = false,
+        readAttempts = 0,
         readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
         optimizationResolution = OPTIMIZATION_RESOLUTION,
     }, Antenna)
@@ -97,56 +108,48 @@ function Antenna.new(slot, dishName)
     return self
 end
 
-function Antenna:clearSkippedSearchPoints()
-    self.skipCheckedPoints = false
-end
-
 function Antenna:setSearchPosition(patternIndex)
     local pattern = SearchPattern[patternIndex]
-    self.searchPatternIndex = patternIndex
-    self.searchPosition.h = self.searchCenterPosition.h + self.step * pattern.h
-    self.searchPosition.v = self.searchCenterPosition.v + self.step * pattern.v
-    self.dish:setPosition(self.searchPosition.h, self.searchPosition.v)
+    self.searchArea.patternIndex = patternIndex
+    local hor, vert = normalizeDishPosition(
+        self.bestPoint.h + self.step * pattern.h,
+        self.bestPoint.v + self.step * pattern.v
+    )
+    self.searchArea.position.h = hor
+    self.searchArea.position.v = vert
+    self.dish:setPosition(self.searchArea.position.h, self.searchArea.position.v)
 end
 
 function Antenna:startSearchRing(patternIndex)
-    self.searchStartPatternIndex = patternIndex
-    self.searchPointsChecked = 0
+    self.searchArea.startPatternIndex = patternIndex
+    self.searchArea.pointsChecked = 0
     self:setSearchPosition(patternIndex)
 end
 
-function Antenna:returnToCenter()
-    self.dish:setPosition(self.searchCenterPosition.h, self.searchCenterPosition.v)
-end
-
-function Antenna:setSkippedSearchPoints(patternIndex)
-    self.skipCheckedPoints = true
-    self.searchStartPatternIndex = patternIndex
-end
-
-function Antenna:isAlreadyCheckedPoint(patternIndex)
-    if not self.skipCheckedPoints then return false end
-    local shiftPattern = SearchPattern[self.searchStartPatternIndex]
+function Antenna:continueGradientSearch()
+    local patternIndex = self.searchArea.gradientPatternIndex
     local pattern = SearchPattern[patternIndex]
-    local shiftH = pattern.h + shiftPattern.h
-    local shiftV = pattern.v + shiftPattern.v
-    if shiftH < -1 or shiftH > 1 then return false end
-    if shiftV < -1 or shiftV > 1 then return false end
-    return true
+    local directionLength = pattern.h ~= 0 and pattern.v ~= 0 and DIAGONAL_LENGTH or 1
+    local distance = self.bestPoint.angularDistance
+    self.searchArea.patternIndex = patternIndex
+    local hor, vert = normalizeDishPosition(
+        self.bestPoint.h + pattern.h / directionLength * distance,
+        self.bestPoint.v + pattern.v / directionLength * distance
+    )
+    self.searchArea.position.h = hor
+    self.searchArea.position.v = vert
+    self.dish:setPosition(self.searchArea.position.h, self.searchArea.position.v)
+end
+
+function Antenna:returnToCenter()
+    self.dish:setPosition(self.bestPoint.h, self.bestPoint.v)
 end
 
 local function moveToNextSearchPosition(self)
-    local patternIndex = self.searchPatternIndex
-    while self.searchPointsChecked < #SearchPattern do
-        patternIndex = nextSearchPatternIndex(patternIndex)
-        if self:isAlreadyCheckedPoint(patternIndex) then
-            self.searchPointsChecked = self.searchPointsChecked + 1
-        else
-            self:setSearchPosition(patternIndex)
-            return true
-        end
-    end
-    return false
+    local patternIndex = self.searchArea.patternIndex
+    if self.searchArea.pointsChecked >= #SearchPattern then return false end
+    self:setSearchPosition(nextSearchPatternIndex(patternIndex))
+    return true
 end
 
 function Antenna:changeSlot(slot)
@@ -163,14 +166,13 @@ function Antenna:setOptimizationResolution(resolution)
 end
 
 function Antenna:setReadAttemptsLimit(limit)
-    self.configuredReadAttemptsLimit = limit
     self.readAttemptsLimit = limit
 end
 
 function Antenna:readDishData()
-    self.resolved = false
+    self.signalIsResolved = false
     self.dish:readData()
-    self.resolved = signals.isValidReading(self.dish.signal.AngularDistance) and
+    self.signalIsResolved = signals.isValidReading(self.dish.signal.AngularDistance) and
         signals.isValidReading(self.dish.signal.WattsReachingContact)
 end
 
@@ -186,18 +188,26 @@ function Antenna:updateSignalBack(signal, hor, vert, publishUpdate)
     return SignalList:updateSignalBack(self.slot, self.signalId, signal or data.signal, hor, vert, publishUpdate)
 end
 
+function Antenna:updateBestPointFromDish()
+    self.bestPoint.angularDistance = self.dish.signal.AngularDistance
+    self.bestPoint.wattsReachingContact = self.dish.signal.WattsReachingContact
+    self.bestPoint.h = self.dish.horizontal
+    self.bestPoint.v = self.dish.vertical
+    self:updateSignalBack(self.dish.signal, self.dish.horizontal, self.dish.vertical, true)
+end
+
 function Antenna:printState(message)
     print(
-        "Antenna slot:" .. self.slot ..
+        "slot:" .. self.slot ..
         " st:" .. (AntennaStateNames[self.currentState] or "Unknown") ..
         " id:" .. self.signalId ..
-        " ang0:" .. string.format("%.2f", self.bestAngularDistance) ..
+        " ang0:" .. string.format("%.2f", self.bestPoint.angularDistance) ..
         " angP:" .. string.format("%.2f", self.dish.signal.AngularDistance) ..
-        " pow0:" .. string.format("%.2f", self.bestWattsReachingContact) ..
+        " pow0:" .. string.format("%.2f", self.bestPoint.wattsReachingContact) ..
         " powP:" .. string.format("%.2f", self.dish.signal.WattsReachingContact) ..
-        " cntr:" .. string.format("%.1f", self.searchCenterPosition.h) .. ":" .. string.format("%.1f", self.searchCenterPosition.v) ..
-        " pos:" .. string.format("%.1f", self.searchPosition.h) .. ":" .. string.format("%.1f", self.searchPosition.v) ..
-        " idx:" .. self.searchPatternIndex ..
+        " cntr:" .. string.format("%.1f", self.bestPoint.h) .. ":" .. string.format("%.1f", self.bestPoint.v) ..
+        " pos:" .. string.format("%.1f", self.searchArea.position.h) .. ":" .. string.format("%.1f", self.searchArea.position.v) ..
+        " idx:" .. self.searchArea.patternIndex ..
         " stp:" .. self.step ..
         " src:" .. (SignalList:getPosSource(self.slot, self.signalId) or 0) ..
         " " .. message
@@ -205,88 +215,88 @@ function Antenna:printState(message)
 end
 
 Antenna.StateMachine[AntennaState.Idle].enter = function(self)
-    self.searchPatternIndex = 0
+    self.searchArea.patternIndex = 0
     self.signalId = signals.INVALID
-    self.resolved = false
-    self.readAttemptsLimit = self.configuredReadAttemptsLimit
+    self.signalIsResolved = false
 end
 
 Antenna.StateMachine[AntennaState.Idle].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.Idle].next = function(self)
-    if self.slot ~= signals.INVALID then return AntennaState.Search end
+    if self.slot ~= signals.INVALID then
+        if self:initializeRingSearch() then return AntennaState.RingSearch end
+        return AntennaState.NoSignal
+    end
     return AntennaState.Idle
 end
 
-Antenna.StateMachine[AntennaState.Search].enter = function(self)
-    self.searchPatternIndex = 1
-    self.searchStartPatternIndex = 1
-    self.searchPointsChecked = 0
-    self.found = false
-    self.resolved = false
-    self:clearSkippedSearchPoints()
+function Antenna:initializeRingSearch()
+    self.searchArea.patternIndex = 1
+    self.searchArea.startPatternIndex = 1
+    self.searchArea.pointsChecked = 0
+    self.searchArea.gradientPatternIndex = 1
+    self.waitingForBestPosition = false
+    self.signalIsResolved = false
     self.readAttempts = 0
 
     local data = SignalList:getBySlot(self.slot)
     if data == nil then
         self.signalId = signals.INVALID
-        return
+        return false
     end
 
     self.signalId = data.signal.Id
-    self.dish:setContactFilter(self.signalId)
-    self.bestAngularDistance = data.signal.AngularDistance
-    self.bestWattsReachingContact = data.signal.WattsReachingContact
-    self.searchCenterPosition.h = data.bestHorizontal
-    self.searchCenterPosition.v = data.bestVertical
+    self.bestPoint.angularDistance = data.signal.AngularDistance
+    self.bestPoint.wattsReachingContact = data.signal.WattsReachingContact
+    self.bestPoint.h = data.bestHorizontal
+    self.bestPoint.v = data.bestVertical
 
     if data.positionSource == signals.SignalPositionSource.BorderMidpoint then
         self.step = SEARCH_STEP_MIDPOINT
-        if self.configuredReadAttemptsLimit > READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT then
-            self.readAttemptsLimit = self.configuredReadAttemptsLimit
-        else
-            self.readAttemptsLimit = READ_ATTEMPTS_ANTENNA_MIDPOINT_LIMIT
-        end
     else
         self.step = SEARCH_STEP
-        self.readAttemptsLimit = self.configuredReadAttemptsLimit
     end
 
-    if signals.isWithinResolution(self.bestAngularDistance, self.optimizationResolution) then
-        self.found = true
-        self:updateSignalBack(data.signal, self.searchCenterPosition.h, self.searchCenterPosition.v, false)
+    if signals.isWithinResolution(self.bestPoint.angularDistance, self.optimizationResolution) then
+        self.waitingForBestPosition = true
+        self:updateSignalBack(data.signal, self.bestPoint.h, self.bestPoint.v, false)
         self:returnToCenter()
     else
         self:startSearchRing(1)
     end
+    return true
 end
 
-Antenna.StateMachine[AntennaState.Search].exit = function(self)
+Antenna.StateMachine[AntennaState.RingSearch].enter = function(self)
+    self.dish:setContactFilter(self.signalId)
+end
+
+Antenna.StateMachine[AntennaState.RingSearch].exit = function(self)
+    self.waitingForBestPosition = false
     self.dish:clearContactFilter()
 end
 
-Antenna.StateMachine[AntennaState.Search].next = function(self)
+Antenna.StateMachine[AntennaState.RingSearch].next = function(self)
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if self.signalId == signals.INVALID then return AntennaState.NoSignal end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
-    if self.found then
+    if self.waitingForBestPosition then
         if self.dish:isIdle() then
-            self.found = false
             return AntennaState.Communication
         end
-        return AntennaState.Search
+        return AntennaState.RingSearch
     end
 
     if not self.dish:isIdle() then
-        return AntennaState.Search
+        return AntennaState.RingSearch
     end
 
     self:readDishData()
-    if not self.resolved then
+    if not self.signalIsResolved then
+        self.readAttempts = self.readAttempts + 1
         if self.readAttempts < self.readAttemptsLimit then
-            self.readAttempts = self.readAttempts + 1
-            return AntennaState.Search
+            return AntennaState.RingSearch
         end
     end
     self.readAttempts = 0
@@ -299,55 +309,105 @@ Antenna.StateMachine[AntennaState.Search].next = function(self)
 
     if self.signalId == self.dish.signal.Id then
         if signals.isWithinResolution(self.dish.signal.AngularDistance, self.optimizationResolution) then
-            self.bestAngularDistance = self.dish.signal.AngularDistance
-            self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
-            self.searchCenterPosition.h = self.dish.horizontal
-            self.searchCenterPosition.v = self.dish.vertical
-            self:updateSignalBack(self.dish.signal, self.dish.horizontal, self.dish.vertical, true)
-            self.found = true
+            self:updateBestPointFromDish()
             return AntennaState.Communication
         end
 
-        if signals.isBetterSignalSample(self.dish.signal.WattsReachingContact, self.bestWattsReachingContact) then
-            self.bestAngularDistance = self.dish.signal.AngularDistance
-            self.bestWattsReachingContact = self.dish.signal.WattsReachingContact
-            self.searchCenterPosition.h = self.dish.horizontal
-            self.searchCenterPosition.v = self.dish.vertical
-            self:updateSignalBack(self.dish.signal, self.dish.horizontal, self.dish.vertical, true)
-            if self.step <= SEARCH_STEP then
-                self:setSkippedSearchPoints(self.searchPatternIndex)
-            else
+        if self.signalIsResolved and signals.isBetterSignalSample(self.dish.signal.WattsReachingContact, self.bestPoint.wattsReachingContact) then
+            local patternIndex = self.searchArea.patternIndex
+            self:updateBestPointFromDish()
+            if self.step > SEARCH_STEP then
                 self.step = SEARCH_STEP
             end
-            self:startSearchRing(self.searchPatternIndex)
+            self.searchArea.gradientPatternIndex = patternIndex
             self:printState("Better signal")
-            return AntennaState.Search
+            return AntennaState.GradientSearch
         end
     end
 
-    self.searchPointsChecked = self.searchPointsChecked + 1
-    if (self.searchPointsChecked == #SearchPattern) or not moveToNextSearchPosition(self) then
-        if not signals.isValidReading(self.bestWattsReachingContact) then return AntennaState.Error end
+    self.searchArea.pointsChecked = self.searchArea.pointsChecked + 1
+    if (self.searchArea.pointsChecked == #SearchPattern) or not moveToNextSearchPosition(self) then
+        if not signals.isValidReading(self.bestPoint.wattsReachingContact) then return AntennaState.Error end
         self.step = self.step / 2
         if signals.isWithinResolution(self.step, self.optimizationResolution) then
-            self:updateSignalBack(self.dish.signal, self.searchCenterPosition.h, self.searchCenterPosition.v, true)
+            self:updateSignalBack(nil, self.bestPoint.h, self.bestPoint.v, true)
             self:returnToCenter()
-            self.found = true
-            return AntennaState.Communication
+            self.waitingForBestPosition = true
+            return AntennaState.RingSearch
         end
-        self:clearSkippedSearchPoints()
-        self:startSearchRing(self.searchStartPatternIndex)
+        self:startSearchRing(self.searchArea.startPatternIndex)
         self:printState("No better signal")
-        return AntennaState.Search
+        return AntennaState.RingSearch
     end
 
-    return AntennaState.Search
+    return AntennaState.RingSearch
+end
+
+Antenna.StateMachine[AntennaState.GradientSearch].enter = function(self)
+    self.readAttempts = 0
+    self.dish:setContactFilter(self.signalId)
+    self:continueGradientSearch()
+end
+
+Antenna.StateMachine[AntennaState.GradientSearch].exit = function(self)
+    self.waitingForBestPosition = false
+    self.dish:clearContactFilter()
+end
+
+Antenna.StateMachine[AntennaState.GradientSearch].next = function(self)
+    if self.slot == signals.INVALID then return AntennaState.Idle end
+    if self.signalId == signals.INVALID then return AntennaState.NoSignal end
+    if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
+    if self.waitingForBestPosition then
+        if self.dish:isIdle() then
+            return AntennaState.Communication
+        end
+        return AntennaState.GradientSearch
+    end
+
+    if not self.dish:isIdle() then
+        return AntennaState.GradientSearch
+    end
+
+    self:readDishData()
+    if not self.signalIsResolved then
+        self.readAttempts = self.readAttempts + 1
+        if self.readAttempts < self.readAttemptsLimit then
+            return AntennaState.GradientSearch
+        end
+    end
+    self.readAttempts = 0
+
+    self:printState("Read gradient signal")
+    if self.dish.signal.Id ~= self.signalId and signals.isValidReading(self.dish.signal.Id) then
+        SignalList:removeSignal(self.slot, self.signalId)
+        return AntennaState.NoSignal
+    end
+
+    if self.signalId == self.dish.signal.Id then
+        if signals.isWithinResolution(self.dish.signal.AngularDistance, self.optimizationResolution) then
+            self:updateBestPointFromDish()
+            return AntennaState.Communication
+        end
+
+        if self.signalIsResolved and signals.isBetterSignalSample(self.dish.signal.WattsReachingContact, self.bestPoint.wattsReachingContact) then
+            self:updateBestPointFromDish()
+            self:continueGradientSearch()
+            self:printState("Better gradient signal")
+            return AntennaState.GradientSearch
+        end
+    end
+
+    self.step = self.step / 2
+    self:startSearchRing(self.searchArea.gradientPatternIndex)
+    self:printState("Gradient search ended")
+    return AntennaState.RingSearch
 end
 
 Antenna.StateMachine[AntennaState.NoSignal].enter = function(self)
-    self.searchPatternIndex = 0
-    self.searchPointsChecked = 0
-    self:clearSkippedSearchPoints()
+    self.searchArea.patternIndex = 0
+    self.searchArea.pointsChecked = 0
+    self.searchArea.gradientPatternIndex = 1
     self.signalId = signals.INVALID
 end
 
@@ -356,14 +416,16 @@ end
 
 Antenna.StateMachine[AntennaState.NoSignal].next = function(self)
     if self.slot == signals.INVALID then return AntennaState.Idle end
-    if SignalList:getBySlot(self.slot) ~= nil then return AntennaState.Search end
+    if SignalList:getBySlot(self.slot) ~= nil then
+        if self:initializeRingSearch() then return AntennaState.RingSearch end
+    end
     return AntennaState.NoSignal
 end
 
 Antenna.StateMachine[AntennaState.Error].enter = function(self)
-    self.searchPatternIndex = 0
-    self.searchPointsChecked = 0
-    self:clearSkippedSearchPoints()
+    self.searchArea.patternIndex = 0
+    self.searchArea.pointsChecked = 0
+    self.searchArea.gradientPatternIndex = 1
 end
 
 Antenna.StateMachine[AntennaState.Error].exit = function(self)
@@ -373,8 +435,11 @@ Antenna.StateMachine[AntennaState.Error].next = function(self)
     if self.slot == signals.INVALID then return AntennaState.Idle end
     local data = self:getCurrentSignalData()
     if data == nil then return AntennaState.NoSignal end
-    if data.positionSource == signals.SignalPositionSource.BorderMidpoint then return AntennaState.Search end
-    if signals.isValidReading(data.signal.WattsReachingContact) then return AntennaState.Search end
+    if data.positionSource == signals.SignalPositionSource.BorderMidpoint or
+        signals.isValidReading(data.signal.WattsReachingContact) then
+        if self:initializeRingSearch() then return AntennaState.RingSearch end
+        return AntennaState.NoSignal
+    end
     return AntennaState.Error
 end
 
@@ -390,7 +455,7 @@ Antenna.StateMachine[AntennaState.Communication].next = function(self)
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
     self:readDishData()
-    if not self.resolved then return AntennaState.Communication end
+    if not self.signalIsResolved then return AntennaState.Communication end
     if self.dish.signal.Id ~= self.signalId then
         SignalList:removeSignal(self.slot, self.signalId)
         return AntennaState.NoSignal
@@ -406,7 +471,7 @@ function Antenna:run()
     local newState = self:defineNewState()
     if self.currentState ~= newState then
         print(
-            "Antenna slot:" .. self.slot ..
+            "slot:" .. self.slot ..
             " transition:" ..
             (AntennaStateNames[self.currentState] or "Unknown") ..
             "->" ..
@@ -415,8 +480,8 @@ function Antenna:run()
         local old = self.StateMachine[self.currentState]
         local new = self.StateMachine[newState]
         if old and old.exit then old.exit(self) end
-        if new and new.enter then new.enter(self) end
         self.currentState = newState
+        if new and new.enter then new.enter(self) end
     end
 end
 
@@ -440,7 +505,7 @@ local AntennaPanel = {
 AntennaPanel.__index = AntennaPanel
 
 function AntennaPanel.new(antenna, name)
-    return setmetatable({
+    local self = setmetatable({
         name = name,
         antenna = antenna,
         on_sw = ic.find("tr-" .. name .. "-on-sw"),
@@ -455,13 +520,27 @@ function AntennaPanel.new(antenna, name)
         on = antenna.dish:isOn(),
         slot = antenna.slot,
         res = antenna.optimizationResolution,
-        attmpt = antenna.configuredReadAttemptsLimit,
+        attmpt = antenna.readAttemptsLimit,
     }, AntennaPanel)
+
+    if self.attmpt_dial ~= nil then
+        local dial = ic.read_id(self.attmpt_dial, LT.Setting)
+        self.antenna:setReadAttemptsLimit(dial)
+        self.attmpt = dial
+    end
+
+    if self.res_dial ~= nil then
+        local dial = ic.read_id(self.res_dial, LT.Setting)
+        self.antenna:setOptimizationResolution(dial)
+        self.res = dial
+    end
+
+    return self
 end
 
 function AntennaPanel:updateUi()
     if self.angle_dsp ~= nil then
-        local angle = self.antenna.bestAngularDistance
+        local angle = self.antenna.bestPoint.angularDistance
         if not signals.isValidReading(angle) then
             angle = 0
         end
@@ -471,7 +550,8 @@ function AntennaPanel:updateUi()
     if self.state_diod ~= nil then
         local color = Color.Gray
         if self.on then
-            if self.antenna.currentState == AntennaState.Search then
+            if self.antenna.currentState == AntennaState.RingSearch or
+                self.antenna.currentState == AntennaState.GradientSearch then
                 color = Color.Orange
             elseif self.antenna.currentState == AntennaState.Communication then
                 color = Color.Green
