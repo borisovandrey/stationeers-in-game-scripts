@@ -123,8 +123,10 @@ end
 
 function Antenna:getStep()
     if self.centralPoint.angularDistance == signals.INVALID then return SEARCH_STEP_MIDPOINT end
+    if self.currentState == AntennaState.GradientSearch then
+        return self.centralPoint.angularDistance
+    end
     return signals.clamp(self.centralPoint.angularDistance, 1, SEARCH_STEP)
-
 end
 
 function Antenna:setSearchPosition(patternIndex)

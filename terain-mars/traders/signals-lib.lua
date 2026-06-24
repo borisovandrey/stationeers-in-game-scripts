@@ -84,6 +84,16 @@ function signals.normalizeHorizontal(angle)
     return angle
 end
 
+-- Reflect positions crossing the zenith and rotate horizontal by half a turn.
+function signals.normalizeDishPosition(hor, vert)
+    if vert < signals.MIN_VERTICAL_ANGLE then
+        hor = hor + 180
+        vert = -vert
+    end
+    return signals.normalizeHorizontal(hor),
+        signals.clamp(vert, signals.MIN_VERTICAL_ANGLE, signals.MAX_VERTICAL_ANGLE)
+end
+
 -- Treat nil and INVALID as unreadable signal values.
 function signals.isValidReading(value)
     return value ~= signals.INVALID and value ~= nil
@@ -201,6 +211,7 @@ SignalData.__index = SignalData
 
 -- Wrap a signal with scan/version/position metadata used in the shared list.
 function SignalData.new(version, signal, hor, vert, positionSource)
+    hor, vert = signals.normalizeDishPosition(hor, vert)
     return setmetatable({
         version = version,
         signal = Signal.new(signal),
@@ -304,8 +315,9 @@ function Dish:setPosition(hor, vert)
         print("Dish setPosition failed: device not found")
         return false
     end
-    ic.write_id(self.device, LT.Horizontal, signals.normalizeHorizontal(hor))
-    ic.write_id(self.device, LT.Vertical, signals.clamp(vert, signals.MIN_VERTICAL_ANGLE, signals.MAX_VERTICAL_ANGLE))
+    hor, vert = signals.normalizeDishPosition(hor, vert)
+    ic.write_id(self.device, LT.Horizontal, hor)
+    ic.write_id(self.device, LT.Vertical, vert)
     return true
 end
 
@@ -389,8 +401,7 @@ end
 function SignalList:setBestPosition(slot, id, hor, vert)
     local data = self:getBySlot(slot)
     if data == nil or data.signal.Id ~= id then return false end
-    data.bestHorizontal = signals.normalizeHorizontal(hor)
-    data.bestVertical = signals.clamp(vert, signals.MIN_VERTICAL_ANGLE, signals.MAX_VERTICAL_ANGLE)
+    data.bestHorizontal, data.bestVertical = signals.normalizeDishPosition(hor, vert)
     if self.role == signals.SignalListRole.Master then
         self:_markDirty()
     end
@@ -453,8 +464,7 @@ function SignalList:update(signal, hor, vert)
                 string.format("%.2f", vert)
             )
             found.signal = Signal.new(signal)
-            found.bestHorizontal = hor
-            found.bestVertical = vert
+            found.bestHorizontal, found.bestVertical = signals.normalizeDishPosition(hor, vert)
             found.positionSource = signals.SignalPositionSource.Sample
             self:_markDirty()
             return true
@@ -474,8 +484,7 @@ function SignalList:updateSignalBack(slot, id, signal, hor, vert, publishUpdate)
     if data == nil or data.signal.Id ~= id then return false end
 
     local nextSignal = Signal.new(signal or data.signal)
-    local normalizedHorizontal = signals.normalizeHorizontal(hor)
-    local normalizedVertical = signals.clamp(vert, signals.MIN_VERTICAL_ANGLE, signals.MAX_VERTICAL_ANGLE)
+    local normalizedHorizontal, normalizedVertical = signals.normalizeDishPosition(hor, vert)
     local sameAngularDistance = (data.signal.AngularDistance == nextSignal.AngularDistance) or
         (signals.isValidReading(data.signal.AngularDistance) and signals.isValidReading(nextSignal.AngularDistance) and signals.almostEqual(data.signal.AngularDistance, nextSignal.AngularDistance))
     local sameWatts = data.signal.WattsReachingContact == nextSignal.WattsReachingContact
