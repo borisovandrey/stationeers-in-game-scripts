@@ -51,14 +51,76 @@ move name STR("DEEPMN")
 jal begin
     jal addDeepMiner
 jal end
-move name STR("REPKIT")
+move name STR("REPPK")
 jal begin
     jal addReparatureKit
+jal end
+move name STR("CONSPK")
+jal begin
+    jal addConsumableKit
+jal end
+move name STR("HRDSPK")
+jal begin
+    jal addHardSuteKit
 jal end
 
 #Stop kit configurations
 jal configurePackageSorter
 j finish
+
+addConsumableKit:
+    move Return ra
+    move hash HASH("CardboardBox")
+    move qtty 1
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemDuctTape")
+    move qtty 2
+    move dev TOOLS
+    jal insert
+    move hash HASH("ItemGasFilterCarbonDioxide")
+    move qtty 2
+    move dev TOOLS
+    jal insert
+    move hash HASH("ItemPlasticSheets")
+    move qtty 10
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemCableCoil")
+    move qtty 10
+    move dev AUTO
+    jal insert
+    move ra Return
+j ra
+
+addHardSuteKit:
+    move Return ra
+    move hash HASH("CardboardBox")
+    move qtty 1
+    move dev AUTO
+    jal insert
+    move hash HASH("ItemHardsuitHelmet")
+    move qtty 1
+    move dev TOOLS
+    jal insert
+    move hash HASH("ItemHardSuit")
+    move qtty 1
+    move dev TOOLS
+    jal insert
+    move hash HASH("ItemGasCanisterEmpty")
+    move qtty 2
+    move dev ATMO
+    jal insert
+    move hash HASH("ItemGasFilterCarbonDioxide")
+    move qtty 1
+    move dev ATMO
+    jal insert
+    move hash HASH("ItemBatteryCellLarge")
+    move qtty 1
+    move dev ELECTRO
+    jal insert
+    move ra Return
+j ra
 
 addReparatureKit:
     move Return ra
