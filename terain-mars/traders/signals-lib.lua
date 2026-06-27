@@ -1,12 +1,15 @@
 --@module signals
 --@module dishes
+--@module trader
 -- Shared trader modules.
 -- `signals` contains signal models, list sync, serialization, persistence, and pub/sub behavior.
 -- `dishes` contains the reusable dish device wrapper used by scanner and antenna scripts.
+-- `trader` contains shared trader item types and item data.
 local LT = ic.enums.LogicType
 
 local signals = {}
 local dishes = {}
+local trader = {}
 
 signals.INVALID = -1
 signals.EPSILON = 0.001
@@ -15,6 +18,92 @@ signals.MAX_VERTICAL_ANGLE = 90
 signals.STORE_KEY = "Trader.SignalList"
 signals.TOPIC_SIGNALS = "signals"
 signals.TOPIC_SIGNALS_UPDATE = "signals/upd"
+
+trader.ItemType = {
+    Prefab = 0,
+    GasBitFlag = 1,
+}
+
+trader.GasBitFlag = {
+    Oxygen = 1,
+    Nitrogen = 2,
+    Air = 3,
+    CarbonDioxide = 4,
+    Volatiles = 8,
+    Fuel = 9,
+    Pollutant = 16,
+    Water = 32,
+    NitrousOxide = 64,
+    LiquidNitrogen = 128,
+    LiquidOxygen = 256,
+    LiquidVolatiles = 512,
+    Steam = 1024,
+    LiquidCarbonDioxide = 2048,
+    LiquidPollutant = 4096,
+    LiquidNitrousOxide = 8192,
+    Hydrogen = 16384,
+    LiquidHydrogen = 32768,
+    PollutedWater = 65536,
+}
+
+trader.GasDetails = {
+    [trader.GasBitFlag.Oxygen] = { name = "Oxygen", icon = "Oxygen" },
+    [trader.GasBitFlag.Nitrogen] = { name = "Nitrogen", icon = "Nitrogen" },
+    [trader.GasBitFlag.Air] = { name = "Air", icon = "Oxygen" },
+    [trader.GasBitFlag.CarbonDioxide] = { name = "Carbon Dioxide", icon = "CarbonDioxide" },
+    [trader.GasBitFlag.Volatiles] = { name = "Volatiles", icon = "Volatiles" },
+    [trader.GasBitFlag.Fuel] = { name = "Fuel", icon = "Volatiles" },
+    [trader.GasBitFlag.Pollutant] = { name = "Pollutant", icon = "Pollutant" },
+    [trader.GasBitFlag.Water] = { name = "Water", icon = "Water" },
+    [trader.GasBitFlag.NitrousOxide] = { name = "Nitrous Oxide", icon = "NitrousOxide" },
+    [trader.GasBitFlag.LiquidNitrogen] = { name = "Liquid Nitrogen", icon = "LiquidNitrogen" },
+    [trader.GasBitFlag.LiquidOxygen] = { name = "Liquid Oxygen", icon = "LiquidOxygen" },
+    [trader.GasBitFlag.LiquidVolatiles] = { name = "Liquid Volatiles", icon = "LiquidVolatiles" },
+    [trader.GasBitFlag.Steam] = { name = "Steam", icon = "Steam" },
+    [trader.GasBitFlag.LiquidCarbonDioxide] = { name = "Liquid Carbon Dioxide", icon = "LiquidCarbonDioxide" },
+    [trader.GasBitFlag.LiquidPollutant] = { name = "Liquid Pollutant", icon = "LiquidPollutant" },
+    [trader.GasBitFlag.LiquidNitrousOxide] = { name = "Liquid Nitrous Oxide", icon = "LiquidNitrousOxide" },
+    [trader.GasBitFlag.Hydrogen] = { name = "Hydrogen", icon = "Hydrogen" },
+    [trader.GasBitFlag.LiquidHydrogen] = { name = "Liquid Hydrogen", icon = "LiquidHydrogen" },
+    [trader.GasBitFlag.PollutedWater] = { name = "Polluted Water", icon = "PollutedWater" },
+}
+
+-- Test source shape: data[hash] = { type = ItemType, quantity = number, isSubitem = boolean }.
+trader.FakeItems = {
+    slot = 3,
+    sell = {
+        [hash("ItemSteelIngot")] = { type = trader.ItemType.Prefab, quantity = 120 },
+        [hash("ItemInvarIngot")] = { type = trader.ItemType.Prefab, quantity = 35, isSubitem = true },
+        [hash("ItemCopperIngot")] = { type = trader.ItemType.Prefab, quantity = 240 },
+        [hash("ItemSolderIngot")] = { type = trader.ItemType.Prefab, quantity = 12500 },
+        [hash("ItemConstantanIngot")] = { type = trader.ItemType.Prefab, quantity = 75 },
+        [hash("ItemElectrumIngot")] = { type = trader.ItemType.Prefab, quantity = 48 },
+        [hash("ItemWaspaloyIngot")] = { type = trader.ItemType.Prefab, quantity = 32 },
+        [hash("ItemStelliteIngot")] = { type = trader.ItemType.Prefab, quantity = 18 },
+        [hash("StructureAutolathe")] = { type = trader.ItemType.Prefab, quantity = 2 },
+        [trader.GasBitFlag.Oxygen] = { type = trader.ItemType.GasBitFlag, quantity = 850 },
+        [trader.GasBitFlag.Air] = { type = trader.ItemType.GasBitFlag, quantity = 1200, isSubitem = true },
+        [trader.GasBitFlag.LiquidNitrogen] = { type = trader.ItemType.GasBitFlag, quantity = 300 },
+        [trader.GasBitFlag.CarbonDioxide] = { type = trader.ItemType.GasBitFlag, quantity = 24000 },
+        [trader.GasBitFlag.NitrousOxide] = { type = trader.ItemType.GasBitFlag, quantity = 720 },
+    },
+    buy = {
+        [hash("ItemGoldIngot")] = { type = trader.ItemType.Prefab, quantity = 80 },
+        [hash("ItemHastelloyIngot")] = { type = trader.ItemType.Prefab, quantity = 25, isSubitem = true },
+        [hash("ItemInconelIngot")] = { type = trader.ItemType.Prefab, quantity = 36 },
+        [hash("ItemAstroloyIngot")] = { type = trader.ItemType.Prefab, quantity = 12 },
+        [hash("StructureElectronicsPrinter")] = { type = trader.ItemType.Prefab, quantity = 1 },
+        [hash("StructureToolManufactory")] = { type = trader.ItemType.Prefab, quantity = 1 },
+        [hash("StructureHydraulicPipeBender")] = { type = trader.ItemType.Prefab, quantity = 3 },
+        [trader.GasBitFlag.Fuel] = { type = trader.ItemType.GasBitFlag, quantity = 600 },
+        [trader.GasBitFlag.Hydrogen] = { type = trader.ItemType.GasBitFlag, quantity = 450, isSubitem = true },
+        [trader.GasBitFlag.PollutedWater] = { type = trader.ItemType.GasBitFlag, quantity = 150 },
+        [trader.GasBitFlag.Steam] = { type = trader.ItemType.GasBitFlag, quantity = 18000 },
+        [trader.GasBitFlag.Water] = { type = trader.ItemType.GasBitFlag, quantity = 100000 },
+        [trader.GasBitFlag.LiquidOxygen] = { type = trader.ItemType.GasBitFlag, quantity = 950 },
+        [131072] = { type = trader.ItemType.GasBitFlag, quantity = 50 },
+    },
+}
 
 signals.TraderType = {
     Unknown             = signals.INVALID,
@@ -797,4 +886,5 @@ signals.SignalList = SignalList
 return {
     signals = signals,
     dishes = dishes,
+    trader = trader,
 }

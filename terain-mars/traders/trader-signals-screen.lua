@@ -1,6 +1,7 @@
 -- Trader signals screen.
 -- Signal, selling-item, and buying-item sections update independently.
 local signals = require("signals")
+local trader = require("trader")
 
 local SURFACE_NAME = "main"
 local USE_FAKE_DATA = true
@@ -18,6 +19,7 @@ local ITEM_ROW_GAP = 2
 local ITEM_PANEL_GAP = 6
 local ITEM_PANEL_PADDING = 4
 local ITEM_PANEL_INNER_GAP = 3
+local SUBITEM_INDENT = 12
 
 local TITLE_COLOR = "#F8FAFC"
 local SUBTITLE_COLOR = "#94A3B8"
@@ -36,54 +38,9 @@ local MUTED_NUMERIC_TEXT = "#64748B"
 local ROOT_BG = "#020617"
 local BASE_WIDTH = 480
 
-local ItemType = {
-    Prefab = 0,
-    GasBitFlag = 1,
-}
-
-local GasBitFlag = {
-    Oxygen = 1,
-    Nitrogen = 2,
-    Air = 3,
-    CarbonDioxide = 4,
-    Volatiles = 8,
-    Fuel = 9,
-    Pollutant = 16,
-    Water = 32,
-    NitrousOxide = 64,
-    LiquidNitrogen = 128,
-    LiquidOxygen = 256,
-    LiquidVolatiles = 512,
-    Steam = 1024,
-    LiquidCarbonDioxide = 2048,
-    LiquidPollutant = 4096,
-    LiquidNitrousOxide = 8192,
-    Hydrogen = 16384,
-    LiquidHydrogen = 32768,
-    PollutedWater = 65536,
-}
-
-local GAS_DETAILS = {
-    [GasBitFlag.Oxygen] = { name = "Oxygen", icon = "Oxygen" },
-    [GasBitFlag.Nitrogen] = { name = "Nitrogen", icon = "Nitrogen" },
-    [GasBitFlag.Air] = { name = "Air", icon = "Oxygen" },
-    [GasBitFlag.CarbonDioxide] = { name = "Carbon Dioxide", icon = "CarbonDioxide" },
-    [GasBitFlag.Volatiles] = { name = "Volatiles", icon = "Volatiles" },
-    [GasBitFlag.Fuel] = { name = "Fuel", icon = "Volatiles" },
-    [GasBitFlag.Pollutant] = { name = "Pollutant", icon = "Pollutant" },
-    [GasBitFlag.Water] = { name = "Water", icon = "Water" },
-    [GasBitFlag.NitrousOxide] = { name = "Nitrous Oxide", icon = "NitrousOxide" },
-    [GasBitFlag.LiquidNitrogen] = { name = "Liquid Nitrogen", icon = "LiquidNitrogen" },
-    [GasBitFlag.LiquidOxygen] = { name = "Liquid Oxygen", icon = "LiquidOxygen" },
-    [GasBitFlag.LiquidVolatiles] = { name = "Liquid Volatiles", icon = "LiquidVolatiles" },
-    [GasBitFlag.Steam] = { name = "Steam", icon = "Steam" },
-    [GasBitFlag.LiquidCarbonDioxide] = { name = "Liquid Carbon Dioxide", icon = "LiquidCarbonDioxide" },
-    [GasBitFlag.LiquidPollutant] = { name = "Liquid Pollutant", icon = "LiquidPollutant" },
-    [GasBitFlag.LiquidNitrousOxide] = { name = "Liquid Nitrous Oxide", icon = "LiquidNitrousOxide" },
-    [GasBitFlag.Hydrogen] = { name = "Hydrogen", icon = "Hydrogen" },
-    [GasBitFlag.LiquidHydrogen] = { name = "Liquid Hydrogen", icon = "LiquidHydrogen" },
-    [GasBitFlag.PollutedWater] = { name = "Polluted Water", icon = "PollutedWater" },
-}
+local ItemType = trader.ItemType
+local GasBitFlag = trader.GasBitFlag
+local GAS_DETAILS = trader.GasDetails
 
 local TRADER_TEXT_COLORS = {
     [signals.TraderType.Unknown] = "#CBD5E1",
@@ -114,42 +71,7 @@ local FAKE_ROWS = {
     { slot = "4", typeName = "Liquid",      size = "2 x 2", angle = "-1.00", minWatts = "160.00", watts = "-1.00",  id = "40125", color = TRADER_TEXT_COLORS[signals.TraderType.LiquidTrader], hasInvalidTelemetry = true },
 }
 
--- Dummy source shape: data[hash] = { type = ItemType, quantity = number }.
-local FAKE_ITEMS = {
-    slot = 3,
-    sell = {
-        [hash("ItemSteelIngot")] = { type = ItemType.Prefab, quantity = 120 },
-        [hash("ItemInvarIngot")] = { type = ItemType.Prefab, quantity = 35 },
-        [hash("ItemCopperIngot")] = { type = ItemType.Prefab, quantity = 240 },
-        [hash("ItemSolderIngot")] = { type = ItemType.Prefab, quantity = 12500 },
-        [hash("ItemConstantanIngot")] = { type = ItemType.Prefab, quantity = 75 },
-        [hash("ItemElectrumIngot")] = { type = ItemType.Prefab, quantity = 48 },
-        [hash("ItemWaspaloyIngot")] = { type = ItemType.Prefab, quantity = 32 },
-        [hash("ItemStelliteIngot")] = { type = ItemType.Prefab, quantity = 18 },
-        [hash("StructureAutolathe")] = { type = ItemType.Prefab, quantity = 2 },
-        [GasBitFlag.Oxygen] = { type = ItemType.GasBitFlag, quantity = 850 },
-        [GasBitFlag.Air] = { type = ItemType.GasBitFlag, quantity = 1200 },
-        [GasBitFlag.LiquidNitrogen] = { type = ItemType.GasBitFlag, quantity = 300 },
-        [GasBitFlag.CarbonDioxide] = { type = ItemType.GasBitFlag, quantity = 24000 },
-        [GasBitFlag.NitrousOxide] = { type = ItemType.GasBitFlag, quantity = 720 },
-    },
-    buy = {
-        [hash("ItemGoldIngot")] = { type = ItemType.Prefab, quantity = 80 },
-        [hash("ItemHastelloyIngot")] = { type = ItemType.Prefab, quantity = 25 },
-        [hash("ItemInconelIngot")] = { type = ItemType.Prefab, quantity = 36 },
-        [hash("ItemAstroloyIngot")] = { type = ItemType.Prefab, quantity = 12 },
-        [hash("StructureElectronicsPrinter")] = { type = ItemType.Prefab, quantity = 1 },
-        [hash("StructureToolManufactory")] = { type = ItemType.Prefab, quantity = 1 },
-        [hash("StructureHydraulicPipeBender")] = { type = ItemType.Prefab, quantity = 3 },
-        [GasBitFlag.Fuel] = { type = ItemType.GasBitFlag, quantity = 600 },
-        [GasBitFlag.Hydrogen] = { type = ItemType.GasBitFlag, quantity = 450 },
-        [GasBitFlag.PollutedWater] = { type = ItemType.GasBitFlag, quantity = 150 },
-        [GasBitFlag.Steam] = { type = ItemType.GasBitFlag, quantity = 18000 },
-        [GasBitFlag.Water] = { type = ItemType.GasBitFlag, quantity = 100000 },
-        [GasBitFlag.LiquidOxygen] = { type = ItemType.GasBitFlag, quantity = 950 },
-        [131072] = { type = ItemType.GasBitFlag, quantity = 50 },
-    },
-}
+local FAKE_ITEMS = trader.FakeItems
 
 local Screen = {
     rows = {},
@@ -435,6 +357,7 @@ local function flattenItemMap(source)
             icon = icon,
             iconType = iconType,
             quantity = item.quantity,
+            isSubitem = item.isSubitem == true,
         }
     end
     table.sort(items, function(left, right)
@@ -537,6 +460,7 @@ function Screen:updateItemPanel(side, panel)
     for i, item in ipairs(panel.items) do
         local rowId = side .. "-row-" .. i
         local y = (i - 1) * (ITEM_ROW_HEIGHT + ITEM_ROW_GAP)
+        local indent = item.isSubitem and SUBITEM_INDENT or 0
         scroll:element({
             id = rowId,
             type = "panel",
@@ -550,14 +474,14 @@ function Screen:updateItemPanel(side, panel)
         scroll:element({
             id = rowId .. "-icon",
             type = "icon",
-            rect = { unit = "px", x = 3, y = y + 2, w = 18, h = 18 },
+            rect = { unit = "px", x = 3 + indent, y = y + 2, w = 18, h = 18 },
             props = iconProps,
             style = { tint = "#FFFFFF" },
         })
         scroll:element({
             id = rowId .. "-name",
             type = "label",
-            rect = { unit = "px", x = 25, y = y, w = math.max(30, listWidth - 101), h = ITEM_ROW_HEIGHT },
+            rect = { unit = "px", x = 25 + indent, y = y, w = math.max(30, listWidth - 101 - indent), h = ITEM_ROW_HEIGHT },
             props = { text = item.name },
             style = { color = ROW_TEXT, font_size = self.layout.rowFontSize, align = "left" },
         })
