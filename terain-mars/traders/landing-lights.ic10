@@ -1,0 +1,41 @@
+#terain-mars\traders\landing-lights.ic10
+alias LargeLanding.RID r0
+alias MiddleLanding.RID r1
+alias LightSensor.RID r2
+alias LargeLanding.State r3
+alias MiddleLanding.State r4
+alias LightSensor.State r5
+
+lbn LargeLanding.RID HASH("Landingpad_DataConnectionPiece") HASH("Large-Plane") ReferenceId Minimum 
+lbn MiddleLanding.RID HASH("Landingpad_DataConnectionPiece") HASH("Middle") ReferenceId Minimum 
+lbn LightSensor.RID HASH("StructureDaylightSensor") HASH("tr-landing") ReferenceId Minimum 
+
+move LargeLanding.State -1
+move MiddleLanding.State -1
+move LightSensor.State -1
+
+main:
+    jal CheckNightLight
+    jal CheckLanding 
+    sleep 5
+j main
+
+CheckNightLight:
+    l r15 LightSensor.RID Activate
+    beq r15 LightSensor.State ra
+    move LightSensor.State r15
+    seqz r15 r15
+    sbn HASH("StructureLightRoundAngled") HASH("tr-spotlights") On r15
+j ra
+
+CheckLanding:
+    l r15 LargeLanding.RID Mode
+    beq r15 LargeLanding.State middle
+    sne r15 1 r15
+    sbn HASH("StructureSpotlight") HASH("tr-large-spot") On r15
+middle:
+    l r15 MiddleLanding.RID Mode
+    beq r15 MiddleLanding.State ra
+    sne r15 1 r15
+    sbn HASH("StructureSpotlight") HASH("tr-middle-spot") On r15
+j ra

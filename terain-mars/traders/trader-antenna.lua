@@ -124,21 +124,31 @@ end
 function Antenna:getStep()
     if self.centralPoint.angularDistance == signals.INVALID then return SEARCH_STEP_MIDPOINT end
     if self.currentState == AntennaState.GradientSearch then
-        return self.centralPoint.angularDistance
+        return signals.clamp(self.centralPoint.angularDistance, 1, SEARCH_STEP_MIDPOINT)
     end
     return signals.clamp(self.centralPoint.angularDistance, 1, SEARCH_STEP)
 end
 
 function Antenna:setSearchPosition(patternIndex)
     local pattern = SearchPattern[patternIndex]
-    local step = self:getStep() * StepPattern[patternIndex] 
+    local baseStep = self:getStep()
+    local moveStep = baseStep * StepPattern[patternIndex]
     self.searchArea.patternIndex = patternIndex
     local hor, vert = normalizeDishPosition(
-        self.centralPoint.h + step * pattern.h,
-        self.centralPoint.v + step * pattern.v
+        self.centralPoint.h + moveStep * pattern.h,
+        self.centralPoint.v + moveStep * pattern.v
     )
     self.searchArea.positionCandidate.h = hor
     self.searchArea.positionCandidate.v = vert
+    print(
+        "-> base:" .. string.format("%.2f", baseStep) ..
+        " move:" .. string.format("%.2f", moveStep) ..
+        " h:" .. string.format("%.2f", hor) ..
+        " v:" .. string.format("%.2f", vert) ..
+        " idx:" .. patternIndex ..
+        " c.h:" .. string.format("%.2f", self.centralPoint.h) ..
+        " c.v:" .. string.format("%.2f", self.centralPoint.v)
+    )
     self.dish:setPosition(self.searchArea.positionCandidate.h, self.searchArea.positionCandidate.v)
 end
 
@@ -393,7 +403,8 @@ Antenna.StateMachine[AntennaState.GradientSearch].next = function(self)
         end
     end
 
-    self:startSearchRing(self:getOppoiste(self.searchArea.patternIndex))
+    --self:startSearchRing(self:getOppoiste(self.searchArea.patternIndex))
+    self:startSearchRing(self.searchArea.patternIndex)
     self:printState("gradient ended")
     return AntennaState.RingSearch
 end
