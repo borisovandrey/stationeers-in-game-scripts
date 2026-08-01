@@ -4,7 +4,6 @@ local signals = require("signals")
 local trader = require("trader")
 
 local SURFACE_NAME = "main"
-local USE_FAKE_DATA = true
 local PADDING = 8
 local TITLE_HEIGHT = 18
 local SUBTITLE_HEIGHT = 12
@@ -59,17 +58,10 @@ local TRADER_TEXT_COLORS = {
 }
 
 local SignalList
+local TraderSubscription
 local ui = ss.ui.surface(SURFACE_NAME)
 
 ss.ui.activate(SURFACE_NAME)
-
-local FAKE_ROWS = {
-    { slot = "0", typeName = "Ore",         size = "2 x 3", angle = "14.25", minWatts = "120.00", watts = "186.40", id = "40121", color = TRADER_TEXT_COLORS[signals.TraderType.OreTrader] },
-    { slot = "1", typeName = "Alloy",       size = "4 x 4", angle = "8.10",  minWatts = "210.00", watts = "264.55", id = "40122", color = TRADER_TEXT_COLORS[signals.TraderType.AlloyTrader] },
-    { slot = "2", typeName = "Hydroponics", size = "3 x 5", angle = "3.45",  minWatts = "90.00",  watts = "144.10", id = "40123", color = TRADER_TEXT_COLORS[signals.TraderType.HydroponicsTrader] },
-    { slot = "3", typeName = "Gas",         size = "6 x 2", angle = "19.80", minWatts = "240.00", watts = "311.90", id = "40124", color = TRADER_TEXT_COLORS[signals.TraderType.GasTrader] },
-    { slot = "4", typeName = "Liquid",      size = "2 x 2", angle = "-1.00", minWatts = "160.00", watts = "-1.00",  id = "40125", color = TRADER_TEXT_COLORS[signals.TraderType.LiquidTrader], hasInvalidTelemetry = true },
-}
 
 local FAKE_ITEMS = trader.FakeItems
 
@@ -79,10 +71,11 @@ local Screen = {
     height = 272,
     layout = nil,
     handles = nil,
-    shellDirty = true,
     signalsDirty = true,
-    sell = { slot = 0, items = {}, scrollId = nil, generation = 0, dirty = true },
-    buy = { slot = 0, items = {}, scrollId = nil, generation = 0, dirty = true },
+    itemSlot = nil,
+    itemTraderId = nil,
+    sell = { slot = 0, items = {}, scrollId = nil, elementIds = {}, generation = 0, dirty = true },
+    buy = { slot = 0, items = {}, scrollId = nil, elementIds = {}, generation = 0, dirty = true },
 }
 
 local function buildLayout(width)
@@ -236,7 +229,6 @@ local function buildItemPanel(side)
 end
 
 function Screen:buildShell()
-    ui:clear()
     ui:element({
         id = "signals-bg",
         type = "panel",
@@ -296,10 +288,11 @@ function Screen:buildShell()
         },
     })
 
-    self.shellDirty = false
     self.signalsDirty = true
     self.sell.scrollId = nil
     self.buy.scrollId = nil
+    self.sell.elementIds = {}
+    self.buy.elementIds = {}
     self.sell.dirty = true
     self.buy.dirty = true
 end
@@ -346,9 +339,10 @@ local function resolveItem(itemType, itemHash)
     return "Unknown", tostring(itemHash), nil
 end
 
-local function flattenItemMap(source)
+local function flattenItems(source)
     local items = {}
-    for itemHash, item in pairs(source or {}) do
+    for _, item in ipairs(source or {}) do
+        local itemHash = item.hash
         local name, icon, iconType = resolveItem(item.type, itemHash)
         items[#items + 1] = {
             type = item.type,
@@ -360,24 +354,18 @@ local function flattenItemMap(source)
             isSubitem = item.isSubitem == true,
         }
     end
-    table.sort(items, function(left, right)
-        if left.name == right.name then
-            return left.hash < right.hash
-        end
-        return left.name < right.name
-    end)
     return items
 end
 
 function Screen:setSellingItems(slot, source)
     self.sell.slot = slot
-    self.sell.items = flattenItemMap(source)
+    self.sell.items = flattenItems(source)
     self.sell.dirty = true
 end
 
 function Screen:setBuyingItems(slot, source)
     self.buy.slot = slot
-    self.buy.items = flattenItemMap(source)
+    self.buy.items = flattenItems(source)
     self.buy.dirty = true
 end
 
@@ -403,7 +391,12 @@ end
 
 function Screen:updateItemPanel(side, panel)
     if panel.scrollId then
-        ui:remove(panel.scrollId)
+        for i = #panel.elementIds, 1, -1 do
+            ui:remove(panel.elementIds[i])
+        end
+        panel.scrollId = nil
+        panel.elementIds = {}
+        return
     end
 
     local header = side == "sell" and "Selling Items of slot " or "Buying Items of slot "
@@ -411,18 +404,21 @@ function Screen:updateItemPanel(side, panel)
     headerHandle:set_props({ text = header .. tostring(panel.slot) })
 
     panel.generation = panel.generation + 1
-    panel.scrollId = side .. "-items-scroll-" .. panel.generation
+    local scrollLocalId = side .. "-items-scroll-" .. panel.generation
+    panel.scrollId = side .. "-body/" .. scrollLocalId
+    panel.elementIds = { panel.scrollId }
     local scrollRect = self:getItemScrollRect(side)
     local listWidth = scrollRect.w
     local quantityColor = side == "sell" and SELL_QUANTITY_COLOR or BUY_QUANTITY_COLOR
     local count = math.max(1, #panel.items)
-    local scroll = ui:element({
-        id = panel.scrollId,
+    local body = self.handles[side .. "-body"]
+    local scroll = body:element({
+        id = scrollLocalId,
         type = "scrollview",
         rect = {
             unit = "px",
-            x = scrollRect.x,
-            y = scrollRect.y,
+            x = 0,
+            y = 0,
             w = scrollRect.w,
             h = scrollRect.h,
         },
@@ -439,7 +435,9 @@ function Screen:updateItemPanel(side, panel)
     })
 
     if #panel.items == 0 then
-        local rowId = side .. "-empty"
+        local rowId = scrollLocalId .. "-empty"
+        panel.elementIds[#panel.elementIds + 1] = panel.scrollId .. "/" .. rowId
+        panel.elementIds[#panel.elementIds + 1] = panel.scrollId .. "/" .. rowId .. "-text"
         scroll:element({
             id = rowId,
             type = "panel",
@@ -458,7 +456,11 @@ function Screen:updateItemPanel(side, panel)
     end
 
     for i, item in ipairs(panel.items) do
-        local rowId = side .. "-row-" .. i
+        local rowId = scrollLocalId .. "-row-" .. i
+        panel.elementIds[#panel.elementIds + 1] = panel.scrollId .. "/" .. rowId
+        panel.elementIds[#panel.elementIds + 1] = panel.scrollId .. "/" .. rowId .. "-icon"
+        panel.elementIds[#panel.elementIds + 1] = panel.scrollId .. "/" .. rowId .. "-name"
+        panel.elementIds[#panel.elementIds + 1] = panel.scrollId .. "/" .. rowId .. "-quantity"
         local y = (i - 1) * (ITEM_ROW_HEIGHT + ITEM_ROW_GAP)
         local indent = item.isSubitem and SUBITEM_INDENT or 0
         scroll:element({
@@ -498,28 +500,27 @@ end
 
 function Screen:rebuildSignals()
     self.rows = {}
-    if USE_FAKE_DATA then
-        for i = 1, math.min(#FAKE_ROWS, MAX_SIGNAL_ROWS) do
-            self.rows[#self.rows + 1] = FAKE_ROWS[i]
-        end
-    else
-        local entries = SignalList:getSortedEntries()
-        for i = 1, math.min(#entries, MAX_SIGNAL_ROWS) do
-            local entry = entries[i]
-            self.rows[#self.rows + 1] = formatSignalRow(entry.slot, entry.value)
-        end
+    local entries = SignalList:getSortedEntries()
+    for i = 1, math.min(#entries, MAX_SIGNAL_ROWS) do
+        local entry = entries[i]
+        self.rows[#self.rows + 1] = formatSignalRow(entry.slot, entry.value)
     end
     self.signalsDirty = true
 end
 
-function Screen:render()
-    if self.shellDirty then
-        self:buildShell()
-        -- Nested parents must exist before dynamic scroll rows are attached.
-        ui:commit()
-        return
-    end
+function Screen:clearTraderItemsIfOutdated()
+    if self.itemSlot == nil then return false end
+    local signalData = SignalList:getBySlot(self.itemSlot)
+    if signalData ~= nil and signalData.signal.Id == self.itemTraderId then return false end
 
+    self:setSellingItems(self.itemSlot, {})
+    self:setBuyingItems(self.itemSlot, {})
+    self.itemSlot = nil
+    self.itemTraderId = nil
+    return true
+end
+
+function Screen:render()
     local changed = false
     if self.signalsDirty then
         self:updateSignals()
@@ -542,17 +543,36 @@ SignalList = signals.SignalList.new(signals.SignalListRole.Consumer, {
     fullTopic = signals.TOPIC_SIGNALS,
     onFullSync = function()
         Screen:rebuildSignals()
+        Screen:clearTraderItemsIfOutdated()
     end,
 })
 
+local function extractTraderItems(payload)
+    if type(payload) == "string" then
+        return trader.deserializeItems(payload)
+    end
+    if type(payload) ~= "table" then return nil end
+    if type(payload.j) == "string" then
+        return trader.deserializeItems(payload.j)
+    end
+    return nil
+end
+
+TraderSubscription = ic.net.subscribe(trader.TOPIC, function(_, payload)
+    local items = extractTraderItems(payload)
+    if items == nil then return end
+    Screen.itemSlot = items.slot
+    Screen.itemTraderId = items.traderId
+    Screen:setSellingItems(items.slot, items.sell)
+    Screen:setBuyingItems(items.slot, items.buy)
+end)
+
+ui:clear()
 Screen:initLayout()
 Screen:rebuildSignals()
-if USE_FAKE_DATA then
-    Screen:setSellingItems(FAKE_ITEMS.slot, FAKE_ITEMS.sell)
-    Screen:setBuyingItems(FAKE_ITEMS.slot, FAKE_ITEMS.buy)
-else
-    SignalList:start()
-end
+Screen:buildShell()
+SignalList:start()
+ui:commit()
 
 function tick(dt)
     Screen:render()

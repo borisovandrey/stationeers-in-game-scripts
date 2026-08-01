@@ -18,6 +18,7 @@ signals.MAX_VERTICAL_ANGLE = 90
 signals.STORE_KEY = "Trader.SignalList"
 signals.TOPIC_SIGNALS = "signals"
 signals.TOPIC_SIGNALS_UPDATE = "signals/upd"
+trader.TOPIC = "trader"
 
 trader.ItemType = {
     Prefab = 0,
@@ -68,42 +69,95 @@ trader.GasDetails = {
     [trader.GasBitFlag.PollutedWater] = { name = "Polluted Water", icon = "PollutedWater" },
 }
 
--- Test source shape: data[hash] = { type = ItemType, quantity = number, isSubitem = boolean }.
+-- Test source shape: { hash, type, quantity, isSubitem } in response order.
 trader.FakeItems = {
     slot = 3,
     sell = {
-        [hash("ItemSteelIngot")] = { type = trader.ItemType.Prefab, quantity = 120 },
-        [hash("ItemInvarIngot")] = { type = trader.ItemType.Prefab, quantity = 35, isSubitem = true },
-        [hash("ItemCopperIngot")] = { type = trader.ItemType.Prefab, quantity = 240 },
-        [hash("ItemSolderIngot")] = { type = trader.ItemType.Prefab, quantity = 12500 },
-        [hash("ItemConstantanIngot")] = { type = trader.ItemType.Prefab, quantity = 75 },
-        [hash("ItemElectrumIngot")] = { type = trader.ItemType.Prefab, quantity = 48 },
-        [hash("ItemWaspaloyIngot")] = { type = trader.ItemType.Prefab, quantity = 32 },
-        [hash("ItemStelliteIngot")] = { type = trader.ItemType.Prefab, quantity = 18 },
-        [hash("StructureAutolathe")] = { type = trader.ItemType.Prefab, quantity = 2 },
-        [trader.GasBitFlag.Oxygen] = { type = trader.ItemType.GasBitFlag, quantity = 850 },
-        [trader.GasBitFlag.Air] = { type = trader.ItemType.GasBitFlag, quantity = 1200, isSubitem = true },
-        [trader.GasBitFlag.LiquidNitrogen] = { type = trader.ItemType.GasBitFlag, quantity = 300 },
-        [trader.GasBitFlag.CarbonDioxide] = { type = trader.ItemType.GasBitFlag, quantity = 24000 },
-        [trader.GasBitFlag.NitrousOxide] = { type = trader.ItemType.GasBitFlag, quantity = 720 },
+        { hash = hash("ItemSteelIngot"), type = trader.ItemType.Prefab, quantity = 120 },
+        { hash = hash("ItemInvarIngot"), type = trader.ItemType.Prefab, quantity = 35, isSubitem = true },
+        { hash = hash("ItemCopperIngot"), type = trader.ItemType.Prefab, quantity = 240 },
+        { hash = hash("ItemSolderIngot"), type = trader.ItemType.Prefab, quantity = 12500 },
+        { hash = hash("ItemConstantanIngot"), type = trader.ItemType.Prefab, quantity = 75 },
+        { hash = hash("ItemElectrumIngot"), type = trader.ItemType.Prefab, quantity = 48 },
+        { hash = hash("ItemWaspaloyIngot"), type = trader.ItemType.Prefab, quantity = 32 },
+        { hash = hash("ItemStelliteIngot"), type = trader.ItemType.Prefab, quantity = 18 },
+        { hash = hash("StructureAutolathe"), type = trader.ItemType.Prefab, quantity = 2 },
+        { hash = trader.GasBitFlag.Oxygen, type = trader.ItemType.GasBitFlag, quantity = 850 },
+        { hash = trader.GasBitFlag.Air, type = trader.ItemType.GasBitFlag, quantity = 1200, isSubitem = true },
+        { hash = trader.GasBitFlag.LiquidNitrogen, type = trader.ItemType.GasBitFlag, quantity = 300 },
+        { hash = trader.GasBitFlag.CarbonDioxide, type = trader.ItemType.GasBitFlag, quantity = 24000 },
+        { hash = trader.GasBitFlag.NitrousOxide, type = trader.ItemType.GasBitFlag, quantity = 720 },
     },
     buy = {
-        [hash("ItemGoldIngot")] = { type = trader.ItemType.Prefab, quantity = 80 },
-        [hash("ItemHastelloyIngot")] = { type = trader.ItemType.Prefab, quantity = 25, isSubitem = true },
-        [hash("ItemInconelIngot")] = { type = trader.ItemType.Prefab, quantity = 36 },
-        [hash("ItemAstroloyIngot")] = { type = trader.ItemType.Prefab, quantity = 12 },
-        [hash("StructureElectronicsPrinter")] = { type = trader.ItemType.Prefab, quantity = 1 },
-        [hash("StructureToolManufactory")] = { type = trader.ItemType.Prefab, quantity = 1 },
-        [hash("StructureHydraulicPipeBender")] = { type = trader.ItemType.Prefab, quantity = 3 },
-        [trader.GasBitFlag.Fuel] = { type = trader.ItemType.GasBitFlag, quantity = 600 },
-        [trader.GasBitFlag.Hydrogen] = { type = trader.ItemType.GasBitFlag, quantity = 450, isSubitem = true },
-        [trader.GasBitFlag.PollutedWater] = { type = trader.ItemType.GasBitFlag, quantity = 150 },
-        [trader.GasBitFlag.Steam] = { type = trader.ItemType.GasBitFlag, quantity = 18000 },
-        [trader.GasBitFlag.Water] = { type = trader.ItemType.GasBitFlag, quantity = 100000 },
-        [trader.GasBitFlag.LiquidOxygen] = { type = trader.ItemType.GasBitFlag, quantity = 950 },
-        [131072] = { type = trader.ItemType.GasBitFlag, quantity = 50 },
+        { hash = hash("ItemGoldIngot"), type = trader.ItemType.Prefab, quantity = 80 },
+        { hash = hash("ItemHastelloyIngot"), type = trader.ItemType.Prefab, quantity = 25, isSubitem = true },
+        { hash = hash("ItemInconelIngot"), type = trader.ItemType.Prefab, quantity = 36 },
+        { hash = hash("ItemAstroloyIngot"), type = trader.ItemType.Prefab, quantity = 12 },
+        { hash = hash("StructureElectronicsPrinter"), type = trader.ItemType.Prefab, quantity = 1 },
+        { hash = hash("StructureToolManufactory"), type = trader.ItemType.Prefab, quantity = 1 },
+        { hash = hash("StructureHydraulicPipeBender"), type = trader.ItemType.Prefab, quantity = 3 },
+        { hash = trader.GasBitFlag.Fuel, type = trader.ItemType.GasBitFlag, quantity = 600 },
+        { hash = trader.GasBitFlag.Hydrogen, type = trader.ItemType.GasBitFlag, quantity = 450, isSubitem = true },
+        { hash = trader.GasBitFlag.PollutedWater, type = trader.ItemType.GasBitFlag, quantity = 150 },
+        { hash = trader.GasBitFlag.Steam, type = trader.ItemType.GasBitFlag, quantity = 18000 },
+        { hash = trader.GasBitFlag.Water, type = trader.ItemType.GasBitFlag, quantity = 100000 },
+        { hash = trader.GasBitFlag.LiquidOxygen, type = trader.ItemType.GasBitFlag, quantity = 950 },
+        { hash = 131072, type = trader.ItemType.GasBitFlag, quantity = 50 },
     },
 }
+
+-- Convert ordered item arrays to a compact JSON payload.
+function trader.serializeItems(data)
+    local payload = {
+        sl = data.slot,
+        id = data.traderId,
+        sell = {},
+        buy = {},
+    }
+    local function append(target, source)
+        for _, item in ipairs(source or {}) do
+            target[#target + 1] = {
+                h = item.hash,
+                t = item.type,
+                q = item.quantity,
+                s = item.isSubitem == true and 1 or nil,
+            }
+        end
+    end
+    append(payload.sell, data.sell)
+    append(payload.buy, data.buy)
+    local ok, raw = pcall(util.json.encode, payload)
+    if not ok then return nil end
+    return raw
+end
+
+-- Restore ordered item arrays from a network payload.
+function trader.deserializeItems(raw)
+    if type(raw) ~= "string" then return nil end
+    local ok, payload = pcall(util.json.decode, raw)
+    if not ok or type(payload) ~= "table" then return nil end
+    local result = {
+        slot = payload.sl,
+        traderId = payload.id,
+        sell = {},
+        buy = {},
+    }
+    local function restore(target, source)
+        for _, item in ipairs(source or {}) do
+            if item.h ~= nil and item.t ~= nil and item.q ~= nil then
+                target[#target + 1] = {
+                    hash = item.h,
+                    type = item.t,
+                    quantity = item.q,
+                    isSubitem = item.s == 1,
+                }
+            end
+        end
+    end
+    restore(result.sell, payload.sell)
+    restore(result.buy, payload.buy)
+    return result
+end
 
 signals.TraderType = {
     Unknown             = signals.INVALID,

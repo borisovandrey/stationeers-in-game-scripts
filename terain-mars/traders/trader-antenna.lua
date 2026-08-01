@@ -1,11 +1,33 @@
 local LT = ic.enums.LogicType
 local signals = require("signals")
 local dishes = require("dishes")
+local trader = require("trader")
 
 local READ_ATTEMPTS_ANTENNA_LIMIT = 12
 local SEARCH_STEP = 8
 local SEARCH_STEP_MIDPOINT = 32
 local OPTIMIZATION_RESOLUTION = 2
+local TRADER_MEMORY_SIZE = 32
+local DATA_WRITE_INDEX = 1
+local DATA_WRITE_COUNT = TRADER_MEMORY_SIZE - DATA_WRITE_INDEX
+
+local TraderInstruction = {
+    WriteTraderBuyData = 5,
+    WriteTraderSellData = 6,
+    TraderBuyThingData = 7,
+    TraderBuyThingChildData = 8,
+    TraderBuyGasData = 9,
+    TraderSellThingData = 10,
+    TraderSellGasData = 11,
+    TraderSellThingChildData = 12,
+}
+
+local DataRequestPhase = {
+    RequestBuy = 1,
+    WaitResponsBuy = 2,
+    RequestSell = 3,
+    WaitResponseSell = 4,
+}
 -- Scale diagonal directions to the same radius as cardinal directions.
 local DIAGONAL_STEP_SCALE = 1 / math.sqrt(2)
 
@@ -36,6 +58,13 @@ local AntennaState = {
     GradientSearch = 4,
     Error = 5,
     NoSignal = 6,
+    RequestData = 7,
+}
+
+local AntennaMode = {
+    Inactive = 1,
+    Optimize = 2,
+    FetchData = 3,
 }
 
 local AntennaStateNames = {
@@ -45,6 +74,7 @@ local AntennaStateNames = {
     [AntennaState.Communication] = "Communication",
     [AntennaState.Error] = "Error",
     [AntennaState.NoSignal] = "NoSignal",
+    [AntennaState.RequestData] = "RequestData",
 }
 
 local SearchPattern = {
@@ -89,6 +119,7 @@ local Antenna = {
         [AntennaState.Communication] = { enter = nil, exit = nil, next = nil },
         [AntennaState.Error] = { enter = nil, exit = nil, next = nil },
         [AntennaState.NoSignal] = { enter = nil, exit = nil, next = nil },
+        [AntennaState.RequestData] = { enter = nil, exit = nil, next = nil },
     },
 }
 Antenna.__index = Antenna
@@ -97,6 +128,7 @@ function Antenna.new(slot, dishName)
     local self = setmetatable({
         slot = slot,
         currentState = AntennaState.Idle,
+        mode = AntennaMode.Inactive,
         signalId = signals.INVALID,
         dish = dishes.Dish.new(dishName),
         searchArea = {
@@ -116,6 +148,11 @@ function Antenna.new(slot, dishName)
         readAttempts = 0,
         readAttemptsLimit = READ_ATTEMPTS_ANTENNA_LIMIT,
         optimizationResolution = OPTIMIZATION_RESOLUTION,
+        RequestParameters = {
+            dataRequestPhase = DataRequestPhase.RequestBuy,
+            response = nil,
+            onDataRequested = nil,
+        },
     }, Antenna)
     self.StateMachine[self.currentState].enter(self)
     return self
@@ -187,6 +224,10 @@ function Antenna:changeSlot(slot)
     if newState and newState.enter then newState.enter(self) end
 end
 
+function Antenna:setMode(mode)
+    self.mode = mode
+end
+
 function Antenna:setOptimizationResolution(resolution)
     self.optimizationResolution = resolution
 end
@@ -249,7 +290,11 @@ Antenna.StateMachine[AntennaState.Idle].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.Idle].next = function(self)
-    if self.slot ~= signals.INVALID then
+    if self.mode == AntennaMode.FetchData then
+        if SignalList:getBySlot(self.slot) ~= nil then return AntennaState.RequestData end
+        return AntennaState.Idle
+    end
+    if self.mode == AntennaMode.Optimize and self.slot ~= signals.INVALID then
         if self:initializeRingSearch() then return AntennaState.RingSearch end
         print("Can't initialize ring search")
         return AntennaState.NoSignal
@@ -296,6 +341,7 @@ Antenna.StateMachine[AntennaState.RingSearch].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.RingSearch].next = function(self)
+    if self.mode ~= AntennaMode.Optimize then return AntennaState.Idle end
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if self.signalId == signals.INVALID then return AntennaState.NoSignal end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
@@ -364,6 +410,7 @@ Antenna.StateMachine[AntennaState.GradientSearch].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.GradientSearch].next = function(self)
+    if self.mode ~= AntennaMode.Optimize then return AntennaState.Idle end
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if self.signalId == signals.INVALID then return AntennaState.NoSignal end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
@@ -419,6 +466,7 @@ Antenna.StateMachine[AntennaState.NoSignal].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.NoSignal].next = function(self)
+    if self.mode ~= AntennaMode.Optimize then return AntennaState.Idle end
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if SignalList:getBySlot(self.slot) ~= nil then
         if self:initializeRingSearch() then return AntennaState.RingSearch end
@@ -435,6 +483,7 @@ Antenna.StateMachine[AntennaState.Error].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.Error].next = function(self)
+    if self.mode ~= AntennaMode.Optimize then return AntennaState.Idle end
     if self.slot == signals.INVALID then return AntennaState.Idle end
     local data = self:getCurrentSignalData()
     if data == nil then return AntennaState.NoSignal end
@@ -455,6 +504,7 @@ Antenna.StateMachine[AntennaState.Communication].exit = function(self)
 end
 
 Antenna.StateMachine[AntennaState.Communication].next = function(self)
+    if self.mode ~= AntennaMode.Optimize then return AntennaState.Idle end
     if self.slot == signals.INVALID then return AntennaState.Idle end
     if self:getCurrentSignalData() == nil then return AntennaState.NoSignal end
     self:readDishData()
@@ -464,6 +514,144 @@ Antenna.StateMachine[AntennaState.Communication].next = function(self)
         return AntennaState.NoSignal
     end
     return AntennaState.Communication
+end
+
+local function makeWriteInstruction(opcode, writeIndex, writeCount)
+    return bit_or(opcode, bit_or(bit_sll(writeIndex, 8), bit_sll(writeCount, 16)))
+end
+
+function Antenna:writeDataRequest(opcode)
+    if self.dish.device == nil then return false end
+    mem_clear_id(self.dish.device)
+    mem_put_id(self.dish.device, 0, makeWriteInstruction(opcode, DATA_WRITE_INDEX, DATA_WRITE_COUNT))
+    return true
+end
+
+function Antenna:readTraderItems(result, readBuyResponse)
+    if self.dish.device == nil then return false end
+    local received = false
+
+    for address = DATA_WRITE_INDEX, TRADER_MEMORY_SIZE - 1 do
+        local value = mem_get_id(self.dish.device, address)
+        if value ~= nil then
+            local opcode = bit_ext(value, 0, 8)
+            local quantity = bit_ext(value, 8, 8)
+            local itemHash = bit_sra(value, 16)
+            local target = nil
+            local itemType = nil
+            local isSubitem = false
+
+            if opcode == TraderInstruction.TraderBuyThingData then
+                target = result.buy
+                itemType = trader.ItemType.Prefab
+            elseif opcode == TraderInstruction.TraderBuyThingChildData then
+                target = result.buy
+                itemType = trader.ItemType.Prefab
+                isSubitem = true
+            elseif opcode == TraderInstruction.TraderBuyGasData then
+                target = result.buy
+                itemType = trader.ItemType.GasBitFlag
+            elseif opcode == TraderInstruction.TraderSellThingData then
+                target = result.sell
+                itemType = trader.ItemType.Prefab
+            elseif opcode == TraderInstruction.TraderSellThingChildData then
+                target = result.sell
+                itemType = trader.ItemType.Prefab
+                isSubitem = true
+            elseif opcode == TraderInstruction.TraderSellGasData then
+                target = result.sell
+                itemType = trader.ItemType.GasBitFlag
+            end
+
+            local expectedTarget = readBuyResponse and result.buy or result.sell
+            if target == expectedTarget then
+                target[#target + 1] = {
+                    hash = itemHash,
+                    type = itemType,
+                    quantity = quantity,
+                    isSubitem = isSubitem,
+                }
+                received = true
+            end
+        end
+    end
+    return received
+end
+
+function Antenna:publishTraderItems(items)
+    local raw = trader.serializeItems(items)
+    if raw == nil then
+        print("Trader items serialization failed")
+        return false
+    end
+    ic.net.publish(trader.TOPIC, { j = raw }, {
+        retain = true,
+        ttl = 10,
+        include_self = false,
+    })
+    return true
+end
+
+Antenna.StateMachine[AntennaState.RequestData].enter = function(self)
+    local data = SignalList:getBySlot(self.slot)
+    if data == nil then return end
+    self.signalId = data.signal.Id
+    self.centralPoint.angularDistance = data.signal.AngularDistance
+    self.centralPoint.wattsReachingContact = data.signal.WattsReachingContact
+    self.centralPoint.h = data.bestHorizontal
+    self.centralPoint.v = data.bestVertical
+    self.RequestParameters.dataRequestPhase = DataRequestPhase.RequestBuy
+    self.RequestParameters.response = {
+        slot = self.slot,
+        traderId = self.signalId,
+        sell = {},
+        buy = {},
+    }
+    self.dish:setContactFilter(self.signalId)
+    self:returnToCenter()
+end
+
+Antenna.StateMachine[AntennaState.RequestData].exit = function(self)
+    self.dish:clearContactFilter()
+    self.RequestParameters.dataRequestPhase = DataRequestPhase.RequestBuy
+    self.RequestParameters.response = nil
+end
+
+Antenna.StateMachine[AntennaState.RequestData].next = function(self)
+    if self.mode ~= AntennaMode.FetchData then return AntennaState.Idle end
+    if self.slot == signals.INVALID then return AntennaState.Idle end
+    if self:getCurrentSignalData() == nil then return AntennaState.Idle end
+    if not self.dish:isIdle() then return AntennaState.RequestData end
+
+    local request = self.RequestParameters
+    if request.dataRequestPhase == DataRequestPhase.RequestBuy then
+        self:writeDataRequest(TraderInstruction.WriteTraderBuyData)
+        request.dataRequestPhase = DataRequestPhase.WaitResponsBuy
+        return AntennaState.RequestData
+    end
+
+    if request.dataRequestPhase == DataRequestPhase.WaitResponsBuy then
+        if not self:readTraderItems(request.response, true) then return AntennaState.RequestData end
+        request.dataRequestPhase = DataRequestPhase.RequestSell
+        return AntennaState.RequestData
+    end
+
+    if request.dataRequestPhase == DataRequestPhase.RequestSell then
+        self:writeDataRequest(TraderInstruction.WriteTraderSellData)
+        request.dataRequestPhase = DataRequestPhase.WaitResponseSell
+        return AntennaState.RequestData
+    end
+
+    if request.dataRequestPhase == DataRequestPhase.WaitResponseSell then
+        if not self:readTraderItems(request.response, false) then return AntennaState.RequestData end
+        self:publishTraderItems(request.response)
+        if self.dish.device ~= nil then mem_clear_id(self.dish.device) end
+        self.mode = AntennaMode.Inactive
+        if request.onDataRequested ~= nil then request.onDataRequested(self, request.response) end
+        return AntennaState.Idle
+    end
+
+    return AntennaState.RequestData
 end
 
 function Antenna:defineNewState()
@@ -492,6 +680,8 @@ local AntennaPanel = {
     name = "",
     antenna = nil,
     on_sw = nil,
+    search_sw = nil,
+    request_sw = nil,
     slot_dial = nil,
     res_dial = nil,
     attmpt_dial = nil,
@@ -501,17 +691,35 @@ local AntennaPanel = {
     stateColor = signals.INVALID,
     idleColor = signals.INVALID,
     on = false,
+    search = false,
+    request = false,
     slot = 0,
     res = OPTIMIZATION_RESOLUTION,
     attmpt = READ_ATTEMPTS_ANTENNA_LIMIT,
 }
 AntennaPanel.__index = AntennaPanel
 
+function AntennaPanel:updatePowerSwitchColor()
+    if self.on_sw == nil then return end
+    ic.write_id(self.on_sw, LT.Color, self.on and Color.Green or Color.Red)
+end
+
+function AntennaPanel:updateModeSwitchColors()
+    if self.search_sw ~= nil then
+        ic.write_id(self.search_sw, LT.Color, self.search and Color.Orange or Color.Yellow)
+    end
+    if self.request_sw ~= nil then
+        ic.write_id(self.request_sw, LT.Color, self.request and Color.Purple or Color.Blue)
+    end
+end
+
 function AntennaPanel.new(antenna, name)
     local self = setmetatable({
         name = name,
         antenna = antenna,
         on_sw = ic.find("tr-" .. name .. "-on-sw"),
+        search_sw = ic.find("tr-" .. name .. "-search-sw"),
+        request_sw = ic.find("tr-" .. name .. "-request-sw"),
         slot_dial = ic.find("tr-" .. name .. "-slot-dial"),
         res_dial = ic.find("tr-" .. name .. "-res-dial"),
         attmpt_dial = ic.find("tr-" .. name .. "-attmpt-dial"),
@@ -521,10 +729,40 @@ function AntennaPanel.new(antenna, name)
         stateColor = signals.INVALID,
         idleColor = signals.INVALID,
         on = antenna.dish:isOn(),
+        search = false,
+        request = false,
         slot = antenna.slot,
         res = antenna.optimizationResolution,
         attmpt = antenna.readAttemptsLimit,
     }, AntennaPanel)
+
+    if self.search_sw ~= nil then
+        self.search = ic.read_id(self.search_sw, LT.On) == 1
+    end
+    if self.request_sw ~= nil then
+        self.request = ic.read_id(self.request_sw, LT.On) == 1
+    end
+    if self.search and self.request then
+        ic.write_id(self.search_sw, LT.On, 0)
+        self.search = false
+    end
+    if self.request then
+        self.antenna:setMode(AntennaMode.FetchData)
+    elseif self.search then
+        self.antenna:setMode(AntennaMode.Optimize)
+    end
+
+    antenna.RequestParameters.onDataRequested = function()
+        if self.request_sw ~= nil then
+            ic.write_id(self.request_sw, LT.On, 0)
+        end
+        self.request = false
+        self.antenna:setMode(AntennaMode.Inactive)
+        self:updateModeSwitchColors()
+    end
+
+    self:updatePowerSwitchColor()
+    self:updateModeSwitchColors()
 
     if self.attmpt_dial ~= nil then
         local dial = ic.read_id(self.attmpt_dial, LT.Setting)
@@ -562,6 +800,8 @@ function AntennaPanel:updateUi()
                 color = Color.Red
             elseif self.antenna.currentState == AntennaState.NoSignal then
                 color = Color.Yellow
+            elseif self.antenna.currentState == AntennaState.RequestData then
+                color = Color.Purple
             elseif self.antenna.currentState == AntennaState.Idle then
                 color = Color.Blue
             end
@@ -592,7 +832,44 @@ function AntennaPanel:run()
         if on ~= self.on then
             self.antenna.dish:setOn(on)
             self.on = on
+            self:updatePowerSwitchColor()
         end
+    end
+
+
+    local search = self.search_sw ~= nil and ic.read_id(self.search_sw, LT.On) == 1 or false
+    local request = self.request_sw ~= nil and ic.read_id(self.request_sw, LT.On) == 1 or false
+    local searchChanged = search ~= self.search
+    local requestChanged = request ~= self.request
+
+    -- If both switches are changed on together, RequestData wins deterministically.
+    if requestChanged and request then
+        if self.search_sw ~= nil and search then
+            ic.write_id(self.search_sw, LT.On, 0)
+        end
+        self.search = false
+        self.request = true
+        self.antenna:setMode(AntennaMode.FetchData)
+    elseif searchChanged and search then
+        if self.request_sw ~= nil and request then
+            ic.write_id(self.request_sw, LT.On, 0)
+        end
+        self.search = true
+        self.request = false
+        self.antenna:setMode(AntennaMode.Optimize)
+    elseif searchChanged or requestChanged then
+        self.search = search
+        self.request = request
+        if self.request then
+            self.antenna:setMode(AntennaMode.FetchData)
+        elseif self.search then
+            self.antenna:setMode(AntennaMode.Optimize)
+        else
+            self.antenna:setMode(AntennaMode.Inactive)
+        end
+    end
+    if searchChanged or requestChanged then
+        self:updateModeSwitchColors()
     end
 
     if self.slot_dial ~= nil then
