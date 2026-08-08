@@ -161,7 +161,7 @@ end
 function Antenna:getStep()
     if self.centralPoint.angularDistance == signals.INVALID then return SEARCH_STEP_MIDPOINT end
     if self.currentState == AntennaState.GradientSearch then
-        return signals.clamp(self.centralPoint.angularDistance, 1, SEARCH_STEP_MIDPOINT)
+        return signals.clamp(self.centralPoint.angularDistance / 2, 1, SEARCH_STEP_MIDPOINT)
     end
     return signals.clamp(self.centralPoint.angularDistance, 1, SEARCH_STEP)
 end
@@ -178,7 +178,7 @@ function Antenna:setSearchPosition(patternIndex)
     self.searchArea.positionCandidate.h = hor
     self.searchArea.positionCandidate.v = vert
     print(
-        "-> base:" .. string.format("%.2f", baseStep) ..
+        "Position base:" .. string.format("%.2f", baseStep) ..
         " move:" .. string.format("%.2f", moveStep) ..
         " h:" .. string.format("%.2f", hor) ..
         " v:" .. string.format("%.2f", vert) ..
@@ -706,10 +706,10 @@ end
 
 function AntennaPanel:updateModeSwitchColors()
     if self.search_sw ~= nil then
-        ic.write_id(self.search_sw, LT.Color, self.search and Color.Orange or Color.Yellow)
+        ic.write_id(self.search_sw, LT.Color, self.search and Color.Orange or Color.Gray)
     end
     if self.request_sw ~= nil then
-        ic.write_id(self.request_sw, LT.Color, self.request and Color.Purple or Color.Blue)
+        ic.write_id(self.request_sw, LT.Color, self.request and Color.Blue or Color.Gray)
     end
 end
 
