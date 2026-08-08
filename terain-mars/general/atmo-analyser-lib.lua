@@ -8,7 +8,6 @@ local DEFAULT_WIDTH = 480
 local DEFAULT_HEIGHT = 272
 local PADDING = 8
 local HEADER_HEIGHT = 30
-local SUMMARY_HEIGHT = 54
 local LIST_HEADER_HEIGHT = 16
 local ROW_HEIGHT = 20
 local ROW_GAP = 2
@@ -112,17 +111,39 @@ function atmos.init()
     local width = size.w or DEFAULT_WIDTH
     local height = size.h or DEFAULT_HEIGHT
     local content_width = width - PADDING * 2
+    local screen_scale = math.min(width / DEFAULT_WIDTH, height / DEFAULT_HEIGHT)
+    local gas_scale = 3 * screen_scale
+    local summary_row_height = math.max(1, math.floor(18 * gas_scale))
+    local summary_row_gap = 0
     return {
         ui = ui,
         width = width,
         height = height,
         content_width = content_width,
-        label_width = math.floor(content_width * 0.22),
+        label_width = math.floor(content_width * 0.45),
+        name_width = math.floor(content_width * 0.30),
+        ratio_width = math.floor(content_width * 0.24),
+        title_name_width = math.floor(content_width * 0.36),
+        title_name_font = 12,
+        gas_header_height = math.max(1, math.floor(LIST_HEADER_HEIGHT * gas_scale)),
+        gas_row_height = math.max(1, math.floor(ROW_HEIGHT * gas_scale)),
+        gas_row_gap = math.max(1, math.floor(ROW_GAP * gas_scale)),
+        gas_icon_size = math.max(1, math.floor(14 * gas_scale)),
+        gas_icon_width = math.max(1, math.floor(21 * gas_scale)),
+        gas_header_font = math.max(1, math.floor(10 * gas_scale)),
+        gas_row_font = math.max(1, math.floor(11 * gas_scale)),
+        gas_padding = math.max(0, math.floor(3 * gas_scale)),
+        gas_gap = math.max(1, math.floor(4 * gas_scale)),
+        summary_height = math.max(1, summary_row_height * 3 + summary_row_gap * 2),
+        summary_row_height = summary_row_height,
+        summary_row_gap = summary_row_gap,
+        summary_label_font = math.max(1, math.floor(10 * gas_scale)),
+        summary_value_font = math.max(1, math.floor(12 * gas_scale)),
     }
 end
 
 -- Render readings from an analyser, pipe, tank, or other atmospheric device.
-function atmos.render(device, sizes)
+function atmos.render(device, sizes, name)
     sizes = sizes or atmos.init()
     local ui = sizes.ui
     ss.ui.activate(SURFACE_NAME)
@@ -133,55 +154,53 @@ function atmos.render(device, sizes)
     local has_atmosphere = total_moles ~= nil and total_moles > 0
     local rows = collect_gases(device, has_atmosphere and total_moles or 0)
     local summary = {
-        { "PRESSURE", pressure and pressure > 0 and fmt_prefix(pressure, "Pa") or "N/A" },
-        { "TEMPERATURE", has_atmosphere and temperature and fmt_sig(temperature - 273.15, 3) .. " C" or "N/A" },
-        { "TOTAL MOLES", has_atmosphere and fmt_prefix(total_moles, "mol") or "N/A" },
+        { "Pressure:", pressure and pressure > 0 and fmt_prefix(pressure, "Pa") or "N/A", "#93C5FD" },
+        { "Temperature:", has_atmosphere and temperature and fmt_sig(temperature - 273.15, 3) .. " °C" or "N/A", "#FCA5A5" },
+        { "Moles:", has_atmosphere and fmt_prefix(total_moles, "mol") or "N/A", "#A7F3D0" },
     }
-    local name_width = math.floor(sizes.content_width * 0.30)
-    local ratio_width = math.floor(sizes.content_width * 0.24)
-    local header_style = { color = COLORS.muted, font_size = 10, align = "left" }
+    local header_style = { color = COLORS.muted, font_size = sizes.gas_header_font, align = "left" }
     local content_children = {
         {
             id = "atmos-gases-header",
             type = "panel",
             layout = "flex",
             direction = "row",
-            rect = { h = LIST_HEADER_HEIGHT },
+            rect = { h = sizes.gas_header_height },
             children = {
-                { id = "atmos-header-icon", type = "panel", rect = { w = 21 } },
-                { id = "atmos-header-gas", type = "label", rect = { w = name_width }, props = { text = "GAS" }, style = header_style },
-                { id = "atmos-header-ratio", type = "label", rect = { w = ratio_width }, props = { text = "RATIO" }, style = header_style },
+                { id = "atmos-header-icon", type = "panel", rect = { w = sizes.gas_icon_width } },
+                { id = "atmos-header-gas", type = "label", rect = { w = sizes.name_width }, props = { text = "GAS" }, style = header_style },
+                { id = "atmos-header-ratio", type = "label", rect = { w = sizes.ratio_width }, props = { text = "RATIO" }, style = header_style },
                 { id = "atmos-header-moles", type = "label", flex = 1, props = { text = "MOLES" }, style = header_style },
             },
         },
     }
     if #rows == 0 then
         content_children[#content_children + 1] = {
-            id = "atmos-empty", type = "label", rect = { h = ROW_HEIGHT },
-            props = { text = "NO GAS DATA" }, style = { color = COLORS.empty, font_size = 11, align = "left" },
+            id = "atmos-empty", type = "label", rect = { h = sizes.gas_row_height },
+            props = { text = "NO GAS DATA" }, style = { color = COLORS.empty, font_size = sizes.gas_row_font, align = "left" },
         }
     end
     for i, gas in ipairs(rows) do
-        local row_style = { color = COLORS.text, font_size = 11, align = "left" }
+        local row_style = { color = COLORS.text, font_size = sizes.gas_row_font, align = "left" }
         content_children[#content_children + 1] = {
             id = "atmos-gas-row-" .. i,
             type = "panel",
             layout = "flex",
             direction = "row",
-            rect = { h = ROW_HEIGHT },
-            gap = 4,
-            padding = { horizontal = 3 },
+            rect = { h = sizes.gas_row_height },
+            gap = sizes.gas_gap,
+            padding = { horizontal = sizes.gas_padding },
             style = { bg = i % 2 == 0 and COLORS.row_alt or COLORS.row },
             children = {
-                { id = "atmos-gas-icon-" .. i, type = "icon", rect = { w = 14 }, props = { name = ss.ui.icons.gas[gas.icon] or gas.icon, icon_type = "gas" }, style = { tint = gas.color } },
-                { id = "atmos-gas-name-" .. i, type = "label", rect = { w = name_width }, props = { text = gas.label }, style = { color = gas.color, font_size = 11, align = "left" } },
-                { id = "atmos-gas-ratio-" .. i, type = "label", rect = { w = ratio_width }, props = { text = fmt_sig(gas.ratio * 100, 3) .. "%" }, style = row_style },
+                { id = "atmos-gas-icon-" .. i, type = "icon", rect = { w = sizes.gas_icon_size, h = sizes.gas_icon_size }, props = { name = ss.ui.icons.gas[gas.icon] or gas.icon, icon_type = "gas" }, style = { tint = gas.color } },
+                { id = "atmos-gas-name-" .. i, type = "label", rect = { w = sizes.name_width }, props = { text = gas.label }, style = { color = gas.color, font_size = sizes.gas_row_font, align = "left" } },
+                { id = "atmos-gas-ratio-" .. i, type = "label", rect = { w = sizes.ratio_width }, props = { text = fmt_sig(gas.ratio * 100, 3) .. "%" }, style = row_style },
                 { id = "atmos-gas-moles-" .. i, type = "label", flex = 1, props = { text = fmt_prefix(gas.moles, "mol") }, style = row_style },
             },
         }
     end
     local visible_rows = math.max(1, #rows)
-    local content_height = LIST_HEADER_HEIGHT + visible_rows * (ROW_HEIGHT + ROW_GAP)
+    local content_height = sizes.gas_header_height + visible_rows * (sizes.gas_row_height + sizes.gas_row_gap)
 
     ui:clear()
     ui:element({
@@ -196,21 +215,21 @@ function atmos.render(device, sizes)
             type = "panel",
             layout = "flex",
             direction = "row",
-            rect = { h = 18 },
+            rect = { h = sizes.summary_row_height },
             children = {
                 {
                     id = "atmos-summary-label-" .. i,
                     type = "label",
                     rect = { w = sizes.label_width },
                     props = { text = entry[1] },
-                    style = { color = COLORS.muted, font_size = 10, align = "left" },
+                    style = { color = COLORS.muted, font_size = sizes.summary_label_font, align = "right" },
                 },
                 {
                     id = "atmos-summary-value-" .. i,
                     type = "label",
                     flex = 1,
                     props = { text = entry[2] },
-                    style = { color = COLORS.text, font_size = 12, align = "left" },
+                    style = { color = entry[3], font_size = sizes.summary_value_font, align = "left" },
                 },
             },
         }
@@ -236,6 +255,13 @@ function atmos.render(device, sizes)
                         props = { text = "ATMOS ANALYSER" },
                         style = { color = COLORS.text, font_size = 16, align = "left" },
                     },
+                    {
+                        id = "atmos-name",
+                        type = "label",
+                        rect = { w = sizes.title_name_width },
+                        props = { text = name or "" },
+                        style = { color = COLORS.muted, font_size = sizes.title_name_font, align = "right" },
+                    },
                 },
             },
             {
@@ -243,7 +269,8 @@ function atmos.render(device, sizes)
                 type = "panel",
                 layout = "flex",
                 direction = "column",
-                rect = { h = SUMMARY_HEIGHT },
+                rect = { h = sizes.summary_height },
+                gap = sizes.summary_row_gap,
                 children = summary_rows,
             },
             {
@@ -266,7 +293,7 @@ function atmos.render(device, sizes)
                                 layout = "flex",
                                 direction = "column",
                                 rect = { w = sizes.content_width, h = content_height },
-                                gap = ROW_GAP,
+                                gap = sizes.gas_row_gap,
                                 children = content_children,
                             },
                         },
