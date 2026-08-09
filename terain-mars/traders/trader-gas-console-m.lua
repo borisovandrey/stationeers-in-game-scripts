@@ -1,4 +1,6 @@
 local LT = ic.enums.LogicType
+local EPSILON = 1e-6
+
 
 local Color = {
     Blue   = 0,
@@ -31,6 +33,18 @@ local PumpMode = {
     Output = 0,
     Unknown = 0xFFFF
 }
+
+local function isZero(value)
+    return value ~= nil and math.abs(value) < EPSILON
+end
+
+local function isOne(value)
+    return value ~= nil and math.abs(value - 1) < EPSILON
+end
+
+local function isPositive(value)
+    return value ~= nil and value > EPSILON
+end
 
 local function setPower(self, on)
     if self.on ~= on then
@@ -101,9 +115,43 @@ function Model:init()
     self:powerDown()
 end
 
+function Model:switchGasInputPump(on)
+    self.landing.gas_input:setPower(on)
+end
+
+function Model:switchGasHeater(on)
+    self.tubes.heater:setPower(on)
+end
+
+function Model:switchGasTypeTubePump(on, gas_type)
+    local pump = self.tubes.pumps[gas_type]
+    if pump then
+        pump:setPump(on, PumpMode.Input, on and 30 or 0)
+    end
+end
+
+function Model.tubes:getLitres()
+    return ic.read_id(self.sensors.liquid, LT.VolumeOfLiquid)
+end
+
+function Model.tubes:isClear()
+    local moles = ic.read_id(self.sensors.gas, LT.TotalMoles)
+    local litres = ic.read_id(self.sensors.liquid, LT.VolumeOfLiquid)
+    return isZero(moles) and isZero(litres)
+end
+
+function Model.landing:isClear()
+    local moles = ic.read_id(self.pad.id, LT.TotalMoles)
+    return isZero(moles)
+end
+
+function Model:isClear()
+    return self.tubes:isClear() and self.landing:isClear()
+end
+
 function Model:clearGas()
     local moles = ic.read_id(self.tubes.sensors.gas, LT.TotalMoles)
-    if moles == 0 then
+    if isZero(moles) then
         for _, pump in pairs(self.tubes.pumps) do
             pump:setPump(false, PumpMode.Input, 0)
         end
@@ -111,12 +159,12 @@ function Model:clearGas()
     else
         for gas, pump in pairs(self.tubes.pumps) do
             local ratio = ic.read_id(self.tubes.sensors.gas, gas)
-            if ratio == 1 then
-                pump:setPump(false, PumpMode.Output, 100)
+            if isOne(ratio) then
+                pump:setPump(true, PumpMode.Output, 100)
                 break
             end
-            if ratio > 0 then
-                self.tubes.clear:setPump(false, PumpMode.Output, 100)
+            if isPositive(ratio) then
+                self.tubes.clear:setPump(true, PumpMode.Output, 100)
                 break
             end
         end
@@ -124,6 +172,75 @@ function Model:clearGas()
 end
 
 function Model:clearWater()
+    local litres = ic.read_id(self.tubes.sensors.liquid, LT.VolumeOfLiquid)
+    local pump = self.tubes.pumps[LT.RatioWater]
+    if isZero(litres) then
+        pump:setPump(false, PumpMode.Input, 0)
+    else
+        local ratio = (ic.read_id(self.tubes.sensors.liquid, LT.RatioWater) or 0) +
+                      (ic.read_id(self.tubes.sensors.liquid, LT.RatioSteam) or 0)
+
+        if isOne(ratio) then
+            pump:setPump(true, PumpMode.Output, 100)
+        else
+            pump:setPump(false, PumpMode.Input, 0)
+        end
+    end
+end
+
+function Model:clearLandingGas()
+    local landing_moles = ic.read_id(self.landing.pad.id, LT.TotalMoles)
+    if isZero(landing_moles) then
+        self.landing.gas_output:setPower(false)
+        return
+    end
+    local tube_moles = ic.read_id(self.tubes.sensors.gas, LT.TotalMoles)
+    if isZero(tube_moles) then
+        self.landing.gas_output:setPower(true)
+    else
+        for gas, _ in pairs(self.tubes.pumps) do
+            local landing_ratio = ic.read_id(self.landing.pad.id, gas)
+            local tube_ratio = ic.read_id(self.tubes.sensors.gas, gas)
+            if isOne(landing_ratio) and isOne(tube_ratio) then
+                self.landing.gas_output:setPower(true)
+                return;
+            end
+        end
+        self.landing.gas_output:setPower(false)
+    end
+end
+
+function Model:clearLandingWater()
+    local landing_ratio = (ic.read_id(self.landing.pad.id, LT.RatioWater) or 0) +
+                          (ic.read_id(self.landing.pad.id, LT.RatioSteam) or 0)
+    if isZero(landing_ratio) then
+        self.landing.liquid_output:setPower(false)
+        return
+    end
+
+    local tube_litres = ic.read_id(self.tubes.sensors.liquid, LT.VolumeOfLiquid)
+    if isZero(tube_litres) then
+        self.landing.liquid_output:setPower(true)
+        return
+    end
+
+    local tube_ratio = (ic.read_id(self.tubes.sensors.liquid, LT.RatioWater) or 0) +
+                       (ic.read_id(self.tubes.sensors.liquid, LT.RatioSteam) or 0)
+    if isOne(landing_ratio) and isOne(tube_ratio) then
+        self.landing.liquid_output:setPower(true)
+        return
+    end
+
+    self.landing.liquid_output:setPower(false)
+end
+
+function Model:isTheOnlyGasInTube(gas_type)
+    local moles = ic.read_id(self.tubes.sensors.gas, LT.TotalMoles)
+    local temperature = util.temp(ic.read_id(self.tubes.sensors.gas, LT.Temperature) or 0, "K", "C")
+    if isZero(moles) then return true, 0, temperature end
+
+    local ratio = ic.read_id(self.tubes.sensors.gas, gas_type)
+    return isOne(ratio), moles, temperature
 end
 
 local gases = {
@@ -146,6 +263,7 @@ local Console = {
     },
     powered = false,
     clearOn = false,
+    loadOn = false,
     selectedGas = 0,
 }
 
@@ -183,8 +301,18 @@ function Console:checkGasSelector()
     end
 end
 
+function Console:getSelectedGas()
+    self:checkGasSelector()
+    return gases[self.selectedGas].logicType
+end
+
+function Console:getMolesToLoad()
+    return (ic.read_id(self.Controls.numpad, LT.Setting) or 0) * 100
+end
+
 function Console:update()
     self:checkGasSelector()
+    ic.write_id(self.Controls.water_dsp, LT.Setting, Model.tubes:getLitres())
 end
 
 function Console:checkClear()
@@ -202,18 +330,41 @@ function Console:setClear(on)
     end
 end
 
+function Console:checkLoad()
+     local on = ic.read_id(self.Controls.load_sw, LT.On) == 1
+     if on ~= self.loadOn then
+        self.loadOn = on
+        ic.write_id(self.Controls.load_sw, LT.Color, on and Color.Green or Color.Gray)
+     end
+     return on
+end
+
+function Console:setLoad(on)
+    if on ~= self.loadOn then
+        ic.write_id(self.Controls.load_sw, LT.On, on and 1 or 0)
+        ic.write_id(self.Controls.load_sw, LT.Color, on and Color.Green or Color.Gray)
+    end
+end
+
+
 local State = {
     Off = 0,
     Idle = 1,
     Clearing = 2,
+    LoadPepare = 3,
+    LoadFinish = 4
 }
 
 local Controller = {
     ControllerState = State.Off,
+    gas_type = nil,
+    to_load = 0,
     StateMachine = {
         [State.Off] =         { enter = nil, exit = nil, next = nil },
         [State.Idle] =        { enter = nil, exit = nil, next = nil },
         [State.Clearing] =    { enter = nil, exit = nil, next = nil },
+        [State.LoadPepare] =    { enter = nil, exit = nil, next = nil },
+        [State.LoadFinish] =    { enter = nil, exit = nil, next = nil },
     },
     init = {},
     defineNewState = {},
@@ -248,6 +399,10 @@ Controller.StateMachine[State.Idle].next = function(self)
     if Console:checkClear() then
         return State.Clearing
     end
+
+    if Console:checkLoad() then
+        return State.LoadPepare
+    end
     return State.Idle
 end
 -- State Clearing
@@ -264,9 +419,84 @@ Controller.StateMachine[State.Clearing].next = function(self)
     if not Console:getPower() then
         return State.Off
     end
+    if Model:isClear() then
+        Console:setClear(false)
+        return State.Idle
+    end
+    
     Model:clearGas()
-    Model:clearWatter()
+    Model:clearWater()
+    Model:clearLandingGas()
+    Model:clearLandingWater()
     return State.Clearing
+end
+-- State LoadPepare
+Controller.StateMachine[State.LoadPepare].enter = function(self)
+    self.gas_type = Console:getSelectedGas()
+    self.to_load = Console:getMolesToLoad()
+end
+Controller.StateMachine[State.LoadPepare].exit = function(self)
+    Model:switchGasTypeTubePump(false, self.gas_type)
+    Model:switchGasHeater(false)
+end
+Controller.StateMachine[State.LoadPepare].next = function(self)
+    if not Console:getPower() then
+        return State.Off
+    end
+
+    if Console:checkClear() then
+        return State.Clearing
+    end
+
+    if not Console:checkLoad() then
+        return State.Idle
+    end
+
+    local gas_type = self.gas_type
+    local to_load = self.to_load
+    local ok, moles, temperature = Model:isTheOnlyGasInTube(gas_type)
+
+    if not ok then
+        Console:setClear(true)
+        return State.Clearing
+    end
+
+    Model:switchGasTypeTubePump(moles < to_load, gas_type)
+    Model:switchGasHeater(temperature < EPSILON)
+    if moles >= to_load and temperature >= -EPSILON then
+        return State.LoadFinish
+    end
+
+    return State.LoadPepare
+end
+
+Controller.StateMachine[State.LoadFinish].enter = function(self)
+end
+Controller.StateMachine[State.LoadFinish].exit = function(self)
+    Model:switchGasInputPump(false)
+end
+Controller.StateMachine[State.LoadFinish].next = function(self)
+    if not Console:getPower() then
+        return State.Off
+    end
+
+    if Console:checkClear() then
+        return State.Clearing
+    end
+
+    if not Console:checkLoad() then
+        return State.Idle
+    end
+
+    if Model.tubes:isClear() then
+        Model:switchGasInputPump(false)
+        Console:setLoad(false)
+        return State.Idle
+    end
+
+    Model:switchGasInputPump(true)
+
+    return State.LoadFinish
 end
 
 
