@@ -1,5 +1,8 @@
 --@module atmos
--- Shared atmospheric analyser screen.
+-- Shared atmospheric analyser display module.
+-- Reads pressure, temperature, total moles, and gas ratios from an
+-- atmospheric device, then renders a scaled summary and gas composition list
+-- on the active Stationpedia/ui display surface.
 local LT = ic.enums.LogicType
 local atmos = {}
 
