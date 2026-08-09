@@ -4,7 +4,7 @@
 local atmos = require("atmos")
 
 local uiSettings = atmos.init()
-local pad = ic.find("feed-analizer")
+local pad = ic.find("tr-gas-sns")
 
 atmos.render(pad, uiSettings, "FEED")
 
