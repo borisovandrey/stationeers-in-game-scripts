@@ -417,8 +417,8 @@ function Screen:updateItemPanel(side, panel)
         type = "scrollview",
         rect = {
             unit = "px",
-            x = 0,
-            y = 0,
+            x = scrollRect.x,
+            y = scrollRect.y,
             w = scrollRect.w,
             h = scrollRect.h,
         },
