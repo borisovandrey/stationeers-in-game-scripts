@@ -86,8 +86,8 @@ atmos.gases = {
 }
 
 local function calculate_row_min_size(ui, font_size)
-    local row_string_size = ui:measure_text(GAS_LABEL_PLACEHOLDER .. " 00.00 % 00.00 kMol ", 0, font_size)
-    row_string_size.w = row_string_size.w + 1
+    local row_string_size = ui:measure_text(" " .. GAS_LABEL_PLACEHOLDER .. " 000.00 % 0000.0000 kMol XXX", 0, font_size)
+    row_string_size.w = row_string_size.w + row_string_size.h
     return row_string_size
 end
 
@@ -152,7 +152,7 @@ local function generate_summary_rows(state)
                 rect = { h = state.row_height },
                 children = {
                     { 
-                        id = id .. "_hdr", type = "label", flex = 1,
+                        id = id .. "_hdr", type = "label", flex = 2,
                         props = { text = label},
                         style = { font_size = state.font_size, color = COLORS.DARK_TEXT, align = "right"}
                     },
@@ -193,7 +193,7 @@ local function create_ui_page(state)
                     },
                     { 
                         id = "hdr_ttl_2", type = "label", flex = 1,
-                        props = { text = state.name .. " " .. string.format("%.0f", state.screen_size.w) .. "x" .. string.format("%.0f", state.screen_size.h) },
+                        props = { text = state.name },
                         style = { font_size = state.font_size, color = COLORS.DIMENSIONS_TEXT, align = "right"}
                     },
                 }
@@ -405,11 +405,11 @@ function atmos.render(device, settings)
        generate_gas_scroll_list(settings)
        changed = true
     else
-       changed = changed or update_gas_scroll_list(settings, gas_cache)
+       local list_updated = update_gas_scroll_list(settings, gas_cache)
+       changed = changed or list_updated
     end
 
     if changed then settings.ui:commit() end
 end
 
 return atmos
-
